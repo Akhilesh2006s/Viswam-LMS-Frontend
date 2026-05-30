@@ -24,7 +24,7 @@ export const clearAuthData = () => {
   localStorage.removeItem('superAdminUser');
 
   try {
-    sessionStorage.removeItem('aslilearn_nav_initials');
+    sessionStorage.removeItem("viswam_lms_nav_initials");
   } catch {
     /* ignore */
   }

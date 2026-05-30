@@ -11,7 +11,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { API_BASE_URL } from "@/lib/api-config";
-import { VidyaAnalyticsCard } from "@/components/super-admin/VidyaAnalyticsCard";
 import { 
   BellIcon, 
   LogOutIcon, 
@@ -441,76 +440,6 @@ export default function SuperAdminDashboard() {
           </Card>
         </div>
 
-        {/* AI Insights Section */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center">
-              <BrainIcon className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 text-purple-600 mr-2" />
-              <h2 className="text-lg sm:text-xl font-bold text-gray-900">AI Insights & Recommendations</h2>
-              <SparklesIcon className="w-4 h-4 sm:w-5 sm:h-5 text-yellow-500 ml-2" />
-            </div>
-            <div className="flex items-center space-x-2">
-              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-              <span className="text-xs sm:text-sm text-green-600 font-medium">AI Analysis Active</span>
-            </div>
-          </div>
-
-          {/* AI Predictions Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            <Card className="bg-gradient-to-r from-purple-50 to-purple-100 border-purple-200">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs sm:text-sm font-medium text-purple-800">Next Month Revenue (AI Predicted)</p>
-                    <p className="text-xl sm:text-2xl font-bold text-purple-900">₹289,450</p>
-                    <p className="text-xs text-green-600">↗ +18.2% growth</p>
-                  </div>
-                  <TrendingUpIcon className="w-6 h-6 sm:w-7 sm:h-7 lg:w-8 lg:h-8 text-purple-600" />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-gradient-to-r from-blue-50 to-blue-100 border-blue-200">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs sm:text-sm font-medium text-blue-800">Predicted New Students</p>
-                    <p className="text-xl sm:text-2xl font-bold text-blue-900">89</p>
-                    <p className="text-xs text-blue-600">Next 30 days</p>
-                  </div>
-                  <UsersIcon className="w-6 h-6 sm:w-7 sm:h-7 lg:w-8 lg:h-8 text-blue-600" />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-gradient-to-r from-orange-50 to-orange-100 border-orange-200">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs sm:text-sm font-medium text-orange-800">Students at Churn Risk</p>
-                    <p className="text-xl sm:text-2xl font-bold text-orange-900">12</p>
-                    <p className="text-xs text-orange-600">Needs attention</p>
-                  </div>
-                  <AlertTriangleIcon className="w-6 h-6 sm:w-7 sm:h-7 lg:w-8 lg:h-8 text-orange-600" />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-gradient-to-r from-green-50 to-green-100 border-green-200">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs sm:text-sm font-medium text-green-800">AI Engagement Score</p>
-                    <p className="text-xl sm:text-2xl font-bold text-green-900">92%</p>
-                    <p className="text-xs text-green-600">Excellent</p>
-                  </div>
-                  <ZapIcon className="w-6 h-6 sm:w-7 sm:h-7 lg:w-8 lg:h-8 text-green-600" />
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-        <VidyaAnalyticsCard />
       </div>
     );
   };
@@ -931,7 +860,7 @@ export default function SuperAdminDashboard() {
           <CardContent className="space-y-4">
             <div className="flex justify-between items-center">
               <span>Platform Name</span>
-              <span className="font-medium">AsliLearn</span>
+              <span className="font-medium">VISWAM LMS</span>
             </div>
             <div className="flex justify-between items-center">
               <span>Registration Status</span>
@@ -1241,7 +1170,7 @@ export default function SuperAdminDashboard() {
                         <SelectValue placeholder="Select board" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="ASLI_EXCLUSIVE_SCHOOLS">Asli Exclusive Schools</SelectItem>
+                        <SelectItem value="ASLI_EXCLUSIVE_SCHOOLS">VISWAM Exclusive Schools</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -1267,7 +1196,6 @@ export default function SuperAdminDashboard() {
                         'Exam Management',
                         'Learning Paths',
                         'School Calendar',
-                        'Vidya AI',
                         'Edu OTT',
                       ].map((permission) => (
                         <div key={permission} className="flex items-center space-x-2">

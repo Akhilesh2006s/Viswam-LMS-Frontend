@@ -55,10 +55,6 @@ export interface TrackProgressRemark {
 interface TeacherTrackProgressPanelsProps {
   students: TrackProgressStudent[];
   remarks: TrackProgressRemark[];
-  aiInsights: string;
-  isLoadingAi: boolean;
-  onRefreshAi: () => void;
-  onFetchStudentInsights: (student: TrackProgressStudent) => Promise<string>;
   getStudentHomeworkStats?: (studentId: string) => { assigned: number; submitted: number };
 }
 
@@ -117,10 +113,6 @@ function StudentNameViewRow({
 export function TeacherTrackProgressPanels({
   students,
   remarks,
-  aiInsights,
-  isLoadingAi,
-  onRefreshAi,
-  onFetchStudentInsights,
   getStudentHomeworkStats,
 }: TeacherTrackProgressPanelsProps) {
   const [remarksDialogStudent, setRemarksDialogStudent] = useState<TrackProgressStudent | null>(
@@ -128,8 +120,6 @@ export function TeacherTrackProgressPanels({
   );
   const [improvementDialogStudent, setImprovementDialogStudent] =
     useState<TrackProgressStudent | null>(null);
-  const [improvementText, setImprovementText] = useState('');
-  const [isLoadingImprovement, setIsLoadingImprovement] = useState(false);
 
   const studentIds = new Set(students.map(studentIdStr).filter(Boolean));
   const filteredRemarks =
@@ -151,33 +141,9 @@ export function TeacherTrackProgressPanels({
     return map;
   }, [filteredRemarks]);
 
-  const openImprovementView = useCallback(
-    async (student: TrackProgressStudent) => {
-      setImprovementDialogStudent(student);
-      setImprovementText('');
-      setIsLoadingImprovement(true);
-      try {
-        const text = await onFetchStudentInsights(student);
-        setImprovementText(text);
-      } catch {
-        setImprovementText('Could not load improvement analysis for this student.');
-      } finally {
-        setIsLoadingImprovement(false);
-      }
-    },
-    [onFetchStudentInsights]
-  );
-
-  const refreshImprovementDialog = useCallback(async () => {
-    if (!improvementDialogStudent) return;
-    setIsLoadingImprovement(true);
-    try {
-      const text = await onFetchStudentInsights(improvementDialogStudent);
-      setImprovementText(text);
-    } finally {
-      setIsLoadingImprovement(false);
-    }
-  }, [improvementDialogStudent, onFetchStudentInsights]);
+  const openImprovementView = useCallback((student: TrackProgressStudent) => {
+    setImprovementDialogStudent(student);
+  }, []);
 
   const dialogStudentRemarks = remarksDialogStudent
     ? remarksByStudentId.get(studentIdStr(remarksDialogStudent)) || []
@@ -436,31 +402,12 @@ export function TeacherTrackProgressPanels({
           transition={{ delay: 0.15 }}
           className="bg-gradient-to-br from-amber-50/90 to-orange-50/90 backdrop-blur-xl rounded-2xl p-4 sm:p-5 shadow-xl border border-amber-200/60 lg:col-span-1"
         >
-          <div className="flex items-center justify-between gap-2 mb-3">
-            <h3 className="text-base sm:text-lg font-bold text-gray-900 flex items-center gap-2">
-              <Lightbulb className="w-5 h-5 text-amber-600" />
-              Areas for improvement
-            </h3>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="rounded-lg border-amber-300 text-amber-900 hover:bg-amber-100"
-              onClick={onRefreshAi}
-              disabled={isLoadingAi || students.length === 0}
-            >
-              <RefreshCw className={`w-3.5 h-3.5 mr-1 ${isLoadingAi ? 'animate-spin' : ''}`} />
-              Refresh all
-            </Button>
-          </div>
-          {aiInsights && students.length > 1 ? (
-            <p className="text-xs text-gray-700 mb-3 leading-relaxed border-b border-amber-200/60 pb-3">
-              <span className="font-semibold">Class summary: </span>
-              {aiInsights}
-            </p>
-          ) : null}
+          <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-3 flex items-center gap-2">
+            <Lightbulb className="w-5 h-5 text-amber-600" />
+            Areas for improvement
+          </h3>
           <p className="text-xs text-gray-600 mb-3">
-            Click View for per-student analysis (exams, usage, progress, homework, remarks).
+            Click View for per-student progress (exams, usage, homework, remarks).
           </p>
           {students.length === 0 ? (
             <p className="text-sm text-gray-500">No students match the current filters.</p>
@@ -470,7 +417,7 @@ export function TeacherTrackProgressPanels({
                 <StudentNameViewRow
                   key={studentIdStr(s)}
                   name={studentDisplayName(s)}
-                  subtitle="View personalized improvement analysis"
+                  subtitle="View progress summary"
                   onView={() => openImprovementView(s)}
                 />
               ))}
@@ -540,10 +487,7 @@ export function TeacherTrackProgressPanels({
       <Dialog
         open={!!improvementDialogStudent}
         onOpenChange={(open) => {
-          if (!open) {
-            setImprovementDialogStudent(null);
-            setImprovementText('');
-          }
+          if (!open) setImprovementDialogStudent(null);
         }}
       >
         <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
@@ -553,7 +497,7 @@ export function TeacherTrackProgressPanels({
               {improvementStudent ? studentDisplayName(improvementStudent) : ''}
             </DialogTitle>
             <DialogDescription>
-              Analysis from exams, platform usage, content progress, homework, and remarks
+              Progress from exams, platform usage, homework, and remarks
             </DialogDescription>
           </DialogHeader>
           {improvementStudent && (
@@ -587,32 +531,27 @@ export function TeacherTrackProgressPanels({
                   </p>
                 </div>
               </div>
-              <div className="rounded-xl bg-amber-50/80 border border-amber-200 p-3">
-                <div className="flex items-center justify-between gap-2 mb-2">
-                  <span className="text-sm font-semibold text-amber-900 flex items-center gap-1">
+              {(impPerf.averagePercentage != null && impPerf.averagePercentage < 60) ||
+              (impHw.assigned > 0 && impHw.submitted < impHw.assigned) ? (
+                <div className="rounded-xl bg-amber-50/80 border border-amber-200 p-3 text-sm text-gray-800">
+                  <p className="font-semibold text-amber-900 mb-1 flex items-center gap-1">
                     <BarChart3 className="w-4 h-4" />
-                    Recommendation
-                  </span>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-7 text-xs border-amber-300"
-                    onClick={refreshImprovementDialog}
-                    disabled={isLoadingImprovement}
-                  >
-                    <RefreshCw
-                      className={`w-3 h-3 mr-1 ${isLoadingImprovement ? 'animate-spin' : ''}`}
-                    />
-                    Refresh
-                  </Button>
+                    Suggested focus
+                  </p>
+                  <ul className="list-disc pl-5 space-y-1">
+                    {impPerf.averagePercentage != null && impPerf.averagePercentage < 60 ? (
+                      <li>Review recent exam performance and assign targeted practice.</li>
+                    ) : null}
+                    {impHw.assigned > 0 && impHw.submitted < impHw.assigned ? (
+                      <li>Follow up on missing homework submissions.</li>
+                    ) : null}
+                  </ul>
                 </div>
-                {isLoadingImprovement ? (
-                  <p className="text-sm text-gray-600 italic">Preparing an easy-to-read summary…</p>
-                ) : (
-                  <p className="text-sm text-gray-800 leading-relaxed">{improvementText}</p>
-                )}
-              </div>
+              ) : (
+                <p className="text-sm text-gray-600">
+                  No urgent issues flagged from current exam and homework data.
+                </p>
+              )}
             </div>
           )}
         </DialogContent>

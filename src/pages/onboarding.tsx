@@ -7,7 +7,7 @@ const slides = [
 		title: 'Tutor for Students,\nAssistant for Teachers',
 		description: [
 			'Teacher assigns homework on schedule',
-			'AI guides students to complete homework and learn'
+			'Students complete homework with guided learning support'
 		],
 		card: {
 			badge: 'Physics Homework',
@@ -21,7 +21,7 @@ const slides = [
 		title: 'Tutor for Students,\nAssistant for Teachers',
 		description: [
 			'Teacher assigns homework on schedule',
-			'AI guides students to complete homework and learn'
+			'Students complete homework with guided learning support'
 		],
 		card: { badge: 'Physics Homework', questionLabel: 'Q:', options: ['A:', '•', '•', '•'], showPointer: true, showHint: false },
 	},
@@ -29,7 +29,7 @@ const slides = [
 		title: 'Tutor for Students,\nAssistant for Teachers',
 		description: [
 			'Teacher assigns homework on schedule',
-			'AI guides students to complete homework and learn'
+			'Students complete homework with guided learning support'
 		],
 		card: { badge: 'Physics Homework', questionLabel: 'Q:', options: ['A:', '○', '●', '○'], showPointer: true, showHint: false },
 	},
@@ -37,7 +37,7 @@ const slides = [
 		title: 'Tutor for Students,\nAssistant for Teachers',
 		description: [
 			'Teacher assigns homework on schedule',
-			'AI guides students to complete homework and learn'
+			'Students complete homework with guided learning support'
 		],
 		card: { badge: 'Physics Homework', questionLabel: 'Q:', options: ['A:', '✗', '○', '○'], showPointer: false, showHint: false },
 	},
@@ -45,7 +45,7 @@ const slides = [
 		title: 'Tutor for Students,\nAssistant for Teachers',
 		description: [
 			'Teacher assigns homework on schedule',
-			'AI guides students to complete homework and learn'
+			'Students complete homework with guided learning support'
 		],
 		card: { badge: 'Physics Homework', questionLabel: 'Q:', options: ['A:', '✗', '○', '○'], showPointer: false, showHint: true },
 	},

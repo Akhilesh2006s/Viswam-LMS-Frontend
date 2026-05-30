@@ -1,0 +1,23 @@
+{
+  "name": "VISWAM LMS",
+  "short_name": "VISWAM LMS",
+  "description": "VISWAM LMS by VISWAM EDUTECH — enterprise learning platform",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0B1F3A",
+  "theme_color": "#0B1F3A",
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

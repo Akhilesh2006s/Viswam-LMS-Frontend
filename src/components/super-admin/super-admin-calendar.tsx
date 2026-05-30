@@ -485,20 +485,14 @@ export default function SuperAdminCalendar({ onNavigateToExams }: SuperAdminCale
 
   return (
     <TooltipProvider>
-      <div className="space-y-3 sm:space-y-4 lg:space-y-6">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h2 className="text-xl sm:text-2xl sm:text-3xl font-bold text-gray-900">School Calendar</h2>
-            <p className="text-sm sm:text-base text-gray-600 mt-1">
-              Exams, holidays, and events by school. Exams sync from Exam Management.
-            </p>
-          </div>
-          <Button onClick={goToToday} variant="outline" className="shrink-0">
-            Today
+      <div className="sa-premium-inner-page sa-premium-inner space-y-5 sm:space-y-6">
+        <div className="flex justify-end">
+          <Button onClick={goToToday} variant="outline" className="shrink-0 rounded-xl border-slate-200">
+            Jump to today
           </Button>
         </div>
 
-        <Card>
+        <Card className="sa-inner-card">
           <CardContent className="p-3 sm:p-4 lg:p-6">
             <div className="flex flex-col sm:flex-row sm:items-center gap-4">
               <Building2 className="h-4 w-4 sm:h-5 sm:w-5 text-gray-500 shrink-0" />
@@ -507,7 +501,7 @@ export default function SuperAdminCalendar({ onNavigateToExams }: SuperAdminCale
                 <Select value={selectedSchoolId} onValueChange={setSelectedSchoolId}>
                   <SelectTrigger
                     id="school-select"
-                    className="w-full max-w-md border border-orange-200 bg-white shadow-sm transition-colors hover:border-orange-400 focus:ring-2 focus:ring-orange-400/40"
+                    className="w-full max-w-md rounded-xl border-slate-200 bg-slate-50/80"
                   >
                     <SelectValue placeholder="Select scope" />
                   </SelectTrigger>
@@ -541,7 +535,7 @@ export default function SuperAdminCalendar({ onNavigateToExams }: SuperAdminCale
               </div>
             </div>
             {selectedSchoolId !== 'all' && selectedAdmin && (
-              <div className="mt-4 p-4 bg-orange-50 rounded-lg">
+              <div className="mt-4 rounded-xl border border-emerald-200/60 bg-emerald-50/50 p-4">
                 <p className="text-xs sm:text-sm text-gray-700">
                   <span className="font-semibold">Filtered school:</span>{' '}
                   {selectedAdmin.schoolName || selectedAdmin.name}

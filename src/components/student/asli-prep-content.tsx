@@ -186,7 +186,7 @@ export default function AsliPrepContent() {
     return (
       <div className="p-12 text-center">
         <div className="w-16 h-16 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-        <p className="text-gray-600">Loading AsliLearn content...</p>
+        <p className="text-gray-600">Loading VISWAM LMS content...</p>
       </div>
     );
   }
@@ -200,7 +200,7 @@ export default function AsliPrepContent() {
               <BookOpen className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 text-white" />
             </div>
             <h2 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
-              AsliLearn Exclusive
+              VISWAM LMS Exclusive
             </h2>
           </div>
           <p className="text-gray-600 mt-1 ml-[52px]">Premium study materials curated by Super Admin</p>

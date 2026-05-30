@@ -28,7 +28,6 @@ import {
 import { API_BASE_URL } from '@/lib/api-config';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
-import QuestionGenerator from './question-generator';
 
 interface IQActivity {
   _id: string;
@@ -65,7 +64,6 @@ export default function IQRankBoostActivities() {
   const [selectedActivity, setSelectedActivity] = useState<IQActivity | null>(null);
   const [subjects, setSubjects] = useState<any[]>([]);
   const [boards, setBoards] = useState<any[]>([]);
-  const [selectedClass, setSelectedClass] = useState<number | null>(null);
 
   const [formData, setFormData] = useState({
     title: '',
@@ -361,28 +359,9 @@ export default function IQRankBoostActivities() {
     }
   };
 
-  // If a class is selected, show the question generator
-  if (selectedClass !== null) {
-    return (
-      <QuestionGenerator
-        classNumber={selectedClass}
-        onBack={() => setSelectedClass(null)}
-      />
-    );
-  }
-
   return (
-    <div className="space-y-3 sm:space-y-4 lg:space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">IQ/Rank Boost Activities</h2>
-          <p className="text-gray-600 mt-1">Manage IQ tests and rank boost activities by class</p>
-        </div>
-      </div>
-
-      {/* Class Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+    <div className="sa-premium-inner-page sa-premium-inner space-y-5 sm:space-y-6">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((classNum) => {
           const classActivities = activities.filter(a => a.classNumber === classNum.toString());
           const activeCount = classActivities.filter(a => a.isActive).length;
@@ -390,54 +369,38 @@ export default function IQRankBoostActivities() {
           const totalParticipants = classActivities.reduce((sum, a) => sum + (a.participants || 0), 0);
 
            return (
-             <Card key={classNum} className="hover:shadow-lg transition-shadow border-0 bg-gradient-to-br from-blue-500 via-blue-400 to-pink-500">
+             <Card key={classNum} className="sa-iq-class-card text-white transition-shadow">
                <CardHeader>
-                 <div className="flex items-center justify-between">
-                   <div className="flex items-center gap-2">
-                     <div className="w-12 h-12 bg-white rounded-lg flex items-center justify-center shadow-md">
-                       <span className="bg-gradient-to-br from-blue-500 to-pink-500 bg-clip-text text-transparent font-bold text-base sm:text-lg">
-                         {classNum}
-                       </span>
-                     </div>
-                     <div>
-                       <CardTitle className="text-base sm:text-lg text-white">Class {classNum}</CardTitle>
-                       <CardDescription className="text-white">IQ/Rank Activities</CardDescription>
-                     </div>
+                 <div className="flex items-center gap-3">
+                   <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/15 ring-1 ring-white/25 font-bold text-lg">
+                     {classNum}
+                   </div>
+                   <div>
+                     <CardTitle className="text-base text-white sm:text-lg">Class {classNum}</CardTitle>
+                     <CardDescription className="text-white/75">IQ &amp; rank boost</CardDescription>
                    </div>
                  </div>
                </CardHeader>
-               <CardContent className="space-y-4">
-                 {/* Stats */}
-                 <div className="space-y-2">
-                   <div className="flex items-center justify-between text-xs sm:text-sm">
-                     <span className="text-white">Activities:</span>
-                     <Badge className="bg-white/20 text-white border-white/30 backdrop-blur-sm">{classActivities.length}</Badge>
+               <CardContent className="space-y-3">
+                 <div className="grid grid-cols-2 gap-2 text-xs sm:text-sm">
+                   <div className="rounded-lg bg-white/10 px-2 py-1.5">
+                     <span className="text-white/70">Activities</span>
+                     <p className="font-bold">{classActivities.length}</p>
                    </div>
-                   <div className="flex items-center justify-between text-xs sm:text-sm">
-                     <span className="text-white">Active:</span>
-                     <Badge className="bg-white/20 text-white border-white/30 backdrop-blur-sm">{activeCount}</Badge>
+                   <div className="rounded-lg bg-white/10 px-2 py-1.5">
+                     <span className="text-white/70">Active</span>
+                     <p className="font-bold">{activeCount}</p>
                    </div>
-                   <div className="flex items-center justify-between text-xs sm:text-sm">
-                     <span className="text-white">Questions:</span>
-                     <span className="font-semibold text-white">{totalQuestions}</span>
+                   <div className="rounded-lg bg-white/10 px-2 py-1.5">
+                     <span className="text-white/70">Questions</span>
+                     <p className="font-bold">{totalQuestions}</p>
                    </div>
-                   <div className="flex items-center justify-between text-xs sm:text-sm">
-                     <span className="text-white">Participants:</span>
-                     <span className="font-semibold text-white">{totalParticipants}</span>
+                   <div className="rounded-lg bg-white/10 px-2 py-1.5">
+                     <span className="text-white/70">Participants</span>
+                     <p className="font-bold">{totalParticipants}</p>
                    </div>
                  </div>
-
-                 {/* Add Questions Button */}
-                 <Button 
-                   className="w-full bg-white text-blue-600 hover:bg-white/90 font-semibold shadow-lg" 
-                   onClick={() => {
-                     // Navigate to question generator for this class
-                     setSelectedClass(classNum);
-                   }}
-                 >
-                   <Plus className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
-                   Add Questions
-                 </Button>
+                 <p className="text-center text-xs text-white/80">Create activities below to enrich this class.</p>
                </CardContent>
              </Card>
            );

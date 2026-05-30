@@ -9,10 +9,27 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
-import { UsersIcon, UserPlusIcon, EditIcon, TrashIcon, CrownIcon, GraduationCapIcon, BookOpenIcon, SearchIcon, Loader2, XIcon, EyeIcon, Eye, EyeOff } from "lucide-react";
+import { UsersIcon, UserPlusIcon, EditIcon, TrashIcon, Building2, GraduationCapIcon, BookOpenIcon, SearchIcon, Loader2, XIcon, EyeIcon, Eye, EyeOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { API_BASE_URL } from "@/lib/api-config";
+import { fetchProducts, productLabel, type Product } from "@/lib/products";
+import {
+  SchoolProductAssignmentEditor,
+  newProductAssignmentRow,
+  deriveProductsFromAssignments,
+  normalizeAssignmentsFromApi,
+  type ProductAssignmentRow,
+} from "@/components/admin/SchoolProductAssignmentEditor";
 import { cn } from "@/lib/utils";
+import {
+  SuperAdminInnerPage,
+  SuperAdminToolbar,
+  SuperAdminStatCard,
+  SA_BTN_PRIMARY,
+  SA_BTN_OUTLINE,
+  SA_SCHOOL_CARD,
+  SA_INPUT,
+} from "@/components/super-admin/premium";
 
 /** Visible borders/background on white dialogs (muted/40 was nearly invisible). */
 const SCHOOL_FORM_FIELD_CLASS =
@@ -46,7 +63,9 @@ interface Admin {
   name: string;
   email: string;
   board?: string;
-  /** CBSE / STATE — curriculum (API); distinct from stored `board` for legacy rows */
+  primaryProductCode?: string;
+  productCodes?: string[];
+  productAssignments?: ProductAssignmentRow[];
   curriculumBoard?: string;
   isAsliPrepExclusive?: boolean;
   state?: string;
@@ -154,11 +173,6 @@ const SCHOOL_PORTAL_MODULE_GROUPS: {
         description: "Calendar events and school schedule.",
       },
       {
-        id: "Vidya AI",
-        title: "Vidya AI",
-        description: "AI tutor / assistant for the school portal.",
-      },
-      {
         id: "Edu OTT",
         title: "Edu OTT & video",
         description: "Video library and Edu OTT content.",
@@ -202,7 +216,7 @@ function portalCheckboxId(prefix: string, moduleId: string) {
   return `${prefix}-${moduleId.replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-|-$/g, "")}`;
 }
 
-/** Values stored as `curriculumBoard` / non–Asli Prep `board` (must match backend CURRICULUM_BOARDS). */
+/** Values stored as `curriculumBoard` / non–VISWAM Prep `board` (must match backend CURRICULUM_BOARDS). */
 const CURRICULUM_BOARD_CODES = ["CBSE", "STATE", "SSC", "ICSE", "IB", "CAMBRIDGE"] as const;
 
 function isCurriculumBoardCode(b?: string): boolean {
@@ -261,11 +275,16 @@ export default function AdminManagement() {
     schoolType: ''
   });
 
+  const [catalogProducts, setCatalogProducts] = useState<Product[]>([]);
+  const [newProductAssignments, setNewProductAssignments] = useState<ProductAssignmentRow[]>([
+    newProductAssignmentRow(),
+  ]);
   const [newAdmin, setNewAdmin] = useState({
     name: '',
     email: '',
     password: '',
-    board: DEFAULT_CURRICULUM_BOARD,
+    primaryProductCode: '',
+    productCodes: [] as string[],
     isAsliPrepExclusive: false,
     state: '',
     schoolName: '',
@@ -294,10 +313,14 @@ export default function AdminManagement() {
   const isMutationBusy =
     isAddingAdmin || isUpdatingAdmin || isDeletingAdmin || isSavingPassword;
 
+  const [editProductAssignments, setEditProductAssignments] = useState<ProductAssignmentRow[]>([
+    newProductAssignmentRow(),
+  ]);
   const [editAdmin, setEditAdmin] = useState({
     name: '',
     email: '',
-    board: DEFAULT_CURRICULUM_BOARD,
+    primaryProductCode: '',
+    productCodes: [] as string[],
     isAsliPrepExclusive: false,
     state: '',
     schoolName: '',
@@ -316,8 +339,14 @@ export default function AdminManagement() {
   const [isUploadingEditLogo, setIsUploadingEditLogo] = useState(false);
   const mapAdminState = (admin: any): Admin => {
     const sd = admin?.schoolDetails || {};
+    const productAssignments = normalizeAssignmentsFromApi(
+      admin?.productAssignments,
+      admin?.productCodes,
+      sd,
+    );
     return {
       ...admin,
+      productAssignments,
       permissions: Array.isArray(admin.permissions) ? admin.permissions : [],
       state: admin?.state || sd?.state || admin?.place || '',
       schoolDetails: {
@@ -336,7 +365,7 @@ export default function AdminManagement() {
   };
 
   /**
-   * Curriculum the school aligns to. Asli Prep vs normal usage is the toggle below (not a board value).
+   * Curriculum the school aligns to. VISWAM Prep vs normal usage is the toggle below (not a board value).
    */
   const boardOptions = [
     { value: "CBSE", label: "CBSE — Central Board of Secondary Education" },
@@ -352,7 +381,7 @@ export default function AdminManagement() {
     return boardOptions.some((o) => o.value === code) ? code : DEFAULT_CURRICULUM_BOARD;
   };
 
-  /** Curriculum boards for the dropdown (Asli Exclusive Schools is not a curriculum option). */
+  /** Curriculum boards for the dropdown (VISWAM Exclusive Schools is not a curriculum option). */
   const curriculumBoardOptions = boardOptions.filter(
     (o) => !isAsliExclusiveBoardCode(o.value)
   );
@@ -509,17 +538,25 @@ export default function AdminManagement() {
     };
 
     fetchAdmins();
+    fetchProducts().then(setCatalogProducts);
   }, []);
 
   const handleAddAdmin = async () => {
     if (isAddingAdmin) return; // Prevent multiple submissions
     
     const sd = newAdmin.schoolDetails;
+    const validAssignments = newProductAssignments.filter(
+      (r) =>
+        r.productCode?.trim() &&
+        r.classesFrom?.trim() &&
+        r.classesTo?.trim() &&
+        Number(r.maxStrength) > 0,
+    );
     if (
       !newAdmin.name ||
       !newAdmin.email ||
       !newAdmin.password ||
-      !newAdmin.board ||
+      !validAssignments.length ||
       !newAdmin.state ||
       !newAdmin.schoolName ||
       !sd.city?.trim() ||
@@ -528,11 +565,13 @@ export default function AdminManagement() {
       toast({
         title: "Error",
         description:
-          "Please fill in administrator name, email, password, board, state, school name, city, and district",
+          "Please fill in administrator name, email, password, at least one book product with class range and max students, state, school name, city, and district",
         variant: "destructive",
       });
       return;
     }
+
+    const { productCodes, primaryProductCode } = deriveProductsFromAssignments(validAssignments);
 
     // Check if admin with this email already exists
     const existingAdmin = admins?.find(admin => 
@@ -577,7 +616,16 @@ export default function AdminManagement() {
         name: newAdmin.name,
         email: newAdmin.email,
         password: newAdmin.password,
-        board: newAdmin.board,
+        primaryProductCode,
+        productCodes,
+        productAssignments: validAssignments.map(
+          ({ productCode, classesFrom, classesTo, maxStrength }) => ({
+            productCode,
+            classesFrom,
+            classesTo,
+            maxStrength: Math.floor(Number(maxStrength)),
+          }),
+        ),
         isAsliPrepExclusive: newAdmin.isAsliPrepExclusive,
         state: newAdmin.state,
         schoolName: newAdmin.schoolName,
@@ -625,7 +673,8 @@ export default function AdminManagement() {
           name: '',
           email: '',
           password: '',
-          board: DEFAULT_CURRICULUM_BOARD,
+          primaryProductCode: '',
+          productCodes: [],
           isAsliPrepExclusive: false,
           state: '',
           schoolName: '',
@@ -639,6 +688,9 @@ export default function AdminManagement() {
           accessMode: "unlimited",
           limitedFeatures: [...SCHOOL_PORTAL_FEATURE_IDS],
         });
+        setNewProductAssignments([
+          newProductAssignmentRow(catalogProducts[0]?.code || ""),
+        ]);
         setShowNewAdminPassword(false);
         setIsAddDialogOpen(false);
         toast({
@@ -735,16 +787,25 @@ export default function AdminManagement() {
     const sd = admin.schoolDetails || emptySchoolDetails();
     const perms = admin.permissions || [];
     const unlimited = isUnlimitedPortalAccess(perms);
-    const rawCurriculum =
-      admin.curriculumBoard ||
-      (isCurriculumBoardCode(admin.board) ? String(admin.board).toUpperCase().trim() : "");
+    const primary =
+      admin.primaryProductCode || admin.productCodes?.[0] || "";
+    const codes =
+      admin.productCodes?.length ? admin.productCodes : [primary];
+    const assignmentRows = normalizeAssignmentsFromApi(
+      admin.productAssignments as ProductAssignmentRow[] | undefined,
+      codes,
+      sd,
+    );
+    setEditProductAssignments(assignmentRows);
     const exclusive =
       admin.isAsliPrepExclusive === true ||
-      String(admin.board || "").toUpperCase() === "ASLI_EXCLUSIVE_SCHOOLS";
+      String(admin.board || "").toUpperCase() === "ASLI_EXCLUSIVE_SCHOOLS" ||
+      primary === "VISWAM_PREP";
     setEditAdmin({
       name: admin.name || '',
       email: admin.email || '',
-      board: normalizeCurriculumBoard(rawCurriculum),
+      primaryProductCode: primary,
+      productCodes: codes,
       isAsliPrepExclusive: exclusive,
       state: normalizeStateValue(admin.state || admin.place || sd.state),
       schoolName: admin.schoolName || '',
@@ -777,10 +838,17 @@ export default function AdminManagement() {
     }
 
     const esd = editAdmin.schoolDetails;
+    const validEditAssignments = editProductAssignments.filter(
+      (r) =>
+        r.productCode?.trim() &&
+        r.classesFrom?.trim() &&
+        r.classesTo?.trim() &&
+        Number(r.maxStrength) > 0,
+    );
     if (
       !editAdmin.name ||
       !editAdmin.email ||
-      !editAdmin.board ||
+      !validEditAssignments.length ||
       !editAdmin.state ||
       !editAdmin.schoolName ||
       !esd.city?.trim() ||
@@ -788,11 +856,15 @@ export default function AdminManagement() {
     ) {
       toast({
         title: "Error",
-        description: "Please fill in all required fields including city and district",
+        description:
+          "Please fill in all required fields, at least one book product with class range and max students, city and district",
         variant: "destructive",
       });
       return;
     }
+
+    const { productCodes: editCodes, primaryProductCode: editPrimary } =
+      deriveProductsFromAssignments(validEditAssignments);
 
     if (
       editAdmin.accessMode === "limited" &&
@@ -827,7 +899,16 @@ export default function AdminManagement() {
         body: JSON.stringify({
           name: editAdmin.name,
           email: editAdmin.email,
-          board: editAdmin.board,
+          primaryProductCode: editPrimary,
+          productCodes: editCodes,
+          productAssignments: validEditAssignments.map(
+            ({ productCode, classesFrom, classesTo, maxStrength }) => ({
+              productCode,
+              classesFrom,
+              classesTo,
+              maxStrength: Math.floor(Number(maxStrength)),
+            }),
+          ),
           isAsliPrepExclusive: editAdmin.isAsliPrepExclusive,
           state: editAdmin.state,
           schoolName: editAdmin.schoolName,
@@ -874,8 +955,9 @@ export default function AdminManagement() {
         setEditAdmin({
           name: '',
           email: '',
-          board: DEFAULT_CURRICULUM_BOARD,
-          isAsliPrepExclusive: false,
+          primaryProductCode: 'VISWAM_PREP',
+          productCodes: ['VISWAM_PREP'],
+          isAsliPrepExclusive: true,
           state: '',
           schoolName: '',
           schoolLogo: '',
@@ -1008,13 +1090,24 @@ export default function AdminManagement() {
   }
 
   return (
-    <div className="space-y-3 sm:space-y-4 lg:space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-xl sm:text-2xl font-bold text-gray-900">School Management</h2>
-          <p className="text-gray-600">Manage schools and their associated data</p>
+    <SuperAdminInnerPage>
+      <SuperAdminToolbar>
+        <div className="relative min-w-0 flex-1 max-w-lg">
+          <SearchIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <Input
+            type="text"
+            placeholder="Search schools, contacts, email, product…"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className={cn(SA_INPUT, "pl-10")}
+          />
         </div>
-        
+        <div className="flex flex-wrap gap-2">
+          {searchQuery ? (
+            <Button variant="outline" className={SA_BTN_OUTLINE} onClick={() => setSearchQuery("")}>
+              Clear
+            </Button>
+          ) : null}
         <Dialog
           open={isAddDialogOpen}
           onOpenChange={(open) => {
@@ -1023,9 +1116,9 @@ export default function AdminManagement() {
           }}
         >
           <DialogTrigger asChild>
-            <Button className="bg-blue-600 hover:bg-blue-700">
-              <UserPlusIcon className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
-              Add New School
+            <Button className={SA_BTN_PRIMARY}>
+              <UserPlusIcon className="mr-2 h-4 w-4" />
+              Add school
             </Button>
           </DialogTrigger>
           <DialogContent
@@ -1263,65 +1356,29 @@ export default function AdminManagement() {
                     className={SCHOOL_FORM_FIELD_CLASS}
                   />
                 </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="board">Curriculum board *</Label>
-                  <Select
-                    value={newAdmin.board}
-                    onValueChange={(value) => setNewAdmin({ ...newAdmin, board: value })}
-                  >
-                    <SelectTrigger id="board" className={SCHOOL_FORM_FIELD_CLASS}>
-                      <SelectValue placeholder="Select" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {curriculumBoardOptions.map((board) => (
-                        <SelectItem key={board.value} value={board.value}>
-                          {board.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5 sm:col-span-2 lg:col-span-3">
-                  <div className="rounded-lg border border-slate-200 bg-slate-50/90 px-5 py-4">
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                      <div className="space-y-1">
-                        <p className="text-xs sm:text-sm text-gray-800">School program</p>
-                        <p className="text-xs text-gray-600">
-                          Normal schools use the curriculum board only. Turn on Asli Prep for the Asli Prep track — keep the curriculum board above (CBSE, State, etc.); it is not replaced by Asli Exclusive Schools.
-                        </p>
-                      </div>
-                      <div className="flex shrink-0 items-center gap-3">
-                        <span
-                          className={cn(
-                            "text-xs sm:text-sm",
-                            !newAdmin.isAsliPrepExclusive ? "font-semibold text-gray-900" : "text-gray-500"
-                          )}
-                        >
-                          Normal usage
-                        </span>
-                        <Switch
-                          checked={newAdmin.isAsliPrepExclusive}
-                          onCheckedChange={(checked) =>
-                            setNewAdmin((prev) => ({
-                              ...prev,
-                              isAsliPrepExclusive: checked,
-                              board: normalizeCurriculumSelection(prev.board),
-                            }))
-                          }
-                          aria-label="Toggle Asli Prep school program"
-                        />
-                        <span
-                          className={cn(
-                            "text-xs sm:text-sm",
-                            newAdmin.isAsliPrepExclusive ? "font-semibold text-orange-800" : "text-gray-500"
-                          )}
-                        >
-                          Asli Prep
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                {catalogProducts.length > 0 ? (
+                  <SchoolProductAssignmentEditor
+                    rows={newProductAssignments}
+                    onChange={(rows) => {
+                      setNewProductAssignments(rows);
+                      const { productCodes, primaryProductCode } =
+                        deriveProductsFromAssignments(rows);
+                      const p = catalogProducts.find((x) => x.code === primaryProductCode);
+                      setNewAdmin({
+                        ...newAdmin,
+                        productCodes,
+                        primaryProductCode,
+                        isAsliPrepExclusive: !!p?.isPremium,
+                      });
+                    }}
+                    catalogProducts={catalogProducts}
+                    fieldClass={SCHOOL_FORM_FIELD_CLASS}
+                  />
+                ) : (
+                  <p className="text-sm text-amber-700 sm:col-span-2">
+                    Add book products in the Product catalog before creating a school.
+                  </p>
+                )}
                 <div className="space-y-1.5">
                   <Label htmlFor="medium">Medium</Label>
                   <Select
@@ -1372,21 +1429,6 @@ export default function AdminManagement() {
                       })
                     }
                     placeholder="e.g. 10"
-                    className={SCHOOL_FORM_FIELD_CLASS}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="totalStrength">Total Strength</Label>
-                  <Input
-                    id="totalStrength"
-                    value={newAdmin.schoolDetails.totalStrength}
-                    onChange={(e) =>
-                      setNewAdmin({
-                        ...newAdmin,
-                        schoolDetails: { ...newAdmin.schoolDetails, totalStrength: e.target.value }
-                      })
-                    }
-                    placeholder="Approx. student strength"
                     className={SCHOOL_FORM_FIELD_CLASS}
                   />
                 </div>
@@ -1888,65 +1930,25 @@ export default function AdminManagement() {
                     className={SCHOOL_FORM_FIELD_CLASS}
                   />
                 </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="edit-board">Curriculum board *</Label>
-                  <Select
-                    value={editAdmin.board}
-                    onValueChange={(value) => setEditAdmin({ ...editAdmin, board: value })}
-                  >
-                    <SelectTrigger id="edit-board" className={SCHOOL_FORM_FIELD_CLASS}>
-                      <SelectValue placeholder="Select" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {curriculumBoardOptions.map((board) => (
-                        <SelectItem key={board.value} value={board.value}>
-                          {board.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5 sm:col-span-2 lg:col-span-3">
-                  <div className="rounded-lg border border-slate-200 bg-slate-50/90 px-5 py-4">
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                      <div className="space-y-1">
-                        <p className="text-xs sm:text-sm text-gray-800">School program</p>
-                        <p className="text-xs text-gray-600">
-                          Normal schools use the curriculum board only. Turn on Asli Prep for the Asli Prep track — keep the curriculum board above; it is not replaced by Asli Exclusive Schools.
-                        </p>
-                      </div>
-                      <div className="flex shrink-0 items-center gap-3">
-                        <span
-                          className={cn(
-                            "text-xs sm:text-sm",
-                            !editAdmin.isAsliPrepExclusive ? "font-semibold text-gray-900" : "text-gray-500"
-                          )}
-                        >
-                          Normal usage
-                        </span>
-                        <Switch
-                          checked={editAdmin.isAsliPrepExclusive}
-                          onCheckedChange={(checked) =>
-                            setEditAdmin((prev) => ({
-                              ...prev,
-                              isAsliPrepExclusive: checked,
-                              board: normalizeCurriculumSelection(prev.board),
-                            }))
-                          }
-                          aria-label="Toggle Asli Prep school program"
-                        />
-                        <span
-                          className={cn(
-                            "text-xs sm:text-sm",
-                            editAdmin.isAsliPrepExclusive ? "font-semibold text-orange-800" : "text-gray-500"
-                          )}
-                        >
-                          Asli Prep
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                {catalogProducts.length > 0 ? (
+                  <SchoolProductAssignmentEditor
+                    rows={editProductAssignments}
+                    onChange={(rows) => {
+                      setEditProductAssignments(rows);
+                      const { productCodes, primaryProductCode } =
+                        deriveProductsFromAssignments(rows);
+                      const p = catalogProducts.find((x) => x.code === primaryProductCode);
+                      setEditAdmin({
+                        ...editAdmin,
+                        productCodes,
+                        primaryProductCode,
+                        isAsliPrepExclusive: !!p?.isPremium,
+                      });
+                    }}
+                    catalogProducts={catalogProducts}
+                    fieldClass={SCHOOL_FORM_FIELD_CLASS}
+                  />
+                ) : null}
                 <div className="space-y-1.5">
                   <Label htmlFor="edit-medium">Medium</Label>
                   <Select
@@ -1993,20 +1995,6 @@ export default function AdminManagement() {
                       setEditAdmin({
                         ...editAdmin,
                         schoolDetails: { ...editAdmin.schoolDetails, classesTo: e.target.value }
-                      })
-                    }
-                    className={SCHOOL_FORM_FIELD_CLASS}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="edit-totalStrength">Total Strength</Label>
-                  <Input
-                    id="edit-totalStrength"
-                    value={editAdmin.schoolDetails.totalStrength}
-                    onChange={(e) =>
-                      setEditAdmin({
-                        ...editAdmin,
-                        schoolDetails: { ...editAdmin.schoolDetails, totalStrength: e.target.value }
                       })
                     }
                     className={SCHOOL_FORM_FIELD_CLASS}
@@ -2225,75 +2213,23 @@ export default function AdminManagement() {
             </div>
           </DialogContent>
         </Dialog>
-      </div>
-
-      {/* Search Bar */}
-      <div className="flex items-center gap-4">
-        <div className="relative flex-1 max-w-md">
-          <SearchIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 sm:h-5 sm:w-5 text-gray-400" />
-          <Input
-            type="text"
-            placeholder="Search by school, contact, email, state, board, or Asli Prep…"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="px-0 pl-10 sm:pl-11"
-          />
         </div>
-        {searchQuery && (
-          <Button
-            variant="outline"
-            onClick={() => setSearchQuery('')}
-            className="shrink-0"
-          >
-            Clear
-          </Button>
-        )}
-      </div>
+      </SuperAdminToolbar>
 
-      {/* Admin Stats Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:p-4 lg:p-6">
-        {/* Total Schools - Orange (matching Asli Exclusive Schools) */}
-        <Card className="bg-gradient-to-r from-orange-300 to-orange-400 text-white border-0 shadow-lg">
-          <CardContent className="p-3 sm:p-4 lg:p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs sm:text-sm font-medium text-white/90">Total Schools</p>
-                <p className="text-2xl sm:text-3xl font-bold text-white">{admins?.length || 0}</p>
-              </div>
-              <CrownIcon className="h-12 w-12 text-white/80" />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Total Students - Sky Blue (matching Content Management) */}
-        <Card className="bg-gradient-to-br from-sky-300 to-sky-400 text-white border-0 shadow-lg">
-          <CardContent className="p-3 sm:p-4 lg:p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs sm:text-sm font-medium text-white/90">Total Students</p>
-                <p className="text-2xl sm:text-3xl font-bold text-white">
-                  {admins?.reduce((sum, admin) => sum + (admin?.stats?.students || 0), 0) || 0}
-                </p>
-              </div>
-              <UsersIcon className="h-12 w-12 text-white/80" />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Total Teachers - Teal (matching AI Analytics) */}
-        <Card className="bg-gradient-to-br from-teal-400 to-teal-500 text-white border-0 shadow-lg">
-          <CardContent className="p-3 sm:p-4 lg:p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs sm:text-sm font-medium text-white/90">Total Teachers</p>
-                <p className="text-2xl sm:text-3xl font-bold text-white">
-                  {admins?.reduce((sum, admin) => sum + (admin?.stats?.teachers || 0), 0) || 0}
-                </p>
-              </div>
-              <GraduationCapIcon className="h-12 w-12 text-white/80" />
-            </div>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <SuperAdminStatCard label="Total schools" value={admins?.length || 0} icon={Building2} accent="gold" />
+        <SuperAdminStatCard
+          label="Total students"
+          value={admins?.reduce((sum, admin) => sum + (admin?.stats?.students || 0), 0) || 0}
+          icon={UsersIcon}
+          accent="emerald"
+        />
+        <SuperAdminStatCard
+          label="Total teachers"
+          value={admins?.reduce((sum, admin) => sum + (admin?.stats?.teachers || 0), 0) || 0}
+          icon={GraduationCapIcon}
+          accent="sky"
+        />
       </div>
 
       {/* Admins List */}
@@ -2323,7 +2259,7 @@ export default function AdminManagement() {
             {filteredAdmins && filteredAdmins.length > 0 ? (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:p-4 lg:p-6 items-stretch">
                 {filteredAdmins.map((admin) => (
-          <Card key={admin?.id || Math.random().toString()} className="hover:shadow-lg transition-shadow h-full flex flex-col">
+          <Card key={admin?.id || Math.random().toString()} className={SA_SCHOOL_CARD}>
             <CardHeader className="flex-1">
               <div className="flex items-start justify-between gap-2">
                 <div className="flex items-start space-x-3 min-w-0 flex-1">
@@ -2337,7 +2273,7 @@ export default function AdminManagement() {
                         referrerPolicy="no-referrer"
                       />
                     ) : (
-                      <CrownIcon className="h-4 w-4 sm:h-5 sm:w-5 text-orange-600" />
+                      <Building2 className="h-4 w-4 sm:h-5 sm:w-5 text-orange-600" strokeWidth={2} />
                     )}
                   </div>
                   <div className="min-w-0 flex-1">
@@ -2369,22 +2305,27 @@ export default function AdminManagement() {
                           Limited access
                         </Badge>
                       )}
-                      <Badge variant="outline" className="text-xs break-all max-w-full">
-                        {curriculumDisplayLabel(
-                          normalizeCurriculumBoard(
-                            admin.curriculumBoard ||
-                              (isCurriculumBoardCode(admin.board) ? String(admin.board) : "")
-                          )
-                        )}
-                      </Badge>
-                      {admin.isAsliPrepExclusive && (
-                        <Badge
-                          variant="outline"
-                          className="border-orange-200 bg-orange-50 text-xs text-orange-950 break-all max-w-full"
-                        >
-                          Asli Prep
+                      {(admin.productAssignments?.length
+                        ? admin.productAssignments
+                        : (admin.productCodes || []).map((code) => ({
+                            productCode: code,
+                            classesFrom: admin.schoolDetails?.classesFrom,
+                            classesTo: admin.schoolDetails?.classesTo,
+                          }))
+                      ).slice(0, 3).map((a, i) => (
+                        <Badge key={`${a.productCode}-${i}`} variant="outline" className="text-xs break-all max-w-full">
+                          {productLabel(a.productCode, catalogProducts)}
+                          {a.classesFrom && a.classesTo
+                            ? ` · ${a.classesFrom}–${a.classesTo}`
+                            : ""}
+                          {a.maxStrength ? ` · ${a.maxStrength}/class` : ""}
                         </Badge>
-                      )}
+                      ))}
+                      {(admin.productAssignments?.length || admin.productCodes?.length || 0) > 3 ? (
+                        <Badge variant="outline" className="text-xs">
+                          +more
+                        </Badge>
+                      ) : null}
                       {admin?.state && (
                         <Badge variant="outline" className="text-xs break-all max-w-full">
                           {admin.state}
@@ -2402,16 +2343,15 @@ export default function AdminManagement() {
               <div className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {/* Students - Orange gradient */}
-                  <div className="text-center p-3 bg-gradient-to-br from-orange-300 to-orange-400 rounded-lg text-white">
-                    <UsersIcon className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6 text-white/80 mx-auto mb-2" />
-                    <p className="text-xl sm:text-2xl font-bold text-white">{admin?.stats?.students || 0}</p>
-                    <p className="text-xs sm:text-sm text-white/90">Students</p>
+                  <div className="sa-school-stat text-center p-3">
+                    <UsersIcon className="mx-auto mb-2 h-5 w-5 text-[var(--brand-emerald)]" />
+                    <p className="text-xl font-bold text-slate-900">{admin?.stats?.students || 0}</p>
+                    <p className="text-xs text-slate-500">Students</p>
                   </div>
-                  {/* Teachers - Teal gradient */}
-                  <div className="text-center p-3 bg-gradient-to-br from-teal-400 to-teal-500 rounded-lg text-white">
-                    <GraduationCapIcon className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6 text-white/80 mx-auto mb-2" />
-                    <p className="text-xl sm:text-2xl font-bold text-white">{admin?.stats?.teachers || 0}</p>
-                    <p className="text-xs sm:text-sm text-white/90">Teachers</p>
+                  <div className="sa-school-stat text-center p-3">
+                    <GraduationCapIcon className="mx-auto mb-2 h-5 w-5 text-[var(--brand-navy)]" />
+                    <p className="text-xl font-bold text-slate-900">{admin?.stats?.teachers || 0}</p>
+                    <p className="text-xs text-slate-500">Teachers</p>
                   </div>
                 </div>
                 
@@ -2471,7 +2411,7 @@ export default function AdminManagement() {
       {(!admins || admins.length === 0) && !searchQuery && (
         <Card>
           <CardContent className="p-12 text-center">
-            <CrownIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+            <Building2 className="h-12 w-12 text-gray-400 mx-auto mb-4" strokeWidth={1.5} />
             <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-2">No Schools Found</h3>
             <p className="text-gray-600 mb-4">Get started by adding your first school</p>
             <Button onClick={() => setIsAddDialogOpen(true)}>
@@ -2503,6 +2443,6 @@ export default function AdminManagement() {
           </div>
         </div>
       )}
-    </div>
+    </SuperAdminInnerPage>
   );
 }

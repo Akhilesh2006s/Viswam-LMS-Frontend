@@ -1,58 +1,31 @@
 // @ts-nocheck
-import { Suspense, lazy, useState, useEffect, useMemo, useCallback } from 'react';
-import { motion } from 'framer-motion';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Suspense, lazy, useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { API_BASE_URL } from '@/lib/api-config';
-import { AtRiskStudentsPanel } from '@/components/admin/AtRiskStudentsPanel';
-import { InteractiveBackground, FloatingParticles } from "@/components/background/InteractiveBackground";
+import { usePageTitle } from '@/hooks/use-page-title';
+import { ViswamLogo } from '@/components/brand/ViswamLogo';
 import { 
-  BookOpen, 
   Users, 
-  BarChart3, 
-  Plus, 
-  Edit, 
-  Trash2, 
-  Eye,
-  TrendingUp,
-  Clock,
-  Star,
-  CheckCircle,
-  AlertCircle,
-  Upload,
-  Download,
-  Shield,
+  LayoutDashboard,
   GraduationCap,
-  UserPlus,
-  FileSpreadsheet,
-  Database,
-  Activity,
   LogOut,
-  FileText,
   Play,
   Target,
   Menu,
-  Sparkles,
-  MessageCircle,
   Calendar as CalendarIcon,
-  CalendarDays
+  CalendarDays,
 } from 'lucide-react';
 import { useLocation, useSearch } from 'wouter';
-import VidyaAIFloatingAssistant from '@/components/student/VidyaAIFloatingAssistant';
 const UserManagement = lazy(() => import('@/components/admin/user-management'));
 const ClassDashboard = lazy(() => import('@/components/admin/class-dashboard'));
 const TeacherManagement = lazy(() => import('@/components/admin/teacher-management'));
-const SubjectManagement = lazy(() => import('@/components/admin/subject-management'));
-const ExamViewOnly = lazy(() => import('@/components/admin/exam-view-only'));
 const AdminLearningPaths = lazy(() => import('@/components/admin/learning-paths'));
 const AdminEduOTT = lazy(() => import('@/components/admin/admin-eduott'));
 const AdminCalendar = lazy(() => import('@/components/admin/admin-calendar'));
 const TimetableManagement = lazy(() => import('@/components/admin/timetable-management'));
-const AIChat = lazy(() => import('@/components/ai-chat'));
+const AdminHome = lazy(() => import('@/components/admin/AdminHome'));
 
 const lazySectionFallback = (
   <div className="rounded-xl border border-sky-100 bg-white p-3 sm:p-4 lg:p-6 text-xs sm:text-sm text-slate-600 shadow-sm">
@@ -65,16 +38,14 @@ const VALID_ADMIN_TABS = new Set([
   'students',
   'classes',
   'teachers',
-  'subjects',
-  'exams',
   'learning-paths',
   'eduott',
   'calendar',
   'timetable',
-  'vidya-ai',
 ]);
 
 const AdminDashboard = () => {
+  usePageTitle('Admin Dashboard');
   const [, setLocation] = useLocation();
   const search = useSearch() || '';
   const [activeTab, setActiveTab] = useState('overview');
@@ -143,33 +114,14 @@ const AdminDashboard = () => {
     };
   }, []);
 
-  const [stats, setStats] = useState({
-    totalStudents: 0,
-    totalTeachers: 0,
-    totalClasses: 0,
-    totalVideos: 0,
-    totalQuizzes: 0,
-    totalAssessments: 0,
-    activeUsers: 0,
-    totalContent: 0
-  });
-  const [studentAnalytics, setStudentAnalytics] = useState({
-    classDistribution: [],
-    performanceMetrics: {
-      averageScore: 0,
-      totalExamsTaken: 0,
-      topPerformers: []
-    },
-    subjectPerformance: [],
-    recentActivity: []
-  });
-  const [isLoadingAnalytics, setIsLoadingAnalytics] = useState(false);
-  const [analyticsLoaded, setAnalyticsLoaded] = useState(false);
-  const [isLoadingStats, setIsLoadingStats] = useState(true);
   useEffect(() => {
     const raw = search || '';
     const q = raw.startsWith('?') ? raw.slice(1) : raw;
     const tab = new URLSearchParams(q).get('tab');
+    if (tab === 'subjects') {
+      setActiveTab('overview');
+      return;
+    }
     if (tab && VALID_ADMIN_TABS.has(tab)) {
       setActiveTab(tab);
     }
@@ -180,131 +132,41 @@ const AdminDashboard = () => {
     setMobileMenuOpen(false);
   };
 
-  // Memoize sliced arrays to avoid recalculating on every render
-  const topClassDistribution = useMemo(() => {
-    return studentAnalytics.classDistribution?.slice(0, 5) || [];
-  }, [studentAnalytics.classDistribution]);
-
-  const topSubjectPerformance = useMemo(() => {
-    return studentAnalytics.subjectPerformance?.slice(0, 4) || [];
-  }, [studentAnalytics.subjectPerformance]);
-
-  // Memoize fetch functions to prevent unnecessary re-renders
-  const fetchStudentAnalytics = useCallback(async () => {
-    // Don't fetch if already loaded
-    if (analyticsLoaded) return;
-    
+  const handleLogout = useCallback(async () => {
     try {
-      setIsLoadingAnalytics(true);
       const token = localStorage.getItem('authToken');
-      if (!token) {
-        setIsLoadingAnalytics(false);
-        return;
-      }
-
-      const response = await fetch(`${API_BASE_URL}/api/admin/students/analytics`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success && data.data) {
-          setStudentAnalytics(data.data);
-          setAnalyticsLoaded(true);
+      if (token) {
+        try {
+          await fetch(`${API_BASE_URL}/api/auth/logout`, {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+          });
+        } catch {
+          /* ignore */
         }
       }
-    } catch (error) {
-      console.error('Failed to fetch student analytics:', error);
     } finally {
-      setIsLoadingAnalytics(false);
-    }
-  }, [analyticsLoaded]);
-
-  const fetchAdminStats = useCallback(async () => {
-    try {
-      setIsLoadingStats(true);
-      const token = localStorage.getItem('authToken');
-      if (!token) {
-        console.log('No auth token found for admin stats');
-        setIsLoadingStats(false);
-        return;
-      }
-
-      // Fetch admin dashboard stats from the dedicated endpoint
-      const statsRes = await fetch(`${API_BASE_URL}/api/admin/dashboard/stats`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      if (!statsRes.ok) {
-        console.log('Failed to get admin stats');
-        setIsLoadingStats(false);
-        return;
-      }
-      
-      const statsData = await statsRes.json();
-      
-      if (statsData.success && statsData.data) {
-        setStats({
-          totalStudents: statsData.data.totalStudents || 0,
-          totalTeachers: statsData.data.totalTeachers || 0,
-          totalClasses: statsData.data.totalClasses || 0,
-          totalVideos: statsData.data.totalVideos || 0,
-          totalQuizzes: statsData.data.totalQuizzes || 0,
-          totalAssessments: statsData.data.totalAssessments || 0,
-          activeUsers: statsData.data.activeUsers || 0,
-          totalContent: statsData.data.totalContent || 0
-        });
-      }
-    } catch (error) {
-      console.error('Failed to fetch admin stats:', error);
-    } finally {
-      setIsLoadingStats(false);
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('user');
+      window.location.href = '/signin';
     }
   }, []);
 
-  useEffect(() => {
-    // Fetch admin dashboard stats immediately (lightweight)
-    fetchAdminStats();
-    // Don't fetch analytics immediately - load only when needed (lazy loading)
-  }, [fetchAdminStats]);
-
-  // Lazy load analytics when overview tab is active
-  useEffect(() => {
-    if (activeTab === 'overview' && !analyticsLoaded && !isLoadingAnalytics) {
-      fetchStudentAnalytics();
-    }
-  }, [activeTab, analyticsLoaded, isLoadingAnalytics, fetchStudentAnalytics]);
-
-  const fadeInUp = {
-    hidden: { opacity: 0, y: 20 },
-    visible: { 
-      opacity: 1, 
-      y: 0,
-      transition: { duration: 0.6, ease: "easeOut" }
-    }
-  };
-
-  const staggerChildren = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.1
-      }
-    }
-  };
+  const navBtn = (tab: string, active: boolean) =>
+    `w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-lg transition-colors ${
+      active
+        ? 'bg-slate-900 text-white'
+        : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+    }`;
 
   // Show loading state while checking authentication
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-sky-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-16 h-16 bg-gradient-to-r from-sky-500 to-blue-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-xl">
-            <div className="w-6 h-6 sm:w-7 sm:h-7 lg:w-8 lg:h-8 border-4 border-white border-t-transparent rounded-full animate-spin"></div>
-          </div>
-          <h2 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-sky-600 to-blue-600 bg-clip-text text-transparent mb-2">Loading...</h2>
-          <p className="text-gray-600">Preparing your admin dashboard</p>
-        </div>
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="h-8 w-8 border-2 border-slate-300 border-t-slate-800 rounded-full animate-spin" />
       </div>
     );
   }
@@ -315,217 +177,49 @@ const AdminDashboard = () => {
   }
 
   return (
-    <div className="min-h-screen bg-sky-50 relative overflow-hidden md:flex md:h-screen">
-      {/* Interactive Background */}
-      <div className="fixed inset-0 z-0">
-        {/* Interactive Background - Disabled for better performance */}
-        {/* <InteractiveBackground />
-        <FloatingParticles /> */}
-      </div>
+    <div className="min-h-screen bg-slate-50 md:flex md:h-screen">
       {/* Mobile Header */}
       {isMobile && (
-        <div className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-r from-sky-300 via-sky-400 to-teal-400 backdrop-blur-xl border-b border-white/30 md:hidden">
-          <div className="flex items-center justify-between p-responsive">
-            <div className="flex items-center space-x-responsive">
-              <div className="w-6 h-6 sm:w-7 sm:h-7 lg:w-8 lg:h-8 bg-white/20 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-responsive-sm">AS</span>
-              </div>
-              <div>
-                <h1 className="text-responsive-base font-bold text-white">ASLILEARN AI</h1>
-                <p className="text-responsive-xs text-white/90 font-medium">Admin Panel</p>
-              </div>
-            </div>
+        <div className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-slate-200 md:hidden">
+          <div className="flex items-center justify-between px-4 py-3">
+            <ViswamLogo subtitle="Admin" variant="dark" size="sm" showCompany={false} />
             <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
               <SheetTrigger asChild>
-                <Button variant="outline" size="sm">
-                  <Menu className="w-3 h-3 sm:w-4 sm:h-4" />
+                <Button variant="outline" size="icon" className="h-9 w-9 shrink-0">
+                  <Menu className="h-4 w-4" />
                 </Button>
               </SheetTrigger>
-              <SheetContent side="left" className="w-64 bg-gradient-to-b from-orange-400 to-orange-500">
-                <div className="p-responsive">
-                  <div className="flex items-center space-x-responsive mb-responsive">
-                    <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
-                      <span className="text-white font-bold text-responsive-lg">AS</span>
+              <SheetContent side="left" className="w-64 bg-white border-slate-200 p-0 flex flex-col">
+                <div className="p-5 border-b border-slate-100">
+                  <ViswamLogo subtitle="Admin Panel" variant="dark" size="md" showCompany={false} />
                     </div>
-                    <div>
-                      <h1 className="text-responsive-lg font-bold text-white">ASLILEARN AI</h1>
-                      <p className="text-responsive-xs text-white/90 font-medium">Admin Panel</p>
-                    </div>
-                  </div>
-                  <nav className="space-y-1">
+                <nav className="flex-1 overflow-y-auto p-4 space-y-1">
+                  {[
+                    { tab: 'overview', label: 'Home', icon: LayoutDashboard },
+                    { tab: 'students', label: 'Students', icon: Users },
+                    { tab: 'classes', label: 'Classes', icon: GraduationCap },
+                    { tab: 'teachers', label: 'Teachers', icon: Users },
+                    { tab: 'learning-paths', label: 'Learning Paths', icon: Target },
+                    { tab: 'eduott', label: 'EduOTT', icon: Play },
+                    { tab: 'timetable', label: 'Timetable', icon: CalendarDays },
+                    { tab: 'calendar', label: 'Calendar', icon: CalendarIcon },
+                  ].map(({ tab, label, icon: Icon }) => (
                     <button
-                      onClick={() => handleMobileTabChange('overview')}
-                      className={`w-full flex items-center px-4 py-3 text-xs sm:text-sm font-medium rounded-lg transition-colors whitespace-nowrap ${
-                        activeTab === 'overview' 
-                          ? 'bg-white text-orange-600 shadow-md' 
-                          : 'text-white hover:bg-orange-600/50'
-                      }`}
+                      key={tab}
+                      type="button"
+                      onClick={() => handleMobileTabChange(tab)}
+                      className={navBtn(tab, activeTab === tab)}
                     >
-                      <BarChart3 className="mr-3 h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
-                      <span className="truncate">Dashboard</span>
+                      <Icon className="h-4 w-4 shrink-0" />
+                      <span>{label}</span>
                     </button>
-                    
-                    <button
-                      onClick={() => handleMobileTabChange('students')}
-                      className={`w-full flex items-center px-4 py-3 text-xs sm:text-sm font-medium rounded-lg transition-colors whitespace-nowrap ${
-                        activeTab === 'students' 
-                          ? 'bg-white text-orange-600 shadow-md' 
-                          : 'text-white hover:bg-orange-600/50'
-                      }`}
-                    >
-                      <Users className="mr-3 h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
-                      <span className="truncate">Students</span>
+                  ))}
+                </nav>
+                <div className="p-4 border-t border-slate-100">
+                  <button type="button" onClick={handleLogout} className={navBtn('logout', false)}>
+                    <LogOut className="h-4 w-4 shrink-0" />
+                    <span>Logout</span>
                     </button>
-                    
-                    <button
-                      onClick={() => handleMobileTabChange('classes')}
-                      className={`w-full flex items-center px-4 py-3 text-xs sm:text-sm font-medium rounded-lg transition-colors whitespace-nowrap ${
-                        activeTab === 'classes' 
-                          ? 'bg-white text-orange-600 shadow-md' 
-                          : 'text-white hover:bg-orange-600/50'
-                      }`}
-                    >
-                      <GraduationCap className="mr-3 h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
-                      <span className="truncate">Classes</span>
-                    </button>
-                    
-                    <button
-                      onClick={() => handleMobileTabChange('teachers')}
-                      className={`w-full flex items-center px-4 py-3 text-xs sm:text-sm font-medium rounded-lg transition-colors whitespace-nowrap ${
-                        activeTab === 'teachers' 
-                          ? 'bg-white text-orange-600 shadow-md' 
-                          : 'text-white hover:bg-orange-600/50'
-                      }`}
-                    >
-                      <Users className="mr-3 h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
-                      <span className="truncate">Teachers</span>
-                    </button>
-                    
-                    <button
-                      onClick={() => handleMobileTabChange('subjects')}
-                      className={`w-full flex items-center px-4 py-3 text-xs sm:text-sm font-medium rounded-lg transition-colors whitespace-nowrap ${
-                        activeTab === 'subjects' 
-                          ? 'bg-white text-orange-600 shadow-md' 
-                          : 'text-white hover:bg-orange-600/50'
-                      }`}
-                    >
-                      <BookOpen className="mr-3 h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
-                      <span className="truncate">Subjects</span>
-                    </button>
-                    
-                    <button
-                      onClick={() => handleMobileTabChange('exams')}
-                      className={`w-full flex items-center px-4 py-3 text-xs sm:text-sm font-medium rounded-lg transition-colors whitespace-nowrap ${
-                        activeTab === 'exams' 
-                          ? 'bg-white text-orange-600 shadow-md' 
-                          : 'text-white hover:bg-orange-600/50'
-                      }`}
-                    >
-                      <FileText className="mr-3 h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
-                      <span className="truncate">Exams</span>
-                    </button>
-                    
-                    <button
-                      onClick={() => handleMobileTabChange('learning-paths')}
-                      className={`w-full flex items-center px-4 py-3 text-xs sm:text-sm font-medium rounded-lg transition-colors whitespace-nowrap ${
-                        activeTab === 'learning-paths' 
-                          ? 'bg-white text-orange-600 shadow-md' 
-                          : 'text-white hover:bg-orange-600/50'
-                      }`}
-                    >
-                      <Target className="mr-3 h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
-                      <span className="truncate">Learning Paths</span>
-                    </button>
-                    
-                    <button
-                      onClick={() => handleMobileTabChange('eduott')}
-                      className={`w-full flex items-center px-4 py-3 text-xs sm:text-sm font-medium rounded-lg transition-colors whitespace-nowrap ${
-                        activeTab === 'eduott' 
-                          ? 'bg-white text-orange-600 shadow-md' 
-                          : 'text-white hover:bg-orange-600/50'
-                      }`}
-                    >
-                      <Play className="mr-3 h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
-                      <span className="truncate">EduOTT</span>
-                    </button>
-
-                    <button
-                      onClick={() => handleMobileTabChange('timetable')}
-                      className={`w-full flex items-center px-4 py-3 text-xs sm:text-sm font-medium rounded-lg transition-colors whitespace-nowrap ${
-                        activeTab === 'timetable'
-                          ? 'bg-white text-orange-600 shadow-md'
-                          : 'text-white hover:bg-orange-600/50'
-                      }`}
-                    >
-                      <CalendarDays className="mr-3 h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
-                      <span className="truncate">Timetable</span>
-                    </button>
-
-                    <button
-                      onClick={() => handleMobileTabChange('calendar')}
-                      className={`w-full flex items-center px-4 py-3 text-xs sm:text-sm font-medium rounded-lg transition-colors whitespace-nowrap ${
-                        activeTab === 'calendar' 
-                          ? 'bg-white text-orange-600 shadow-md' 
-                          : 'text-white hover:bg-orange-600/50'
-                      }`}
-                    >
-                      <CalendarIcon className="mr-3 h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
-                      <span className="truncate">Calendar</span>
-                    </button>
-
-                    <button
-                      onClick={() => handleMobileTabChange('vidya-ai')}
-                      className={`w-full flex items-center px-4 py-3 text-xs sm:text-sm font-medium rounded-lg transition-colors whitespace-nowrap ${
-                        activeTab === 'vidya-ai' 
-                          ? 'bg-white text-orange-600 shadow-md' 
-                          : 'text-white hover:bg-orange-600/50'
-                      }`}
-                    >
-                      <Sparkles className="mr-3 h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
-                      <span className="truncate">Vidya AI</span>
-                    </button>
-                    
-                    <button
-                      onClick={async () => {
-                        try {
-                          setMobileMenuOpen(false);
-                          const token = localStorage.getItem('authToken');
-                          if (token) {
-                            try {
-                              const response = await fetch(`${API_BASE_URL}/api/auth/logout`, {
-                                method: 'POST',
-                                headers: {
-                                  'Authorization': `Bearer ${token}`,
-                                  'Content-Type': 'application/json'
-                                }
-                              });
-                              // Continue even if response is not ok
-                              if (!response.ok) {
-                                console.warn('Logout API returned non-ok status:', response.status);
-                              }
-                            } catch (error) {
-                              console.error('Logout API error:', error);
-                              // Continue with logout even if API call fails
-                            }
-                          }
-                          // Always clear local storage and redirect
-                          localStorage.removeItem('authToken');
-                          localStorage.removeItem('user');
-                          window.location.href = '/signin';
-                        } catch (error) {
-                          console.error('Logout failed:', error);
-                          // Always clear and redirect even on error
-                          localStorage.removeItem('authToken');
-                          localStorage.removeItem('user');
-                          window.location.href = '/signin';
-                        }
-                      }}
-                      className="w-full flex items-center space-x-responsive px-responsive py-responsive rounded-responsive text-left transition-all duration-200 backdrop-blur-sm text-responsive-sm text-gray-700 hover:bg-red-50 hover:text-red-900"
-                    >
-                      <LogOut className="w-3 h-3 sm:w-4 sm:h-4" />
-                      <span className="font-medium">Logout</span>
-                    </button>
-                  </nav>
                 </div>
               </SheetContent>
             </Sheet>
@@ -535,500 +229,70 @@ const AdminDashboard = () => {
 
       {/* Desktop Sidebar */}
       {!isMobile && (
-        <div className="hidden md:flex md:flex-col md:sticky md:top-0 md:h-screen w-64 bg-gradient-to-b from-orange-400 to-orange-500 shadow-2xl border-r border-orange-300 relative z-10">
+        <div className="hidden md:flex md:flex-col md:sticky md:top-0 md:h-screen w-64 bg-white border-r border-slate-200 shrink-0">
         {/* Logo Section */}
-        <div className="p-3 sm:p-4 lg:p-6 border-b border-orange-300/50">
-          <div className="flex items-center space-x-3">
-            <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center shadow-xl">
-              <span className="text-white font-bold text-lg sm:text-xl">AS</span>
-            </div>
-            <div>
-              <h1 className="text-lg sm:text-xl font-bold text-white">ASLILEARN AI</h1>
-              <p className="text-xs text-white/90 font-medium">Admin Panel</p>
-            </div>
-          </div>
+        <div className="p-5 border-b border-slate-100">
+          <ViswamLogo subtitle="Admin Panel" variant="dark" size="md" showCompany={false} />
         </div>
 
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto p-4 space-y-1 hide-scrollbar">
-          <button
-            onClick={() => setActiveTab('overview')}
-            className={`w-full flex items-center px-4 py-3 text-xs sm:text-sm font-medium rounded-lg transition-colors whitespace-nowrap ${
-              activeTab === 'overview' 
-                ? 'bg-white text-orange-600 shadow-md' 
-                : 'text-white hover:bg-orange-600/50'
-            }`}
-          >
-            <BarChart3 className="mr-3 h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
-            <span className="truncate">Dashboard</span>
+          <button type="button" onClick={() => setActiveTab('overview')} className={navBtn('overview', activeTab === 'overview')}>
+            <LayoutDashboard className="h-4 w-4 shrink-0" />
+            <span>Home</span>
           </button>
           
-          <button
-            onClick={() => setActiveTab('students')}
-            className={`w-full flex items-center px-4 py-3 text-xs sm:text-sm font-medium rounded-lg transition-colors whitespace-nowrap ${
-              activeTab === 'students' 
-                ? 'bg-white text-orange-600 shadow-md' 
-                : 'text-white hover:bg-orange-600/50'
-            }`}
-          >
-            <Users className="mr-3 h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
-            <span className="truncate">Students</span>
+          <button type="button" onClick={() => setActiveTab('students')} className={navBtn('students', activeTab === 'students')}>
+            <Users className="h-4 w-4 shrink-0" />
+            <span>Students</span>
           </button>
           
-          <button
-            onClick={() => setActiveTab('classes')}
-            className={`w-full flex items-center px-4 py-3 text-xs sm:text-sm font-medium rounded-lg transition-colors whitespace-nowrap ${
-              activeTab === 'classes' 
-                ? 'bg-white text-orange-600 shadow-md' 
-                : 'text-white hover:bg-orange-600/50'
-            }`}
-          >
-            <GraduationCap className="mr-3 h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
-            <span className="truncate">Classes</span>
+          <button type="button" onClick={() => setActiveTab('classes')} className={navBtn('classes', activeTab === 'classes')}>
+            <GraduationCap className="h-4 w-4 shrink-0" />
+            <span>Classes</span>
           </button>
-          
-          <button
-            onClick={() => setActiveTab('teachers')}
-            className={`w-full flex items-center px-4 py-3 text-xs sm:text-sm font-medium rounded-lg transition-colors whitespace-nowrap ${
-              activeTab === 'teachers' 
-                ? 'bg-white text-orange-600 shadow-md' 
-                : 'text-white hover:bg-orange-600/50'
-            }`}
-          >
-            <Users className="mr-3 h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
-            <span className="truncate">Teachers</span>
+          <button type="button" onClick={() => setActiveTab('teachers')} className={navBtn('teachers', activeTab === 'teachers')}>
+            <Users className="h-4 w-4 shrink-0" />
+            <span>Teachers</span>
           </button>
-          
-          <button
-            onClick={() => setActiveTab('subjects')}
-            className={`w-full flex items-center px-4 py-3 text-xs sm:text-sm font-medium rounded-lg transition-colors whitespace-nowrap ${
-              activeTab === 'subjects' 
-                ? 'bg-white text-orange-600 shadow-md' 
-                : 'text-white hover:bg-orange-600/50'
-            }`}
-          >
-            <BookOpen className="mr-3 h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
-            <span className="truncate">Subjects</span>
+          <button type="button" onClick={() => setActiveTab('learning-paths')} className={navBtn('learning-paths', activeTab === 'learning-paths')}>
+            <Target className="h-4 w-4 shrink-0" />
+            <span>Learning Paths</span>
           </button>
-          
-          <button
-            onClick={() => setActiveTab('exams')}
-            className={`w-full flex items-center px-4 py-3 text-xs sm:text-sm font-medium rounded-lg transition-colors whitespace-nowrap ${
-              activeTab === 'exams' 
-                ? 'bg-white text-orange-600 shadow-md' 
-                : 'text-white hover:bg-orange-600/50'
-            }`}
-          >
-            <FileText className="mr-3 h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
-            <span className="truncate">Exams</span>
+          <button type="button" onClick={() => setActiveTab('eduott')} className={navBtn('eduott', activeTab === 'eduott')}>
+            <Play className="h-4 w-4 shrink-0" />
+            <span>EduOTT</span>
           </button>
-          
-          <button
-            onClick={() => setActiveTab('learning-paths')}
-            className={`w-full flex items-center px-4 py-3 text-xs sm:text-sm font-medium rounded-lg transition-colors whitespace-nowrap ${
-              activeTab === 'learning-paths' 
-                ? 'bg-white text-orange-600 shadow-md' 
-                : 'text-white hover:bg-orange-600/50'
-            }`}
-          >
-            <Target className="mr-3 h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
-            <span className="truncate">Learning Paths</span>
-          </button>
-          
-                    <button
-                      onClick={() => setActiveTab('eduott')}
-                      className={`w-full flex items-center px-4 py-3 text-xs sm:text-sm font-medium rounded-lg transition-colors whitespace-nowrap ${
-                        activeTab === 'eduott' 
-                          ? 'bg-white text-orange-600 shadow-md' 
-                          : 'text-white hover:bg-orange-600/50'
-                      }`}
-                    >
-                      <Play className="mr-3 h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
-                      <span className="truncate">EduOTT</span>
+          <button type="button" onClick={() => setActiveTab('timetable')} className={navBtn('timetable', activeTab === 'timetable')}>
+            <CalendarDays className="h-4 w-4 shrink-0" />
+            <span>Timetable</span>
                     </button>
-                    
-                    <button
-                      onClick={() => setActiveTab('timetable')}
-                      className={`w-full flex items-center px-4 py-3 text-xs sm:text-sm font-medium rounded-lg transition-colors whitespace-nowrap ${
-                        activeTab === 'timetable'
-                          ? 'bg-white text-orange-600 shadow-md'
-                          : 'text-white hover:bg-orange-600/50'
-                      }`}
-                    >
-                      <CalendarDays className="mr-3 h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
-                      <span className="truncate">Timetable</span>
+          <button type="button" onClick={() => setActiveTab('calendar')} className={navBtn('calendar', activeTab === 'calendar')}>
+            <CalendarIcon className="h-4 w-4 shrink-0" />
+            <span>Calendar</span>
                     </button>
-                    
-                    <button
-                      onClick={() => setActiveTab('calendar')}
-                      className={`w-full flex items-center px-4 py-3 text-xs sm:text-sm font-medium rounded-lg transition-colors whitespace-nowrap ${
-                        activeTab === 'calendar' 
-                          ? 'bg-white text-orange-600 shadow-md' 
-                          : 'text-white hover:bg-orange-600/50'
-                      }`}
-                    >
-                      <CalendarIcon className="mr-3 h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
-                      <span className="truncate">Calendar</span>
-                    </button>
-                    
-                    <button
-                      onClick={() => setActiveTab('vidya-ai')}
-                      className={`w-full flex items-center px-4 py-3 text-xs sm:text-sm font-medium rounded-lg transition-colors whitespace-nowrap ${
-                        activeTab === 'vidya-ai' 
-                          ? 'bg-white text-orange-600 shadow-md' 
-                          : 'text-white hover:bg-orange-600/50'
-                      }`}
-                    >
-                      <Sparkles className="mr-3 h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
-                      <span className="truncate">Vidya AI</span>
-                    </button>
-          
         </nav>
+        <div className="p-4 border-t border-slate-100">
+          <button type="button" onClick={handleLogout} className={navBtn('logout', false)}>
+            <LogOut className="h-4 w-4 shrink-0" />
+            <span>Logout</span>
+          </button>
+        </div>
       </div>
       )}
 
         {/* Main Content Area */}
         <div className="flex-1 w-full min-w-0 flex flex-col relative z-10 md:h-screen md:overflow-y-auto hide-scrollbar">
-          {/* Top Header - Student Dashboard Theme */}
-          <div className="bg-gradient-to-r from-sky-300 via-sky-400 to-teal-400 shadow-xl border-b-0 rounded-b-3xl md:rounded-b-3xl rounded-b-2xl px-responsive py-3 sm:py-4 lg:py-6 relative z-10">
-            <div className="flex-responsive-col items-center sm:items-start justify-between space-y-responsive sm:space-y-0">
-              <div className="text-center sm:text-left">
-                <p className="text-xs uppercase tracking-[0.3em] text-gray-900 mb-2">Admin Control Center</p>
-                <h2 className="text-responsive-xl font-bold capitalize text-gray-900">{activeTab}</h2>
-                <p className="text-gray-900 text-responsive-sm font-medium">Manage your learning platform with style</p>
-                {userData && (
-                  <div className="mt-2">
-                    <p className="text-gray-800 text-xs sm:text-sm font-medium">
-                      {userData.email} ::: {userData.schoolName || userData.fullName || 'School'}
-                    </p>
-                    <p className="text-gray-900 text-sm sm:text-base font-semibold mt-1">
-                      Welcome {userData.schoolName || userData.fullName || 'Admin'}
-                    </p>
-                  </div>
-                )}
-              </div>
-              {!isMobile && (
-                <div className="flex items-center space-x-responsive">
-                  <Button 
-                    size="sm" 
-                    variant="outline"
-                    onClick={async () => {
-                      try {
-                        const token = localStorage.getItem('authToken');
-                        if (token) {
-                          try {
-                            const response = await fetch(`${API_BASE_URL}/api/auth/logout`, {
-                              method: 'POST',
-                              headers: {
-                                'Authorization': `Bearer ${token}`,
-                                'Content-Type': 'application/json'
-                              }
-                            });
-                            // Continue even if response is not ok
-                            if (!response.ok) {
-                              console.warn('Logout API returned non-ok status:', response.status);
-                            }
-                          } catch (error) {
-                            console.error('Logout API error:', error);
-                            // Continue with logout even if API call fails
-                          }
-                        }
-                        // Always clear local storage and redirect
-                        localStorage.removeItem('authToken');
-                        localStorage.removeItem('user');
-                        window.location.href = '/signin';
-                      } catch (error) {
-                        console.error('Logout failed:', error);
-                        // Always clear and redirect even on error
-                        localStorage.removeItem('authToken');
-                        localStorage.removeItem('user');
-                        window.location.href = '/signin';
-                      }
-                    }}
-                    className="bg-white/90 text-gray-900 hover:bg-white rounded-full border-2 border-gray-300 backdrop-blur-sm font-semibold shadow-lg"
-                  >
-                    <LogOut className="w-3 h-3 sm:w-4 sm:h-4 mr-responsive" />
-                    Logout
-                  </Button>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Content Area */}
-          <div className={`flex-1 w-full p-responsive ${isMobile ? 'pt-20 pb-24' : ''} relative z-10`}>
+          <div className={`flex-1 w-full ${isMobile ? 'pt-16 pb-8' : ''} px-4 sm:px-6 lg:px-8 py-6`}>
           {activeTab === 'overview' && (
-            <div className="space-y-4 sm:space-y-6 lg:space-y-8">
-            {/* Colorful Stats Cards */}
-            <div className="grid-responsive-4 gap-responsive">
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1 }}
-                className="group relative overflow-hidden bg-gradient-to-r from-orange-300 to-orange-400 text-white border-0 shadow-lg rounded-responsive p-responsive hover:shadow-xl transition-all duration-300"
-              >
-                <div className="relative z-10">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="p-3 bg-white/20 rounded-xl backdrop-blur-sm">
-                      <Users className="w-6 h-6 sm:w-7 sm:h-7 lg:w-8 lg:h-8 text-white" />
-                    </div>
-                    <div className="text-right">
-                      <p className="text-white/90 text-responsive-xs font-medium">Total Students</p>
-                      <p className="text-responsive-xl font-bold text-white">
-                        {isLoadingStats ? '...' : stats.totalStudents}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2 }}
-                className="group relative overflow-hidden bg-gradient-to-br from-sky-300 to-sky-400 text-white border-0 shadow-lg rounded-responsive p-responsive hover:shadow-xl transition-all duration-300"
-              >
-                <div className="relative z-10">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="p-3 bg-white/20 rounded-xl backdrop-blur-sm">
-                      <GraduationCap className="w-6 h-6 sm:w-7 sm:h-7 lg:w-8 lg:h-8 text-white" />
-                    </div>
-                    <div className="text-right">
-                      <p className="text-white/90 text-responsive-xs font-medium">Active Classes</p>
-                      <p className="text-responsive-xl font-bold text-white">
-                        {isLoadingStats ? '...' : stats.totalClasses}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3 }}
-                className="group relative overflow-hidden bg-gradient-to-br from-teal-400 to-teal-500 text-white border-0 shadow-lg rounded-responsive p-responsive hover:shadow-xl transition-all duration-300"
-              >
-                <div className="relative z-10">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="p-3 bg-white/20 rounded-xl backdrop-blur-sm">
-                      <Activity className="w-6 h-6 sm:w-7 sm:h-7 lg:w-8 lg:h-8 text-white" />
-                    </div>
-                    <div className="text-right">
-                      <p className="text-white/90 text-responsive-xs font-medium">Active Users</p>
-                      <p className="text-responsive-xl font-bold text-white">
-                        {isLoadingStats ? '...' : stats.activeUsers}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.4 }}
-                className="group relative overflow-hidden bg-gradient-to-r from-orange-300 to-orange-400 text-white border-0 shadow-lg rounded-responsive p-responsive hover:shadow-xl transition-all duration-300"
-              >
-                <div className="relative z-10">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="p-3 bg-white/20 rounded-xl backdrop-blur-sm">
-                      <Users className="w-6 h-6 sm:w-7 sm:h-7 lg:w-8 lg:h-8 text-white" />
-                    </div>
-                    <div className="text-right">
-                      <p className="text-white/90 text-responsive-xs font-medium">Teachers</p>
-                      <p className="text-responsive-xl font-bold text-white">
-                        {isLoadingStats ? '...' : (stats.totalTeachers || 0)}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-
-            </div>
-
-            <AtRiskStudentsPanel />
-
-            {/* Detailed School Analysis Section */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.7 }}
-              className="relative overflow-hidden bg-gradient-to-br from-slate-50 to-gray-100 rounded-responsive p-responsive shadow-responsive border border-gray-200"
-              >
-                <div className="relative z-10">
-                <div className="flex items-center space-x-3 mb-6">
-                  <div className="p-3 bg-gradient-to-br from-orange-400 to-orange-500 rounded-xl shadow-lg">
-                    <BarChart3 className="w-6 h-6 sm:w-7 sm:h-7 lg:w-8 lg:h-8 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="text-responsive-lg font-bold text-orange-600">Detailed School Analysis</h3>
-                    <p className="text-gray-600 text-responsive-xs">Comprehensive insights about your students</p>
-                  </div>
-                </div>
-
-                {isLoadingAnalytics ? (
-                  <div className="flex items-center justify-center py-4 sm:py-6 lg:py-8">
-                    <div className="animate-spin rounded-full h-6 w-6 sm:h-7 sm:w-7 lg:h-8 lg:w-8 border-b-2 border-orange-600"></div>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:p-4 lg:p-6">
-                    {/* Class Distribution */}
-                    <div className="bg-white rounded-lg p-4 shadow-md border border-gray-200">
-                      <h4 className="font-semibold text-gray-900 mb-3 flex items-center">
-                        <GraduationCap className="w-4 h-4 sm:w-5 sm:h-5 mr-2 text-orange-600" />
-                        Class Distribution
-                      </h4>
-                      <div className="space-y-2">
-                        {topClassDistribution.length > 0 ? (
-                          topClassDistribution.map((item: any, idx: number) => (
-                            <div key={idx} className="flex justify-between items-center text-xs sm:text-sm">
-                              <span className="text-gray-700">{item.className || item.class || 'Unknown'}</span>
-                              <span className="font-semibold text-orange-600">{item.count || 0} students</span>
-                            </div>
-                          ))
-                        ) : (
-                          <div className="text-xs sm:text-sm text-gray-500">No class data available</div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Performance Metrics */}
-                    <div className="bg-white rounded-lg p-4 shadow-md border border-gray-200">
-                      <h4 className="font-semibold text-gray-900 mb-3 flex items-center">
-                        <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 mr-2 text-green-600" />
-                        Performance Metrics
-                      </h4>
-                      <div className="space-y-3">
-                        <div className="flex justify-between items-center">
-                          <span className="text-xs sm:text-sm text-gray-600">Average Score</span>
-                          <span className="text-base sm:text-lg font-bold text-green-600">
-                            {studentAnalytics.performanceMetrics?.averageScore || 0}%
-                          </span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-xs sm:text-sm text-gray-600">Total Exams Taken</span>
-                          <span className="text-base sm:text-lg font-bold text-orange-600">
-                            {studentAnalytics.performanceMetrics?.totalExamsTaken || 0}
-                          </span>
-                        </div>
-                        {studentAnalytics.performanceMetrics?.topPerformers && studentAnalytics.performanceMetrics.topPerformers.length > 0 && (
-                          <div className="pt-2 border-t">
-                            <p className="text-xs text-gray-500 mb-1">Top Performer</p>
-                            <p className="text-xs sm:text-sm font-semibold text-gray-900">
-                              {studentAnalytics.performanceMetrics.topPerformers[0]?.studentName || 'N/A'}
-                            </p>
-                            <p className="text-xs text-gray-600">
-                              {studentAnalytics.performanceMetrics.topPerformers[0]?.averageScore || 0}% avg
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Subject Performance */}
-                    <div className="bg-white rounded-lg p-4 shadow-md border border-gray-200">
-                      <h4 className="font-semibold text-gray-900 mb-3 flex items-center">
-                        <BookOpen className="w-4 h-4 sm:w-5 sm:h-5 mr-2 text-orange-600" />
-                        Subject Performance
-                      </h4>
-                      <div className="space-y-2">
-                        {topSubjectPerformance.length > 0 ? (
-                          topSubjectPerformance.map((subject: any, idx: number) => (
-                            <div key={idx} className="flex justify-between items-center text-xs sm:text-sm">
-                              <span className="text-gray-700 capitalize">{subject.subject || subject.name || 'Unknown'}</span>
-                              <div className="flex items-center space-x-2">
-                                <span className="font-semibold text-orange-600">{subject.averageScore || 0}%</span>
-                                <div className="w-16 h-2 bg-gray-200 rounded-full overflow-hidden">
-                                  <div 
-                                    className="h-full bg-gradient-to-r from-orange-400 to-orange-500"
-                                    style={{ width: `${Math.min(subject.averageScore || 0, 100)}%` }}
-                                  ></div>
-                                </div>
-                              </div>
-                            </div>
-                          ))
-                        ) : (
-                          <div className="text-xs sm:text-sm text-gray-500">No subject data available</div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )}
-                </div>
-              </motion.div>
-
-            {/* Admin-Specific Data Section */}
-            <div className="grid-responsive-2 gap-responsive">
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.7 }}
-                onClick={() => setActiveTab('students')}
-                className="relative overflow-hidden bg-gradient-to-br from-sky-300 to-sky-400 text-white border-0 shadow-lg rounded-responsive p-responsive hover:shadow-xl transition-all duration-300 cursor-pointer hover:scale-105"
-              >
-                <div className="absolute inset-0 bg-white/10 backdrop-blur-sm"></div>
-                <div className="relative z-10">
-                  <div className="flex items-center space-x-3 mb-6">
-                    <div className="p-3 bg-white/20 rounded-xl backdrop-blur-sm">
-                      <Users className="w-6 h-6 sm:w-7 sm:h-7 lg:w-8 lg:h-8 text-white" />
-                    </div>
-                    <h3 className="text-responsive-lg font-bold text-white">Your Students</h3>
-                  </div>
-                  <div className="space-y-4">
-                    <div className="flex justify-between items-center">
-                      <span className="text-white/90 text-responsive-sm font-medium">Total Students Assigned</span>
-                      <span className="text-responsive-xl font-bold text-white">
-                        {isLoadingStats ? '...' : stats.totalStudents}
-                      </span>
-                    </div>
-                    <div className="text-white/80 text-responsive-xs">
-                      These are the students specifically assigned to your admin account
-                    </div>
-                    <div className="text-white/90 text-xs font-medium mt-2 flex items-center gap-1">
-                      Click to view details →
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.8 }}
-                onClick={() => setActiveTab('teachers')}
-                className="relative overflow-hidden bg-gradient-to-br from-emerald-600 to-emerald-700 rounded-3xl p-4 sm:p-6 lg:p-8 shadow-xl cursor-pointer hover:scale-105 transition-all duration-300"
-              >
-                <div className="absolute inset-0 bg-white/10 backdrop-blur-sm"></div>
-                <div className="relative z-10">
-                  <div className="flex items-center space-x-3 mb-6">
-                    <div className="p-3 bg-white/20 rounded-xl backdrop-blur-sm">
-                      <GraduationCap className="w-6 h-6 sm:w-7 sm:h-7 lg:w-8 lg:h-8 text-white" />
-                    </div>
-                    <h3 className="text-xl sm:text-2xl font-bold text-white">Your Teachers</h3>
-                  </div>
-                  <div className="space-y-4">
-                    <div className="flex justify-between items-center">
-                      <span className="text-white/90 text-base sm:text-lg font-medium">Total Teachers Assigned</span>
-                      <span className="text-responsive-xl font-bold text-white">
-                        {isLoadingStats ? '...' : (stats.totalTeachers || 0)}
-                      </span>
-                    </div>
-                    <div className="text-white/80 text-responsive-xs">
-                      These are the teachers specifically assigned to your admin account
-                    </div>
-                    <div className="text-white/90 text-xs font-medium mt-2 flex items-center gap-1">
-                      Click to view details →
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-            </div>
-
-            {/* Recent Activity */}
-            {/* Recent Activity removed per request */}
-            </div>
+            <Suspense fallback={lazySectionFallback}>
+              <AdminHome
+                schoolName={userData?.schoolName || userData?.fullName}
+                onNavigate={setActiveTab}
+              />
+            </Suspense>
           )}
+
 
           {activeTab === 'students' && (
             <Suspense fallback={lazySectionFallback}>
@@ -1043,16 +307,6 @@ const AdminDashboard = () => {
           {activeTab === 'teachers' && (
             <Suspense fallback={lazySectionFallback}>
               <TeacherManagement />
-            </Suspense>
-          )}
-          {activeTab === 'subjects' && (
-            <Suspense fallback={lazySectionFallback}>
-              <SubjectManagement />
-            </Suspense>
-          )}
-          {activeTab === 'exams' && (
-            <Suspense fallback={lazySectionFallback}>
-              <ExamViewOnly />
             </Suspense>
           )}
           {activeTab === 'learning-paths' && (
@@ -1075,129 +329,10 @@ const AdminDashboard = () => {
               <TimetableManagement />
             </Suspense>
           )}
-          {activeTab === 'vidya-ai' && (
-            <div className="space-y-3 sm:space-y-4 lg:space-y-6">
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.5 }}
-                className="space-y-5"
-              >
-                <div className="rounded-2xl bg-gradient-to-r from-sky-300 via-sky-400 to-teal-400 p-3 sm:p-4 lg:p-6 shadow-lg border border-white/40">
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className="w-11 h-11 rounded-xl bg-white/25 backdrop-blur-sm flex items-center justify-center border border-white/40">
-                      <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
-                    </div>
-                    <Badge className="bg-white text-sky-700 hover:bg-white">School Operations</Badge>
-                  </div>
-                  <h2 className="text-2xl sm:text-3xl font-bold text-white">School AI Assistant</h2>
-                  <p className="text-white/90 mt-1">Manage students, teachers, and academic workflows</p>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                  {[
-                    { title: "Enroll Students", description: "Onboard students into classes quickly", icon: UserPlus, tab: "students" },
-                    { title: "Assign Teachers", description: "Map teachers to classes and subjects", icon: Users, tab: "teachers" },
-                    { title: "Schedule Exams", description: "Plan test windows and exam timelines", icon: CalendarIcon, tab: "exams" },
-                    { title: "View Reports", description: "Track attendance and performance trends", icon: BarChart3, tab: "overview" },
-                  ].map((action) => {
-                    const Icon = action.icon;
-                    return (
-                      <Card
-                        key={action.title}
-                        className="bg-white/80 border border-white/70 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
-                        onClick={() => setActiveTab(action.tab)}
-                      >
-                        <CardContent className="p-4">
-                          <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-sky-100 to-teal-100 flex items-center justify-center mb-3">
-                            <Icon className="w-3 h-3 sm:w-4 sm:h-4 text-sky-700" />
-                          </div>
-                          <h3 className="text-xs sm:text-sm font-semibold text-slate-900">{action.title}</h3>
-                          <p className="text-xs text-slate-600 mt-1">{action.description}</p>
-                        </CardContent>
-                      </Card>
-                    );
-                  })}
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="rounded-xl bg-white border border-sky-100 px-4 py-3 shadow-sm">
-                    <p className="text-xs uppercase tracking-wide text-slate-500">Total Students</p>
-                    <p className="text-xl sm:text-2xl font-bold text-sky-700 mt-1">{isLoadingStats ? "..." : stats.totalStudents}</p>
-                  </div>
-                  <div className="rounded-xl bg-white border border-teal-100 px-4 py-3 shadow-sm">
-                    <p className="text-xs uppercase tracking-wide text-slate-500">Active Classes</p>
-                    <p className="text-xl sm:text-2xl font-bold text-teal-700 mt-1">{isLoadingStats ? "..." : stats.totalClasses}</p>
-                  </div>
-                </div>
-
-                <div className="rounded-xl border border-sky-100 bg-gradient-to-r from-sky-50 to-teal-50 px-4 py-3 text-xs sm:text-sm text-slate-700">
-                  AI assists with administrative tasks and reporting
-                </div>
-
-                <AtRiskStudentsPanel />
-
-                <div className="w-full max-w-5xl mx-auto rounded-2xl bg-gradient-to-b from-sky-50 via-cyan-50 to-teal-50 p-4 border border-white/70 shadow-xl">
-                  <div className="rounded-t-2xl border-b border-sky-100 bg-white/90 px-5 py-4 flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <h3 className="text-sm sm:text-base font-semibold text-gray-800">Chat with Vidya AI</h3>
-                      <p className="text-xs text-gray-500 mt-0.5">
-                        Ask about your school&apos;s students, attendance, exams, and performance data.
-                      </p>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="shrink-0 border-sky-200 text-sky-800 hover:bg-sky-50"
-                      onClick={() =>
-                        window.dispatchEvent(
-                          new CustomEvent("vidya-chat-clear", { detail: { role: "admin" } })
-                        )
-                      }
-                    >
-                      <Trash2 className="mr-2 h-4 w-4" />
-                      Clear Chat
-                    </Button>
-                  </div>
-                  <div className="bg-white/85 rounded-b-2xl border-x border-b border-sky-100 shadow-md" style={{ minHeight: '600px' }}>
-                    {adminId ? (
-                      <Suspense fallback={lazySectionFallback}>
-                        <AIChat
-                          userId={adminId}
-                          className="flex-1 h-full"
-                          promptVariant="admin"
-                          context={{
-                            studentName: userData?.schoolName || userData?.fullName || userData?.email?.split('@')[0] || "Admin",
-                            currentSubject: "Administration",
-                            currentTopic: undefined
-                          }}
-                        />
-                      </Suspense>
-                    ) : (
-                      <div className="flex items-center justify-center h-full min-h-[600px]">
-                        <div className="text-center">
-                          <MessageCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                          <p className="text-gray-600">Loading chat...</p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </motion.div>
-            </div>
-          )}
           {/* Analytics tab removed */}
         </div>
       </div>
       
-      <VidyaAIFloatingAssistant
-        role="admin"
-        onClick={() => {
-          setActiveTab('vidya-ai');
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-        }}
-      />
     </div>
   );
 };

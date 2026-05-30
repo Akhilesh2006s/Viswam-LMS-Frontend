@@ -3,45 +3,53 @@
 @tailwind utilities;
 
 :root {
-  /* Light theme color tokens for clean, modern design */
-  --background: #ffffff; /* Pure white background */
-  --foreground: #1f2937; /* Dark gray for text and highlights */
-  --card: #ffffff; /* White card backgrounds */
-  --card-foreground: #1f2937; /* Dark text on cards */
-  --popover: #ffffff; /* White popover backgrounds */
-  --popover-foreground: #1f2937; /* Dark text in popovers */
-  --primary: #3b82f6; /* Blue accent for highlights */
-  --primary-foreground: #ffffff; /* White text on blue */
-  --secondary: #f3f4f6; /* Light gray for secondary elements */
-  --secondary-foreground: #374151; /* Dark gray text on secondary */
-  --muted: #f9fafb; /* Very light gray for muted elements */
-  --muted-foreground: #6b7280; /* Gray text for muted */
-  --accent: #3b82f6; /* Blue for interactive elements */
-  --accent-foreground: #ffffff; /* White text on accent */
-  --destructive: #ef4444; /* Red for destructive actions */
-  --destructive-foreground: #ffffff; /* White text for destructive */
-  --border: #e5e7eb; /* Light gray borders for contrast */
-  --input: #ffffff; /* White inputs */
-  --ring: #3b82f6; /* Blue for focus rings */
-  --chart-1: #3b82f6;
-  --chart-2: #10b981;
-  --chart-3: #f59e0b;
-  --chart-4: #ef4444;
-  --chart-5: #8b5cf6;
-  --radius: 0.5rem; /* Softer rounded corners */
-  --sidebar: #f8fafc; /* Light sidebar */
-  --sidebar-foreground: #1f2937; /* Dark sidebar text */
-  --sidebar-primary: #3b82f6; /* Blue for primary sidebar */
-  --sidebar-primary-foreground: #ffffff; /* White text on sidebar primary */
-  --sidebar-accent: #f1f5f9; /* Light gray for sidebar accent */
-  --sidebar-accent-foreground: #1f2937; /* Dark text on sidebar accent */
-  --sidebar-border: #e2e8f0; /* Light gray sidebar borders */
-  --sidebar-ring: #3b82f6; /* Blue for sidebar focus */
-  --hero-gradient-start: 340 100% 97%;
-  --hero-gradient-end: 350 100% 92%;
-  --font-instrument-serif: "Instrument Serif", serif; /* Instrument Serif font family configuration */
-  /* Outfit font - premium modern design font for best UI experience */
-  --font-outfit: "Outfit", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  /* VISWAM LMS / VISWAM EDUTECH — Enterprise design tokens */
+  --brand-navy: #0b1f3a;
+  --brand-navy-hover: #102b4e;
+  --brand-emerald: #00a86b;
+  --brand-emerald-hover: #008f5a;
+  --brand-gold: #d4af37;
+  --success: #16a34a;
+  --warning: #f59e0b;
+  --error: #dc2626;
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --text-primary: #0f172a;
+  --text-secondary: #64748b;
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+  --popover: #ffffff;
+  --popover-foreground: #0f172a;
+  --primary: #0b1f3a;
+  --primary-foreground: #ffffff;
+  --secondary: #00a86b;
+  --secondary-foreground: #ffffff;
+  --muted: #f1f5f9;
+  --muted-foreground: #64748b;
+  --accent: #d4af37;
+  --accent-foreground: #0b1f3a;
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+  --border: #e2e8f0;
+  --input: #ffffff;
+  --ring: #00a86b;
+  --chart-1: #0b1f3a;
+  --chart-2: #00a86b;
+  --chart-3: #d4af37;
+  --chart-4: #16a34a;
+  --chart-5: #64748b;
+  --radius: 0.75rem;
+  --sidebar-background: #0b1f3a;
+  --sidebar-foreground: #ffffff;
+  --sidebar-primary: #00a86b;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #102b4e;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: rgba(255, 255, 255, 0.08);
+  --sidebar-ring: #00a86b;
+  --dark-bg: #0f172a;
+  --dark-surface: #1e293b;
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
 
   /* ── Fluid Typography Scale ── */
   --text-xs:   clamp(0.65rem,  1.2vw, 0.75rem);
@@ -78,44 +86,35 @@
 }
 
 .dark {
-  /* Dark mode maintains the same dramatic black background theme */
-  --background: #000000;
-  --foreground: #ffffff;
-  --card: rgba(255, 255, 255, 0.05);
-  --card-foreground: #ffffff;
-  --popover: rgba(0, 0, 0, 0.9);
-  --popover-foreground: #ffffff;
-  --primary: #a855f7;
-  --primary-foreground: #000000;
-  --secondary: rgba(255, 255, 255, 0.1);
+  --background: #0f172a;
+  --foreground: #f8fafc;
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --card: #1e293b;
+  --card-foreground: #f8fafc;
+  --popover: #1e293b;
+  --popover-foreground: #f8fafc;
+  --primary: #00a86b;
+  --primary-foreground: #ffffff;
+  --secondary: #102b4e;
   --secondary-foreground: #ffffff;
-  --muted: rgba(255, 255, 255, 0.2);
-  --muted-foreground: rgba(255, 255, 255, 0.6);
-  --accent: #a855f7;
-  --accent-foreground: #000000;
+  --muted: #1e293b;
+  --muted-foreground: #94a3b8;
+  --accent: #d4af37;
+  --accent-foreground: #0b1f3a;
   --destructive: #dc2626;
   --destructive-foreground: #ffffff;
-  --border: rgba(255, 255, 255, 0.1);
-  --input: rgba(255, 255, 255, 0.05);
-  --ring: #a855f7;
-  --chart-1: #3b82f6;
-  --chart-2: #10b981;
-  --chart-3: #f59e0b;
-  --chart-4: #ef4444;
-  --chart-5: #8b5cf6;
-  --sidebar: #000000;
+  --border: #334155;
+  --input: #1e293b;
+  --ring: #00a86b;
+  --sidebar-background: #0b1f3a;
   --sidebar-foreground: #ffffff;
-  --sidebar-primary: #a855f7;
-  --sidebar-primary-foreground: #000000;
-  --sidebar-accent: rgba(255, 255, 255, 0.1);
+  --sidebar-primary: #00a86b;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #102b4e;
   --sidebar-accent-foreground: #ffffff;
-  --sidebar-border: rgba(255, 255, 255, 0.1);
-  --sidebar-ring: #a855f7;
-  --hero-gradient-start: 340 30% 15%;
-  --hero-gradient-end: 350 30% 20%;
-  --font-instrument-serif: "Instrument Serif", serif; /* Instrument Serif font family configuration */
-  /* Outfit font - premium modern design font for best UI experience */
-  --font-outfit: "Outfit", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --sidebar-border: rgba(255, 255, 255, 0.08);
+  --sidebar-ring: #00a86b;
 }
 
 
@@ -147,9 +146,8 @@
     @apply border-border;
   }
   body {
-    @apply bg-white text-foreground;
-    /* Set Outfit as the default font family - premium modern design font */
-    font-family: var(--font-outfit);
+    @apply bg-background text-foreground antialiased;
+    font-family: var(--font-sans);
     font-feature-settings: "kern" 1;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -160,7 +158,7 @@
   }
   
   html {
-    @apply bg-white;
+    @apply bg-background;
     overflow-x: hidden;
     overflow-y: auto;
   }
@@ -179,9 +177,15 @@
 
   /* Improve checkbox visibility across the platform (native + custom forms). */
   input[type='checkbox'] {
-    accent-color: #2563eb;
-    border: 1px solid #94a3b8;
+    accent-color: var(--brand-emerald);
+    border: 1px solid var(--border);
     border-radius: 0.25rem;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--text-primary);
   }
 }
 
@@ -189,17 +193,332 @@
   font-family: var(--font-instrument-serif);
 }
 
-/* Dashboard custom styles */
+/* VISWAM LMS component system */
+.viswam-card {
+  @apply rounded-2xl border bg-card text-card-foreground;
+  border-color: var(--border);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 16px rgba(15, 23, 42, 0.04);
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.viswam-card:hover {
+  box-shadow: 0 4px 6px rgba(15, 23, 42, 0.05), 0 12px 28px rgba(15, 23, 42, 0.08);
+}
+
+.viswam-stat-card {
+  @apply viswam-card p-5 sm:p-6;
+}
+
+.viswam-sidebar {
+  background: var(--sidebar-background);
+  color: var(--sidebar-foreground);
+  border-right: 1px solid var(--sidebar-border);
+}
+
+.viswam-sidebar-nav-active {
+  background: var(--sidebar-primary);
+  color: var(--sidebar-primary-foreground);
+}
+
+.viswam-sidebar-nav-item {
+  @apply w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 text-left;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.viswam-sidebar-nav-item:hover:not(.viswam-sidebar-nav-active) {
+  background: var(--sidebar-accent);
+  color: #fff;
+}
+
+.viswam-dashboard-shell {
+  @apply min-h-screen bg-[var(--background)];
+}
+
+/* ── Super Admin Premium ── */
+.sa-premium-shell {
+  min-height: 100vh;
+  background-color: #f4f7fb;
+  background-image:
+    radial-gradient(ellipse 90% 60% at 10% -10%, rgba(0, 168, 107, 0.09), transparent 55%),
+    radial-gradient(ellipse 70% 50% at 100% 0%, rgba(212, 175, 55, 0.07), transparent 50%),
+    linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+}
+
+.sa-premium-sidebar {
+  background: linear-gradient(185deg, #071528 0%, #0b1f3a 38%, #0d2748 100%);
+  border-right: 1px solid rgba(212, 175, 55, 0.14);
+  box-shadow: 8px 0 32px rgba(7, 21, 40, 0.22);
+}
+
+.sa-premium-sidebar-accent {
+  height: 3px;
+  background: linear-gradient(90deg, transparent, var(--brand-gold), var(--brand-emerald), transparent);
+}
+
+.sa-premium-nav-label {
+  @apply px-3 pt-4 pb-1 text-[10px] font-bold uppercase tracking-[0.16em] text-white/35;
+}
+
+.sa-premium-nav-btn {
+  @apply relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium transition-all duration-200;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.sa-premium-nav-btn:hover:not(.sa-premium-nav-active) {
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+}
+
+.sa-premium-nav-active {
+  background: linear-gradient(135deg, rgba(0, 168, 107, 0.95) 0%, rgba(0, 143, 90, 0.92) 100%);
+  color: #fff;
+  box-shadow: 0 8px 24px rgba(0, 168, 107, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+.sa-premium-nav-icon {
+  @apply flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors duration-200;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.sa-premium-nav-active .sa-premium-nav-icon {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
+.sa-premium-icon-ring {
+  @apply flex h-12 w-12 items-center justify-center rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-white to-emerald-50 shadow-sm;
+}
+
+.sa-premium-badge {
+  display: inline-flex;
+  border-radius: 9999px;
+  border: 1px solid rgba(212, 175, 55, 0.35);
+  background: rgba(212, 175, 55, 0.12);
+  padding: 0.125rem 0.5rem;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--brand-navy);
+}
+
+.sa-premium-panel {
+  border-radius: 1rem;
+  border: 1px solid rgba(226, 232, 240, 0.7);
+  background: rgba(255, 255, 255, 0.92);
+  padding: 1rem;
+  box-shadow: 0 4px 24px rgba(11, 31, 58, 0.04);
+  backdrop-filter: blur(8px);
+}
+
+@media (min-width: 640px) {
+  .sa-premium-panel {
+    padding: 1.25rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .sa-premium-panel {
+    padding: 1.5rem;
+  }
+}
+
+.sa-premium-scope .sa-premium-panel > *:first-child {
+  margin-top: 0;
+}
+
+.sa-premium-tile {
+  @apply relative overflow-hidden rounded-2xl border-0 p-5 sm:p-6;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.sa-premium-tile:hover {
+  transform: translateY(-2px);
+}
+
+.sa-premium-tile-navy {
+  background: linear-gradient(135deg, #0b1f3a 0%, #153456 55%, #1a3f5c 100%);
+  box-shadow: 0 12px 32px rgba(11, 31, 58, 0.22);
+}
+
+.sa-premium-tile-emerald {
+  background: linear-gradient(135deg, #007a52 0%, #00a86b 50%, #00c17d 100%);
+  box-shadow: 0 12px 32px rgba(0, 168, 107, 0.25);
+}
+
+.sa-premium-tile-gold {
+  background: linear-gradient(135deg, #9a7b1a 0%, #c9a227 45%, #d4af37 100%);
+  box-shadow: 0 12px 32px rgba(212, 175, 55, 0.22);
+}
+
+.sa-premium-tile-sky {
+  background: linear-gradient(135deg, #0369a1 0%, #0ea5e9 55%, #38bdf8 100%);
+  box-shadow: 0 12px 32px rgba(14, 165, 233, 0.22);
+}
+
+.sa-premium-mobile-bar {
+  border-top: 1px solid rgba(226, 232, 240, 0.8);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(16px);
+  box-shadow: 0 -8px 24px rgba(11, 31, 58, 0.06);
+}
+
+.sa-premium-mobile-nav-active {
+  color: var(--brand-emerald);
+}
+
+.sa-premium-loading {
+  @apply flex flex-col items-center justify-center gap-4 rounded-2xl border border-slate-200/80 bg-white py-16 shadow-sm;
+}
+
+.sa-premium-progress {
+  @apply h-2 overflow-hidden rounded-full bg-slate-100;
+}
+
+.sa-premium-progress > div {
+  @apply h-full rounded-full transition-all duration-500;
+  background: linear-gradient(90deg, var(--brand-emerald), #38bdf8);
+}
+
+.sa-premium-scope :where(.rounded-lg.border, .rounded-xl.border) {
+  border-color: rgb(226 232 240 / 0.9);
+}
+
+.sa-premium-scope :where(h1, h2, h3).font-bold {
+  letter-spacing: -0.02em;
+}
+
+/* Inner module pages */
+.sa-premium-inner-page {
+  width: 100%;
+}
+
+.sa-premium-inner .sa-inner-card,
+.sa-premium-inner .sa-school-card {
+  border-radius: 1rem;
+  border-color: rgba(226, 232, 240, 0.85);
+  background: #fff;
+  box-shadow: 0 2px 12px rgba(11, 31, 58, 0.04);
+}
+
+.sa-premium-inner .rounded-lg.border.bg-card,
+.sa-premium-inner .rounded-xl.border.bg-card {
+  border-radius: 1rem !important;
+  border-color: rgba(226, 232, 240, 0.85) !important;
+  box-shadow: 0 2px 12px rgba(11, 31, 58, 0.04) !important;
+}
+
+.sa-premium-inner [class*="bg-gradient-to"] {
+  border-radius: 1rem;
+}
+
+.sa-premium-inner table thead tr {
+  background: linear-gradient(90deg, #0b1f3a, #153456);
+}
+
+.sa-premium-inner table thead th {
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.sa-premium-inner table tbody tr:hover {
+  background: rgba(0, 168, 107, 0.04);
+}
+
+.sa-premium-inner [role="tablist"] {
+  border-radius: 0.875rem;
+  background: rgba(241, 245, 249, 0.9);
+  padding: 0.25rem;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+}
+
+.sa-premium-inner [role="tab"][data-state="active"] {
+  background: #fff !important;
+  color: var(--brand-navy) !important;
+  box-shadow: 0 2px 8px rgba(11, 31, 58, 0.08);
+  border-radius: 0.625rem;
+}
+
+.sa-premium-inner input:not([type="checkbox"]):not([type="radio"]),
+.sa-premium-inner textarea,
+.sa-premium-inner [role="combobox"] {
+  border-radius: 0.75rem;
+}
+
+.sa-premium-inner .bg-blue-600,
+.sa-premium-inner .hover\:bg-blue-700:hover {
+  background: var(--brand-navy) !important;
+}
+
+.sa-premium-inner .bg-blue-600:hover {
+  background: var(--brand-navy-hover) !important;
+}
+
+.sa-premium-inner .from-orange-300,
+.sa-premium-inner .from-orange-400,
+.sa-premium-inner .from-sky-300,
+.sa-premium-inner .from-teal-400,
+.sa-premium-inner .from-blue-500 {
+  /* keep gradients on action tiles only — stat blocks overridden below */
+}
+
+.sa-premium-inner .sa-class-pill {
+  border-radius: 0.75rem;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  transition: all 0.2s ease;
+}
+
+.sa-premium-inner .sa-class-pill-active {
+  border-color: rgba(0, 168, 107, 0.45);
+  background: rgba(0, 168, 107, 0.08);
+  box-shadow: 0 0 0 1px rgba(0, 168, 107, 0.12);
+}
+
+.sa-premium-inner .sa-iq-class-card {
+  border: 0;
+  border-radius: 1rem;
+  background: linear-gradient(145deg, #0b1f3a 0%, #0d3d5c 50%, #00a86b 100%);
+  box-shadow: 0 12px 28px rgba(11, 31, 58, 0.18);
+}
+
+.sa-premium-inner .sa-iq-class-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 18px 36px rgba(11, 31, 58, 0.22);
+}
+
+.sa-premium-empty {
+  border-radius: 1rem;
+  border: 1px dashed rgba(148, 163, 184, 0.5);
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.sa-school-card .sa-school-stat {
+  border-radius: 0.75rem;
+  background: linear-gradient(135deg, rgba(11, 31, 58, 0.06), rgba(0, 168, 107, 0.08));
+  border: 1px solid rgba(226, 232, 240, 0.8);
+}
+
+.viswam-page-header {
+  @apply rounded-2xl border bg-card px-5 py-4 sm:px-6 sm:py-5;
+  border-color: var(--border);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
 .gradient-primary {
-  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  background: var(--brand-navy);
 }
 
 .gradient-accent {
-  background: linear-gradient(135deg, #0d9488 0%, #047857 100%);
+  background: var(--brand-emerald);
 }
 
 .stats-card {
-  @apply bg-white border border-gray-200 rounded-xl p-3 sm:p-4 lg:p-6 shadow-sm hover:shadow-md transition-shadow duration-200;
+  @apply viswam-stat-card;
 }
 
 .subject-progress-card {
@@ -434,12 +753,12 @@
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  background: var(--brand-navy);
   border-radius: 10px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(135deg, #4f46e5, #7c3aed);
+  background: var(--brand-navy-hover);
 }
 
 /* Hide scrollbar for Super Admin sidebar but keep scrolling */

@@ -33,6 +33,7 @@ import {
   extractPlainSubjectName,
   getSubjectClassLabel,
 } from '@/lib/subject-names';
+import { AdminOttAnalyticsPanel } from '@/components/admin/AdminOttAnalyticsPanel';
 
 interface Video {
   _id: string;
@@ -337,6 +338,7 @@ export default function AdminEduOTT() {
 
   return (
     <div className="space-y-3 sm:space-y-4 lg:space-y-6">
+      <AdminOttAnalyticsPanel />
       {/* Header */}
       <div className="bg-white/80 backdrop-blur-xl rounded-3xl p-3 sm:p-4 lg:p-6 shadow-xl border border-white/20">
         <div className="flex items-center gap-3 mb-6">

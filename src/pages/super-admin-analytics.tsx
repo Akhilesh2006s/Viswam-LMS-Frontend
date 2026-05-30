@@ -1,19 +1,25 @@
 import { useState, useEffect } from "react";
+import { fetchPlatformOttAnalytics, type PlatformOttAnalytics } from "@/lib/ott/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { 
-  BarChart3Icon, 
-  UsersIcon, 
-  TrendingUpIcon, 
+import {
+  BarChart3Icon,
+  UsersIcon,
+  TrendingUpIcon,
   BookIcon,
   CrownIcon,
-  StarIcon,
-  TargetIcon,
-  AwardIcon
+  AwardIcon,
+  Building2,
+  ArrowUpRight,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { API_BASE_URL } from "@/lib/api-config";
+import {
+  SuperAdminInnerPage,
+  SuperAdminStatCard,
+  SuperAdminEmptyState,
+  SuperAdminInnerCard,
+} from "@/components/super-admin/premium";
 
 export type SchoolSummary = {
   id: string;
@@ -22,60 +28,47 @@ export type SchoolSummary = {
 };
 
 type SuperAdminAnalyticsDashboardProps = {
-  /** Opens Exam & AI insights for this school (combined analytics page). */
   onSelectSchool?: (admin: SchoolSummary) => void;
 };
 
 export default function SuperAdminAnalyticsDashboard({ onSelectSchool }: SuperAdminAnalyticsDashboardProps) {
   const { toast } = useToast();
-  const [analytics, setAnalytics] = useState(null);
+  const [analytics, setAnalytics] = useState<any[] | null>(null);
   const [dashboardStats, setDashboardStats] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [ottStats, setOttStats] = useState<PlatformOttAnalytics | null>(null);
 
   useEffect(() => {
     fetchAnalytics();
-    
-    // Listen for admin deletion events to refresh analytics
-    const handleAdminDeleted = () => {
-      fetchAnalytics();
-    };
-    
-    window.addEventListener('adminDeleted', handleAdminDeleted);
-    
-    return () => {
-      window.removeEventListener('adminDeleted', handleAdminDeleted);
-    };
+    fetchPlatformOttAnalytics().then(setOttStats);
+    const handleAdminDeleted = () => fetchAnalytics();
+    window.addEventListener("adminDeleted", handleAdminDeleted);
+    return () => window.removeEventListener("adminDeleted", handleAdminDeleted);
   }, []);
 
   const fetchAnalytics = async () => {
     try {
-      const token = localStorage.getItem('authToken');
+      const token = localStorage.getItem("authToken");
       const [adminsResponse, statsResponse] = await Promise.all([
         fetch(`${API_BASE_URL}/api/super-admin/admins`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         }),
         fetch(`${API_BASE_URL}/api/super-admin/dashboard/stats`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        })
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        }),
       ]);
 
       if (adminsResponse.ok) {
         const data = await adminsResponse.json();
         setAnalytics(data.data);
       }
-
       if (statsResponse.ok) {
         const statsData = await statsResponse.json();
         setDashboardStats(statsData?.data || null);
       }
     } catch (error) {
-      console.error('Failed to fetch analytics:', error);
+      console.error("Failed to fetch analytics:", error);
+      toast({ title: "Error", description: "Failed to load analytics", variant: "destructive" });
     } finally {
       setIsLoading(false);
     }
@@ -85,199 +78,158 @@ export default function SuperAdminAnalyticsDashboard({ onSelectSchool }: SuperAd
     analytics?.reduce(
       (sum, admin) =>
         sum + (admin.stats?.videos || 0) + (admin.stats?.assessments || 0) + (admin.stats?.exams || 0),
-      0
+      0,
     ) || 0;
   const totalContentFromStats =
     (dashboardStats?.totalContent || dashboardStats?.courses || 0) +
     (dashboardStats?.assessments || 0) +
     (dashboardStats?.exams || 0);
   const totalContentDisplay = totalContentFromStats || totalContentFromAdmins;
+  const totalStudents =
+    analytics?.reduce((sum, admin) => sum + (admin.stats?.students || 0), 0) || 0;
+  const totalTeachers =
+    analytics?.reduce((sum, admin) => sum + (admin.stats?.teachers || 0), 0) || 0;
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <BarChart3Icon className="w-12 h-12 animate-spin text-blue-600 mx-auto mb-4" />
-          <p className="text-base sm:text-lg font-semibold">Loading Analytics...</p>
-        </div>
-      </div>
+      <SuperAdminInnerPage>
+        <SuperAdminEmptyState icon={BarChart3Icon} title="Loading analytics" description="Aggregating school performance…" />
+      </SuperAdminInnerPage>
     );
   }
 
   return (
-    <div className="space-y-3 sm:space-y-4 lg:space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 flex items-center">
-            <BarChart3Icon className="w-6 h-6 sm:w-7 sm:h-7 lg:w-8 lg:h-8 mr-3 text-blue-600" />
-            Analytics Dashboard
-          </h1>
-          <p className="text-gray-600 mt-2">Comprehensive platform analytics and insights</p>
-        </div>
+    <SuperAdminInnerPage>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <SuperAdminStatCard label="School admins" value={analytics?.length || 0} icon={CrownIcon} accent="gold" hint="Active administrators" />
+        <SuperAdminStatCard label="Total students" value={totalStudents} icon={UsersIcon} accent="emerald" hint="Across all schools" />
+        <SuperAdminStatCard label="Total teachers" value={totalTeachers} icon={AwardIcon} accent="sky" />
+        <SuperAdminStatCard label="Learning assets" value={totalContentDisplay} icon={BookIcon} accent="navy" hint="Videos, assessments, exams" />
       </div>
 
-      {/* Analytics Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 sm:p-4 lg:p-6">
-        {/* Total Admins - Orange (matching admin dashboard) */}
-        <Card className="bg-gradient-to-r from-orange-300 to-orange-400 text-white border-0 shadow-lg">
-          <CardContent className="p-3 sm:p-4 lg:p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs sm:text-sm font-medium text-white/90">Total Admins</p>
-                <p className="text-2xl sm:text-3xl font-bold text-white">{analytics?.length || 0}</p>
-                <p className="text-xs sm:text-sm text-white/90">Active administrators</p>
-              </div>
-              <CrownIcon className="h-12 w-12 text-white" />
-            </div>
-          </CardContent>
-        </Card>
+      {ottStats ? (
+        <SuperAdminInnerCard
+          title="VISWAM OTT — Platform streaming"
+          description="Watch time and completions across all schools"
+        >
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+            <SuperAdminStatCard label="Watch hours" value={ottStats.totalWatchHours} icon={TrendingUpIcon} accent="emerald" />
+            <SuperAdminStatCard label="Sessions" value={ottStats.totalWatchSessions} icon={BarChart3Icon} accent="sky" />
+            <SuperAdminStatCard label="Completed" value={ottStats.videosCompleted} icon={BookIcon} accent="gold" />
+            <SuperAdminStatCard label="Completion rate" value={`${ottStats.completionRate}%`} icon={AwardIcon} accent="navy" />
+          </div>
+        </SuperAdminInnerCard>
+      ) : null}
 
-        {/* Total Students - Sky Blue (matching admin dashboard) */}
-        <Card className="bg-gradient-to-br from-sky-300 to-sky-400 text-white border-0 shadow-lg">
-          <CardContent className="p-3 sm:p-4 lg:p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs sm:text-sm font-medium text-white/90">Total Students</p>
-                <p className="text-2xl sm:text-3xl font-bold text-white">
-                  {analytics?.reduce((sum, admin) => sum + (admin.stats?.students || 0), 0) || 0}
-                </p>
-                <p className="text-xs sm:text-sm text-white/90">Across all admins</p>
-              </div>
-              <UsersIcon className="h-12 w-12 text-white" />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Total Teachers - Teal (matching admin dashboard) */}
-        <Card className="bg-gradient-to-br from-teal-400 to-teal-500 text-white border-0 shadow-lg">
-          <CardContent className="p-3 sm:p-4 lg:p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs sm:text-sm font-medium text-white/90">Total Teachers</p>
-                <p className="text-2xl sm:text-3xl font-bold text-white">
-                  {analytics?.reduce((sum, admin) => sum + (admin.stats?.teachers || 0), 0) || 0}
-                </p>
-                <p className="text-xs sm:text-sm text-white/90">Active educators</p>
-              </div>
-              <AwardIcon className="h-12 w-12 text-white" />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Total Content - Orange (matching admin dashboard) */}
-        <Card className="bg-gradient-to-r from-orange-300 to-orange-400 text-white border-0 shadow-lg">
-          <CardContent className="p-3 sm:p-4 lg:p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs sm:text-sm font-medium text-white/90">Total Content</p>
-                <p className="text-2xl sm:text-3xl font-bold text-white">
-                  {totalContentDisplay}
-                </p>
-                <p className="text-xs sm:text-sm text-white/90">Videos, assessments, exams</p>
-              </div>
-              <BookIcon className="h-12 w-12 text-white" />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Admin Performance */}
-      <Card className="relative border-0 overflow-hidden" style={{
-        background: 'linear-gradient(135deg, #7dd3fc 0%, #7dd3fc 20%, #2dd4bf 60%, #14b8a6 100%)'
-      }}>
-        <div className="absolute inset-0 bg-white/5 pointer-events-none"></div>
-        <CardHeader className="relative z-10">
-          <CardTitle className="flex items-center text-gray-900">
-            <TrendingUpIcon className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
-            Admin Performance Overview
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="relative z-10">
-          <div className="space-y-4">
-            {analytics?.map((admin) => {
-              const schoolId = String(admin.id || admin._id || '');
-              const interactive = Boolean(onSelectSchool && schoolId);
-              return (
-                <div
-                  key={schoolId || admin.email}
-                  role={interactive ? 'button' : undefined}
-                  tabIndex={interactive ? 0 : undefined}
-                  onClick={
-                    interactive
-                      ? () =>
+      <SuperAdminInnerCard
+        title="School performance overview"
+        description="Tap a school to drill into detailed metrics"
+      >
+        <div className="space-y-3">
+          {analytics?.map((admin) => {
+            const schoolId = String(admin.id || admin._id || "");
+            const interactive = Boolean(onSelectSchool && schoolId);
+            return (
+              <div
+                key={schoolId || admin.email}
+                role={interactive ? "button" : undefined}
+                tabIndex={interactive ? 0 : undefined}
+                onClick={
+                  interactive
+                    ? () =>
+                        onSelectSchool!({
+                          id: schoolId,
+                          name: admin.name || admin.schoolName || "School",
+                          email: admin.email || "",
+                        })
+                    : undefined
+                }
+                onKeyDown={
+                  interactive
+                    ? (e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
                           onSelectSchool!({
                             id: schoolId,
-                            name: admin.name || admin.schoolName || 'School',
-                            email: admin.email || '',
-                          })
-                      : undefined
-                  }
-                  onKeyDown={
-                    interactive
-                      ? (e) => {
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault();
-                            onSelectSchool!({
-                              id: schoolId,
-                              name: admin.name || admin.schoolName || 'School',
-                              email: admin.email || '',
-                            });
-                          }
+                            name: admin.name || admin.schoolName || "School",
+                            email: admin.email || "",
+                          });
                         }
-                      : undefined
-                  }
-                  className={`p-4 bg-white/90 backdrop-blur-sm rounded-lg border border-white/50 shadow-md ${
-                    interactive
-                      ? 'cursor-pointer transition hover:ring-2 hover:ring-teal-400 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500'
-                      : ''
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-3">
-                    <div>
-                      <h3 className="font-semibold text-base sm:text-lg text-gray-900">{admin.name}</h3>
-                      <p className="text-gray-600">{admin.email}</p>
-                      {interactive && (
-                        <p className="text-xs text-teal-700 font-medium mt-1">
-                          Click for detailed exam &amp; AI analytics →
-                        </p>
-                      )}
-                    </div>
-                    <Badge
-                      className={
-                        admin.status === 'Active'
-                          ? 'bg-teal-600 text-white border-2 border-teal-700 shadow-lg font-semibold'
-                          : 'bg-gray-600 text-white border-2 border-gray-700 shadow-lg font-semibold'
                       }
-                    >
-                      {admin.status}
-                    </Badge>
+                    : undefined
+                }
+                className={`flex flex-col gap-4 rounded-xl border border-slate-200/80 bg-gradient-to-r from-white to-slate-50/80 p-4 transition-all sm:flex-row sm:items-center sm:justify-between ${
+                  interactive ? "cursor-pointer hover:border-emerald-300/60 hover:shadow-md" : ""
+                }`}
+              >
+                <div className="flex min-w-0 items-start gap-3">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[var(--brand-navy)]/8">
+                    <Building2 className="h-5 w-5 text-[var(--brand-navy)]" />
                   </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 text-xs sm:text-sm">
-                    <div className="text-center">
-                      <p className="font-semibold text-gray-900 text-base sm:text-lg">{admin.stats?.students || 0}</p>
-                      <p className="text-gray-600">Students</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="font-semibold text-gray-900 text-base sm:text-lg">{admin.stats?.teachers || 0}</p>
-                      <p className="text-gray-600">Teachers</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="font-semibold text-gray-900 text-base sm:text-lg">{admin.stats?.videos || 0}</p>
-                      <p className="text-gray-600">Videos</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="font-semibold text-gray-900 text-base sm:text-lg">{admin.stats?.assessments || 0}</p>
-                      <p className="text-gray-600">Assessments</p>
+                  <div className="min-w-0">
+                    <p className="font-semibold text-slate-900">{admin.schoolName || admin.name}</p>
+                    <p className="text-sm text-slate-500">{admin.email}</p>
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      <Badge variant="outline" className="rounded-lg border-slate-200 text-xs">
+                        {admin.stats?.students || 0} students
+                      </Badge>
+                      <Badge variant="outline" className="rounded-lg border-slate-200 text-xs">
+                        {admin.stats?.teachers || 0} teachers
+                      </Badge>
                     </div>
                   </div>
                 </div>
-              );
-            })}
+                <div className="flex items-center gap-6 sm:text-right">
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-slate-500">Avg score</p>
+                    <p className="text-2xl font-bold text-[var(--brand-emerald)]">{admin.stats?.averageScore || "0"}%</p>
+                  </div>
+                  {interactive ? (
+                    <span className="inline-flex items-center gap-1 text-sm font-semibold text-[var(--brand-navy)]">
+                      Open <ArrowUpRight className="h-4 w-4" />
+                    </span>
+                  ) : null}
+                </div>
+              </div>
+            );
+          })}
+          {!analytics?.length ? (
+            <p className="py-8 text-center text-sm text-slate-500">No schools registered yet.</p>
+          ) : null}
+        </div>
+      </SuperAdminInnerCard>
+
+      <Card className="sa-inner-card border-slate-200/80">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-lg font-bold text-slate-900">
+            <TrendingUpIcon className="h-5 w-5 text-[var(--brand-emerald)]" />
+            Platform summary
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-4 sm:grid-cols-3">
+          <div className="rounded-xl bg-slate-50 p-4">
+            <p className="text-xs text-slate-500">Total exams taken</p>
+            <p className="text-xl font-bold text-slate-900">
+              {analytics?.reduce((s, a) => s + (a.stats?.totalExamsTaken || 0), 0) || 0}
+            </p>
+          </div>
+          <div className="rounded-xl bg-slate-50 p-4">
+            <p className="text-xs text-slate-500">Avg accuracy</p>
+            <p className="text-xl font-bold text-slate-900">
+              {analytics?.length
+                ? (
+                    analytics.reduce((s, a) => s + parseFloat(a.stats?.averageAccuracy || "0"), 0) / analytics.length
+                  ).toFixed(1)
+                : 0}
+              %
+            </p>
+          </div>
+          <div className="rounded-xl bg-slate-50 p-4">
+            <p className="text-xs text-slate-500">Schools active</p>
+            <p className="text-xl font-bold text-slate-900">{analytics?.filter((a) => a.status === "active").length || 0}</p>
           </div>
         </CardContent>
       </Card>
-    </div>
+    </SuperAdminInnerPage>
   );
 }

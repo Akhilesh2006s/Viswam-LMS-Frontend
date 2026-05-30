@@ -1,20 +1,15 @@
 import { Suspense, lazy, useState, useEffect } from "react";
+import { usePageTitle } from "@/hooks/use-page-title";
 import { motion } from "framer-motion";
 import SuperAdminSidebar from "@/components/dashboard/SuperAdminSidebar";
 import type { SuperAdminView } from "@/lib/super-admin-views";
 const AdminManagement = lazy(() => import("@/components/admin/AdminManagement"));
 const CombinedSuperAdminAnalytics = lazy(() => import("./combined-super-admin-analytics"));
-const BoardComparisonCharts = lazy(() => import("@/components/admin/board-comparison-charts"));
+const ProductManagement = lazy(() => import("@/components/super-admin/ProductManagement"));
 const SubjectManagement = lazy(() => import("@/components/super-admin/subject-management"));
-const SubjectContentManagement = lazy(() => import("@/components/super-admin/subject-content-management"));
-const ExamManagement = lazy(() => import("@/components/super-admin/exam-management"));
-const IQRankBoostActivities = lazy(() => import("@/components/super-admin/iq-rank-boost-activities"));
+const ProductCurriculumHub = lazy(() => import("@/components/super-admin/ProductCurriculumHub"));
+const SuperAdminOttStudio = lazy(() => import("@/components/super-admin/super-admin-ott-studio"));
 const SuperAdminCalendar = lazy(() => import("@/components/super-admin/super-admin-calendar"));
-const AIChat = lazy(() => import("@/components/ai-chat"));
-const AiToolGenerationsPanel = lazy(() => import("@/components/super-admin/ai-tool-generations/AiToolGenerationsPanel"));
-const AiToolTopicsManagement = lazy(() => import("@/components/super-admin/ai-tool-topics-management"));
-const AIContentEngine = lazy(() => import("@/components/super-admin/ai-content-engine"));
-const SuperAdminAiGenerator = lazy(() => import("@/components/super-admin/ai-generator"));
 const SubscriptionManagement = lazy(() => import("@/components/super-admin/subscription-management"));
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -40,31 +35,48 @@ import { LineChart, Line, PieChart as RechartsPieChart, Pie, Cell, ResponsiveCon
 import { useToast } from "@/hooks/use-toast";
 import { API_BASE_URL } from "@/lib/api-config";
 import { cn } from "@/lib/utils";
-import { InteractiveBackground, FloatingParticles } from "@/components/background/InteractiveBackground";
 import { useSuperAdminDrawerNav } from "@/hooks/use-mobile";
+import { SuperAdminPageHeader } from "@/components/super-admin/premium/SuperAdminPageHeader";
+import { SuperAdminStatCard } from "@/components/super-admin/premium/SuperAdminStatCard";
+import { SuperAdminActionTile } from "@/components/super-admin/premium/SuperAdminActionTile";
+import { SuperAdminSection } from "@/components/super-admin/premium/SuperAdminSection";
+import { SuperAdminTopBar } from "@/components/super-admin/premium/SuperAdminTopBar";
+import {
+  GraduationCap,
+  School,
+  LineChart as LineChartIcon,
+  FileStack,
+  Users,
+  TrendingUp,
+  Activity,
+  FileText as FileTextIcon,
+  ClipboardCheck,
+} from "lucide-react";
+import { getUser } from "@/lib/auth-utils";
 import {
   clearSuperAdminDashboardQueryFromUrl,
   consumeSuperAdminViewRestore,
 } from "@/lib/super-admin-nav";
-import { VidyaAnalyticsCard } from "@/components/super-admin/VidyaAnalyticsCard";
 
 const lazySectionFallback = (
-  <div className="rounded-xl border border-orange-100 bg-white p-4 sm:p-6 lg:p-8 shadow-sm">
-    <div className="flex flex-col items-center justify-center gap-3 text-slate-600">
-      <RefreshCw className="h-4 w-4 sm:h-5 sm:w-5 animate-spin text-orange-500" />
-      <p className="text-xs sm:text-sm font-medium">Loading section...</p>
-    </div>
+  <div className="sa-premium-loading">
+    <RefreshCw className="h-8 w-8 animate-spin text-[var(--brand-emerald)]" />
+    <p className="text-sm font-medium text-slate-600">Loading premium workspace…</p>
   </div>
 );
 
 export default function SuperAdminDashboard() {
+  usePageTitle('Super Admin');
   const { toast } = useToast();
   const superAdminDrawerNav = useSuperAdminDrawerNav();
   const [currentView, setCurrentView] = useState<SuperAdminView>("dashboard");
-  const [user] = useState({ 
-    fullName: 'Super Admin', 
-    role: 'super-admin',
-    email: 'super.admin@aslilearn.com'
+  const [user] = useState(() => {
+    const stored = getUser();
+    return {
+      fullName: stored?.fullName || "Super Admin",
+      role: "super-admin" as const,
+      email: stored?.email || "super.admin@viswamedutech.com",
+    };
   });
   const [stats, setStats] = useState({
     totalUsers: 0,
@@ -90,14 +102,7 @@ export default function SuperAdminDashboard() {
   const [boardData, setBoardData] = useState<any>(null);
   const [isLoadingBoard, setIsLoadingBoard] = useState(false);
   const [boardError, setBoardError] = useState<string | null>(null);
-  const [vidyaSettingsOpen, setVidyaSettingsOpen] = useState(false);
   const [systemSettingsOpen, setSystemSettingsOpen] = useState(false);
-  const [vidyaExplainDepth, setVidyaExplainDepth] = useState<
-    "concise" | "balanced" | "detailed"
-  >("balanced");
-
-  const VIDYA_PREFS_KEY = "superAdminVidyaPrefs";
-
   useEffect(() => {
     clearSuperAdminDashboardQueryFromUrl();
     const restore = consumeSuperAdminViewRestore();
@@ -107,7 +112,8 @@ export default function SuperAdminDashboard() {
   }, []);
 
   const handleViewChange = (view: SuperAdminView) => {
-    setCurrentView(view);
+    const next = view === ("exams" as SuperAdminView) ? "dashboard" : view;
+    setCurrentView(next);
     clearSuperAdminDashboardQueryFromUrl();
   };
 
@@ -160,31 +166,6 @@ export default function SuperAdminDashboard() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(VIDYA_PREFS_KEY);
-      if (!raw) return;
-      const p = JSON.parse(raw) as { explainDepth?: typeof vidyaExplainDepth };
-      if (p.explainDepth === "concise" || p.explainDepth === "balanced" || p.explainDepth === "detailed") {
-        setVidyaExplainDepth(p.explainDepth);
-      }
-    } catch {
-      /* ignore */
-    }
-  }, []);
-
-  const saveVidyaPreferences = () => {
-    localStorage.setItem(
-      VIDYA_PREFS_KEY,
-      JSON.stringify({ explainDepth: vidyaExplainDepth, updatedAt: Date.now() })
-    );
-    toast({
-      title: "Preferences saved",
-      description: "Vidya AI display preferences are stored in this browser.",
-    });
-    setVidyaSettingsOpen(false);
-  };
 
   const fetchRealtimeAnalytics = async () => {
     setIsLoadingAnalytics(true);
@@ -316,270 +297,195 @@ export default function SuperAdminDashboard() {
     }
 
     return (
-    <div className="min-h-screen relative z-10 overflow-x-hidden">
-      <div className="space-y-3 sm:space-y-4 lg:space-y-6">
-        {/* Welcome Header */}
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Welcome back, Super Admin</h1>
-          <p className="text-gray-600">Manage boards, schools, exams, and AI analytics in one place.</p>
+    <div className="sa-premium-scope space-y-6 overflow-x-hidden">
+        <SuperAdminPageHeader
+          title={`Welcome back, ${user.fullName.split(" ")[0]}`}
+          description="Manage products, schools, content, and enterprise analytics from one command center."
+          icon={CrownIcon}
+          badge="Live"
+          actions={
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="rounded-xl border-slate-200"
+              onClick={() => void fetchRealtimeAnalytics()}
+              disabled={isLoadingAnalytics}
+            >
+              <RefreshCw className={cn("mr-2 h-4 w-4", isLoadingAnalytics && "animate-spin")} />
+              Refresh data
+            </Button>
+          }
+        />
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <SuperAdminStatCard
+            label="Total students"
+            value={isLoadingStats ? "…" : (stats.totalStudents || 0).toLocaleString()}
+            icon={GraduationCap}
+            accent="emerald"
+            hint="Across all schools"
+          />
+          <SuperAdminStatCard
+            label="School admins"
+            value={isLoadingStats ? "…" : (stats.totalAdmins || 0).toLocaleString()}
+            icon={School}
+            accent="navy"
+          />
+          <SuperAdminStatCard
+            label="Pass rate"
+            value={isLoadingStats ? "…" : `${(stats.passRate || 0).toFixed(0)}%`}
+            icon={TrendingUp}
+            accent="gold"
+          />
+          <SuperAdminStatCard
+            label="Active learners"
+            value={
+              isLoadingStats
+                ? "…"
+                : `${(stats.activeStudents || 0).toLocaleString()} (${stats.activeStudentsPercentage || 0}%)`
+            }
+            icon={Activity}
+            accent="sky"
+          />
         </div>
 
-        {/* Board Management */}
         <div className="space-y-4">
-          <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Board Management</h2>
-
-          <Card
-            className="bg-gradient-to-br from-orange-400 to-orange-500 text-white border-0 cursor-pointer hover:from-orange-500 hover:to-orange-600 transition-all duration-300 shadow-lg"
-            onClick={openAsliExclusiveBoard}
-          >
-            <CardContent className="p-3 sm:p-4 lg:p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-lg sm:text-xl font-bold mb-1 text-white">
-                    Asli Exclusive Schools
-                  </h3>
-                  <p className="text-white/90 text-xs sm:text-sm">
-                    All Boards Content — Unified Platform
-                  </p>
-                </div>
-                <Users2 className="h-12 w-12 text-white" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Content Management - Light Blue (CBSE TS color) */}
-          <Card 
-            className="bg-gradient-to-br from-sky-300 to-sky-400 text-white border-0 cursor-pointer hover:from-sky-400 hover:to-sky-500 transition-all duration-300 shadow-lg"
-            onClick={openSubjectAndContent}
-          >
-            <CardContent className="p-3 sm:p-4 lg:p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-lg sm:text-xl font-bold mb-1 text-white">Content Management</h3>
-                  <p className="text-white/90 text-xs sm:text-sm">Manage videos, notes & materials</p>
-                </div>
-                <UploadIcon className="h-12 w-12 text-white" />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Analytics (overview + exam / AI insights) */}
-          <Card 
-            className="bg-gradient-to-br from-teal-400 to-teal-500 text-white border-0 cursor-pointer hover:from-teal-500 hover:to-teal-600 transition-all duration-300 shadow-lg"
-            onClick={openAnalytics}
-          >
-            <CardContent className="p-3 sm:p-4 lg:p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-lg sm:text-xl font-bold mb-1">Analytics</h3>
-                  <p className="text-teal-100 text-xs sm:text-sm">Schools, exams &amp; AI insights</p>
-                </div>
-                <BrainCircuitIcon className="h-12 w-12 text-white/80" />
-              </div>
-            </CardContent>
-          </Card>
+          <h2 className="text-sm font-bold uppercase tracking-wide text-slate-500">Quick actions</h2>
+          <SuperAdminActionTile
+            title="Product catalog"
+            subtitle="Define products schools subscribe to"
+            icon={Users2}
+            variant="navy"
+            onClick={() => {
+              setSelectedBoard(null);
+              setCurrentView("products");
+              clearSuperAdminDashboardQueryFromUrl();
+            }}
+          />
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <SuperAdminActionTile
+              title="Subject & Content"
+              subtitle="Videos, notes, and structured learning materials"
+              icon={FileStack}
+              variant="sky"
+              onClick={openSubjectAndContent}
+            />
+            <SuperAdminActionTile
+              title="Analytics"
+              subtitle="School performance, content usage, and platform insights"
+              icon={LineChartIcon}
+              variant="emerald"
+              onClick={openAnalytics}
+            />
           </div>
         </div>
 
-        {/* Widgets Row */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Total Students Widget */}
-          <Card className="bg-white">
-          <CardContent className="p-3 sm:p-4 lg:p-6">
-              <div className="flex items-center justify-between mb-4">
-              <div>
-                  <p className="text-xs sm:text-sm text-gray-600 mb-1">Total Students</p>
-                  <p className="text-2xl sm:text-3xl font-bold text-gray-900">
-                    {isLoadingStats ? '...' : (stats.totalStudents || 0).toLocaleString().replace(/\s/g, ' ')}
-                  </p>
-              </div>
-                {totalStudentsData.length > 0 && (
-                  <div className="w-16 h-12">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={totalStudentsData}>
-                        <Area type="monotone" dataKey="value" stroke="#fb923c" fill="#fb923c" fillOpacity={0.2} />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* 80% Pass rate Widget */}
-          <Card className="bg-white">
-          <CardContent className="p-3 sm:p-4 lg:p-6">
-              <div className="flex items-center justify-between mb-4">
-              <div>
-                  <p className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1">
-                    {isLoadingStats ? '...' : (stats.passRate || 0).toFixed(0)}%
-                  </p>
-                  <p className="text-xs sm:text-sm text-gray-600">Pass rate data</p>
-              </div>
-                {passRateData.length > 0 && (
-                  <div className="w-16 h-12">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={passRateData}>
-                        <Area type="monotone" dataKey="value" stroke="#10B981" fill="#10B981" fillOpacity={0.2} />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Vidya AI Card - Clickable */}
-        <Card 
-          className="relative cursor-pointer hover:shadow-lg transition-all duration-300 border-2 border-blue-300 hover:border-blue-400 overflow-hidden"
-          onClick={() => setCurrentView('vidya-ai')}
+        <button
+          type="button"
+          onClick={() => setCurrentView("analytics")}
+          className="w-full rounded-2xl border border-slate-200/80 bg-white p-5 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md sm:p-6"
         >
-          <div className="absolute inset-0 bg-white/85"></div>
-          <div className="absolute inset-0 bg-orange-300/15"></div>
-          <CardContent className="p-3 sm:p-4 lg:p-6 relative z-10">
-            <div className="flex items-center justify-between">
-              <div className="flex-1">
-                <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">Vidya AI</h3>
-                <p className="text-xs sm:text-sm text-gray-600">24/7 AI Tutor Support</p>
-                <p className="text-xs text-orange-500 mt-2 font-medium">Click to access Vidya AI →</p>
+          <div className="mb-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="sa-premium-icon-ring h-10 w-10">
+                <Users className="h-4 w-4 text-[var(--brand-emerald)]" />
               </div>
-              <div className="ml-4">
-                <img 
-                  src="/Vidya-ai.jpg" 
-                  alt="Vidya AI" 
-                  className="h-24 w-24 object-contain rounded-lg"
-                />
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">Student analytics</h3>
+                <p className="text-sm text-slate-500">Engagement and assessment depth</p>
               </div>
             </div>
-          </CardContent>
-        </Card>
-
-        {/* Student Analytics Widget */}
-        <Card 
-          className="bg-white cursor-pointer hover:shadow-lg transition-all duration-200 hover:border-orange-300"
-          onClick={() => setCurrentView('analytics')}
-        >
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Student Analytics</CardTitle>
-            <span className="text-xs sm:text-sm text-orange-600 font-medium hover:text-orange-700 transition-colors flex items-center gap-1">
-              View Details <ArrowUpRightIcon className="h-3 w-3 sm:h-4 sm:w-4" />
+            <span className="flex items-center gap-1 text-sm font-semibold text-[var(--brand-emerald)]">
+              View details <ArrowUpRightIcon className="h-4 w-4" />
             </span>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-xs sm:text-sm text-gray-700">Total Students</span>
-                <span className="text-xs sm:text-sm font-semibold text-gray-900">
-                  {isLoadingStats ? '...' : (stats.totalStudents || 0).toLocaleString()}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs sm:text-sm text-gray-700">Active Students</span>
-                <span className="text-xs sm:text-sm font-semibold text-orange-600">
-                  {isLoadingStats ? '...' : (stats.activeStudents || 0).toLocaleString()} ({stats.activeStudentsPercentage || 0}%)
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs sm:text-sm text-gray-700">Avg Exams per Student</span>
-                <span className="text-xs sm:text-sm font-semibold text-teal-600">
-                  {isLoadingStats ? '...' : (Number(stats.avgExamsPerStudent) || 0).toFixed(1)}
-                </span>
-              </div>
-              <div className="pt-2 border-t">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs text-gray-600">Student Engagement</span>
-                  <span className="text-xs font-semibold text-gray-900">
-                    {isLoadingStats ? '...' : (stats.contentEngagement || 0).toFixed(0)}%
-                  </span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div 
-                    className="bg-gradient-to-r from-orange-400 to-sky-400 h-2 rounded-full transition-all duration-300"
-                    style={{ width: `${isLoadingStats ? 0 : (stats.contentEngagement || 0)}%` }}
-                  ></div>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <VidyaAnalyticsCard />
-
-
-      {/* AI-Powered Recommendations */}
-      <div className="space-y-4">
-        <div className="flex items-center space-x-2">
-          <TargetIcon className="h-4 w-4 sm:h-5 sm:w-5 text-orange-400" />
-          <h2 className="text-lg sm:text-xl font-bold text-gray-900">AI-Powered Recommendations</h2>
-        </div>
-        <Card>
-          <CardContent className="p-3 sm:p-4 lg:p-6">
-            <div className="text-center py-4 sm:py-6 lg:py-8">
-              <TargetIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-2">AI Recommendations</h3>
-              <p className="text-gray-600">AI-powered insights and recommendations will appear here</p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Real-time Analytics Section */}
-      <div className="space-y-3 sm:space-y-4 lg:space-y-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <BarChart3Icon className="h-4 w-4 sm:h-5 sm:w-5 text-teal-400" />
-            <h2 className="text-lg sm:text-xl font-bold text-gray-900">Real-time Analytics</h2>
           </div>
-          <Button onClick={fetchRealtimeAnalytics} disabled={isLoadingAnalytics} size="sm" variant="outline">
-            <RefreshCw className={`h-3 w-3 sm:h-4 sm:w-4 mr-2 ${isLoadingAnalytics ? 'animate-spin' : ''}`} />
-            Refresh
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="rounded-xl bg-slate-50 px-4 py-3">
+              <p className="text-xs text-slate-500">Total students</p>
+              <p className="text-lg font-bold text-slate-900">
+                {isLoadingStats ? "…" : (stats.totalStudents || 0).toLocaleString()}
+              </p>
+            </div>
+            <div className="rounded-xl bg-slate-50 px-4 py-3">
+              <p className="text-xs text-slate-500">Active students</p>
+              <p className="text-lg font-bold text-emerald-700">
+                {isLoadingStats ? "…" : (stats.activeStudents || 0).toLocaleString()}
+              </p>
+            </div>
+            <div className="rounded-xl bg-slate-50 px-4 py-3">
+              <p className="text-xs text-slate-500">Avg exams / student</p>
+              <p className="text-lg font-bold text-slate-900">
+                {isLoadingStats ? "…" : (Number(stats.avgExamsPerStudent) || 0).toFixed(1)}
+              </p>
+            </div>
+          </div>
+          <div className="mt-4">
+            <div className="mb-2 flex justify-between text-xs text-slate-600">
+              <span>Content engagement</span>
+              <span className="font-semibold text-slate-900">
+                {isLoadingStats ? "…" : `${(stats.contentEngagement || 0).toFixed(0)}%`}
+              </span>
+            </div>
+            <div className="sa-premium-progress">
+              <div style={{ width: `${isLoadingStats ? 0 : stats.contentEngagement || 0}%` }} />
+            </div>
+          </div>
+        </button>
+
+      <div className="space-y-4">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-sm font-bold uppercase tracking-wide text-slate-500">Real-time analytics</h2>
+          <Button
+            onClick={() => void fetchRealtimeAnalytics()}
+            disabled={isLoadingAnalytics}
+            size="sm"
+            className="rounded-xl bg-[var(--brand-navy)] hover:bg-[var(--brand-navy-hover)]"
+          >
+            <RefreshCw className={cn("mr-2 h-4 w-4", isLoadingAnalytics && "animate-spin")} />
+            Sync
           </Button>
         </div>
 
         {isLoadingAnalytics ? (
-          <Card>
-            <CardContent className="p-4 sm:p-6 lg:p-8 text-center">
-              <BarChart3Icon className="h-12 w-12 animate-spin text-teal-400 mx-auto mb-4" />
-              <p className="text-gray-600">Loading real-time analytics...</p>
-            </CardContent>
-          </Card>
+          <div className="sa-premium-loading">
+            <BarChart3Icon className="h-10 w-10 animate-pulse text-[var(--brand-emerald)]" />
+            <p className="text-sm text-slate-600">Loading live analytics…</p>
+          </div>
         ) : realtimeAnalytics ? (
-          <div className="space-y-3 sm:space-y-4 lg:space-y-6">
-            {/* Overall Metrics */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <Card className="bg-white/60 backdrop-blur-xl border-white/20 shadow-xl">
-                <CardContent className="p-4">
-                  <p className="text-xs sm:text-sm text-orange-600 font-medium">Total Students</p>
-                  <p className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-orange-400 to-orange-300 bg-clip-text text-transparent">{stats.totalStudents || realtimeAnalytics.overallMetrics?.totalStudents || 0}</p>
-                </CardContent>
-              </Card>
-              <Card className="bg-white/60 backdrop-blur-xl border-white/20 shadow-xl">
-                <CardContent className="p-4">
-                  <p className="text-xs sm:text-sm text-teal-600 font-medium">Total Exams</p>
-                  <p className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-teal-400 to-orange-400 bg-clip-text text-transparent">{realtimeAnalytics.overallMetrics?.totalExams || 0}</p>
-                </CardContent>
-              </Card>
-              <Card className="bg-white/60 backdrop-blur-xl border-white/20 shadow-xl">
-                <CardContent className="p-4">
-                  <p className="text-xs sm:text-sm text-orange-600 font-medium">Exam Results</p>
-                  <p className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-orange-400 to-orange-500 bg-clip-text text-transparent">{realtimeAnalytics.overallMetrics?.totalExamResults || 0}</p>
-                </CardContent>
-              </Card>
-              <Card className="bg-white/60 backdrop-blur-xl border-white/20 shadow-xl">
-                <CardContent className="p-4">
-                  <p className="text-xs sm:text-sm text-violet-700 font-medium">Overall Average</p>
-                  <p className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-teal-400 to-orange-400 bg-clip-text text-transparent">{realtimeAnalytics.overallMetrics?.overallAverage || 0}%</p>
-                </CardContent>
-              </Card>
+          <div className="space-y-5">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <SuperAdminStatCard
+                label="Total students"
+                value={stats.totalStudents || realtimeAnalytics.overallMetrics?.totalStudents || 0}
+                icon={GraduationCap}
+                accent="emerald"
+              />
+              <SuperAdminStatCard
+                label="Total exams"
+                value={realtimeAnalytics.overallMetrics?.totalExams || 0}
+                icon={FileTextIcon}
+                accent="sky"
+              />
+              <SuperAdminStatCard
+                label="Exam results"
+                value={realtimeAnalytics.overallMetrics?.totalExamResults || 0}
+                icon={ClipboardCheck}
+                accent="gold"
+              />
+              <SuperAdminStatCard
+                label="Overall average"
+                value={`${realtimeAnalytics.overallMetrics?.overallAverage || 0}%`}
+                icon={TrendingUp}
+                accent="navy"
+              />
             </div>
 
             {/* Top Scorers by Exam */}
             {realtimeAnalytics.topScorersByExam && realtimeAnalytics.topScorersByExam.length > 0 && (
-              <Card className="border-0 shadow-lg">
+              <Card className="rounded-2xl border-slate-200/80 shadow-sm">
                 <CardHeader>
-                  <CardTitle>Top Scorers by Exam</CardTitle>
+                  <CardTitle className="text-lg font-bold text-slate-900">Top scorers by exam</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
@@ -618,11 +524,11 @@ export default function SuperAdminDashboard() {
 
             {/* Low-performing Admins */}
             {realtimeAnalytics.lowPerformingAdmins && realtimeAnalytics.lowPerformingAdmins.length > 0 && (
-              <Card className="border-red-200 bg-red-50">
+              <Card className="rounded-2xl border-red-200/80 bg-red-50/80 shadow-sm">
                 <CardHeader>
-                  <CardTitle className="text-red-900 flex items-center">
-                    <AlertTriangleIcon className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
-                    Low-performing Admins (Needs Attention)
+                  <CardTitle className="flex items-center text-red-900">
+                    <AlertTriangleIcon className="mr-2 h-5 w-5" />
+                    Schools needing attention
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -649,20 +555,17 @@ export default function SuperAdminDashboard() {
 
             {/* Admin Performance Overview */}
             {realtimeAnalytics.adminAnalytics && realtimeAnalytics.adminAnalytics.length > 0 && (
-              <Card className="relative border-0 overflow-hidden" style={{
-                background: 'linear-gradient(135deg, #7dd3fc 0%, #7dd3fc 20%, #2dd4bf 60%, #14b8a6 100%)'
-              }}>
-                <div className="absolute inset-0 bg-white/5 pointer-events-none"></div>
-                <CardHeader className="relative z-10">
-                  <CardTitle className="flex items-center text-gray-900">
-                    <TrendingUpIcon className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
-                    Admin Performance Overview
+              <Card className="overflow-hidden rounded-2xl border-slate-200/80 bg-gradient-to-br from-slate-50 to-emerald-50/40 shadow-sm">
+                <CardHeader>
+                  <CardTitle className="flex items-center text-slate-900">
+                    <TrendingUpIcon className="mr-2 h-5 w-5 text-[var(--brand-emerald)]" />
+                    School performance overview
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="relative z-10">
-                  <div className="space-y-4">
+                <CardContent>
+                  <div className="space-y-3">
                     {realtimeAnalytics.adminAnalytics.slice(0, 5).map((admin: any, idx: number) => (
-                      <div key={`${admin.adminId || admin.adminEmail || admin.adminName || 'admin'}-${idx}`} className="p-4 bg-white/90 backdrop-blur-sm rounded-lg border border-white/50 shadow-md">
+                      <div key={`${admin.adminId || admin.adminEmail || admin.adminName || 'admin'}-${idx}`} className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm">
                         <div className="flex items-center justify-between mb-3">
                           <div>
                             <h3 className="font-semibold text-base sm:text-lg text-gray-900">{admin.adminName}</h3>
@@ -681,32 +584,26 @@ export default function SuperAdminDashboard() {
             )}
           </div>
         ) : (
-          <Card>
-            <CardContent className="p-4 sm:p-6 lg:p-8 text-center">
-              <BarChart3Icon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-600">No analytics data available</p>
-            </CardContent>
-          </Card>
+          <div className="sa-premium-loading">
+            <BarChart3Icon className="h-10 w-10 text-slate-300" />
+            <p className="text-sm text-slate-600">No analytics data available yet</p>
+          </div>
         )}
       </div>
 
-      {/* AI-Powered Insights - Real data will be displayed here when available */}
       {realtimeAnalytics && realtimeAnalytics.insights && realtimeAnalytics.insights.length > 0 && (
         <div className="space-y-4">
-          <div className="flex items-center space-x-2">
-            <BrainIcon className="h-4 w-4 sm:h-5 sm:w-5 text-orange-400" />
-            <h2 className="text-lg sm:text-xl font-bold text-gray-900">AI-Powered Insights</h2>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:p-4 lg:p-6">
+          <h2 className="text-sm font-bold uppercase tracking-wide text-slate-500">Platform insights</h2>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             {realtimeAnalytics.insights.slice(0, 2).map((insight: any, index: number) => (
-              <Card key={`${insight.id || insight.title || insight.description || 'insight'}-${index}`} className="bg-white/60 backdrop-blur-xl border-white/20 shadow-xl">
-                <CardContent className="p-3 sm:p-4 lg:p-6">
-                  <div className="flex items-center space-x-3">
-                    <div className="p-2 bg-gradient-to-br from-blue-300 to-blue-400 rounded-lg">
-                      <BrainIcon className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
+              <Card key={`${insight.id || insight.title || insight.description || 'insight'}-${index}`} className="rounded-2xl border-slate-200/80 shadow-sm">
+                <CardContent className="p-5">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--brand-emerald)]/10">
+                      <BarChart3Icon className="h-5 w-5 text-[var(--brand-emerald)]" />
                     </div>
                     <div>
-                      <p className="text-xs sm:text-sm font-medium bg-gradient-to-r from-blue-400 to-blue-300 bg-clip-text text-transparent">
+                      <p className="text-xs sm:text-sm font-medium text-gray-900">
                         {insight.title || insight.description || 'Insight'}
                       </p>
                       <p className="text-xs text-gray-600">
@@ -720,7 +617,6 @@ export default function SuperAdminDashboard() {
           </div>
         </div>
       )}
-      </div>
     </div>
     );
   };
@@ -755,65 +651,46 @@ export default function SuperAdminDashboard() {
     let boardName = boardData?.board?.name || selectedBoard || 'Board';
     // Format board name to title case
     if (boardName === 'ASLI EXCLUSIVE SCHOOLS' || boardName === 'ASLI_EXCLUSIVE_SCHOOLS') {
-      boardName = 'Asli Exclusive Schools';
+      boardName = 'VISWAM Exclusive Schools';
     }
     
     return (
-      <div className="space-y-4 sm:space-y-6 lg:space-y-8">
-        {/* Header with back button */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <Button onClick={() => { setSelectedBoard(null); setCurrentView('dashboard'); }} className="bg-gradient-to-r from-orange-400 to-sky-400 hover:from-orange-500 hover:to-sky-500 text-white">
-              ← Back to Dashboard
+      <div className="sa-premium-scope space-y-6">
+        <SuperAdminPageHeader
+          title={boardName}
+          description="Manage content, exams, subjects, and board-level analytics."
+          icon={Users2}
+          actions={
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-xl"
+              onClick={() => {
+                setSelectedBoard(null);
+                setCurrentView("dashboard");
+              }}
+            >
+              ← Command center
             </Button>
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">{boardName}</h1>
-              <p className="text-gray-600">Manage content, exams, subjects, and view analytics</p>
-            </div>
-          </div>
+          }
+        />
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <SuperAdminStatCard label="Students" value={typeof stats.students === "number" ? stats.students : 0} icon={GraduationCap} accent="emerald" />
+          <SuperAdminStatCard label="Teachers" value={typeof stats.teachers === "number" ? stats.teachers : 0} icon={Users} accent="sky" />
+          <SuperAdminStatCard label="Exams" value={typeof stats.exams === "number" ? stats.exams : 0} icon={FileTextIcon} accent="gold" />
+          <SuperAdminStatCard
+            label="Avg score"
+            value={
+              typeof stats.averageScore === "number" || typeof stats.averageScore === "string"
+                ? `${stats.averageScore}%`
+                : "0%"
+            }
+            icon={TrendingUp}
+            accent="navy"
+          />
         </div>
-
-        {/* Board Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 sm:p-4 lg:p-6">
-          <Card className="bg-white/60 backdrop-blur-xl border-white/20 shadow-xl">
-            <CardContent className="p-3 sm:p-4 lg:p-6">
-              <p className="text-xs sm:text-sm text-orange-600 font-medium">Students</p>
-              <p className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-orange-400 to-orange-300 bg-clip-text text-transparent">
-                {typeof stats.students === 'number' ? stats.students : 0}
-              </p>
-            </CardContent>
-          </Card>
-          <Card className="bg-white/60 backdrop-blur-xl border-white/20 shadow-xl">
-            <CardContent className="p-3 sm:p-4 lg:p-6">
-              <p className="text-xs sm:text-sm text-teal-600 font-medium">Teachers</p>
-              <p className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-teal-400 to-orange-400 bg-clip-text text-transparent">
-                {typeof stats.teachers === 'number' ? stats.teachers : 0}
-              </p>
-            </CardContent>
-          </Card>
-          <Card className="bg-white/60 backdrop-blur-xl border-white/20 shadow-xl">
-            <CardContent className="p-3 sm:p-4 lg:p-6">
-              <p className="text-xs sm:text-sm text-orange-600 font-medium">Exams</p>
-              <p className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-orange-400 to-orange-500 bg-clip-text text-transparent">
-                {typeof stats.exams === 'number' ? stats.exams : 0}
-              </p>
-            </CardContent>
-          </Card>
-          <Card className="bg-white/60 backdrop-blur-xl border-white/20 shadow-xl">
-            <CardContent className="p-3 sm:p-4 lg:p-6">
-              <p className="text-xs sm:text-sm text-violet-700 font-medium">Avg Score</p>
-              <p className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-teal-400 to-orange-400 bg-clip-text text-transparent">
-                {typeof stats.averageScore === 'number' || typeof stats.averageScore === 'string'
-                  ? `${stats.averageScore}%`
-                  : '0.00%'}
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Board Comparison Section */}
-        <div className="mt-8">
-          <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-4">Board Performance Comparison</h2>
+        <div className="sa-premium-panel">
+          <h2 className="mb-4 text-lg font-bold text-slate-900">Board performance comparison</h2>
           <Suspense fallback={lazySectionFallback}>
             <BoardComparisonCharts />
           </Suspense>
@@ -847,246 +724,93 @@ export default function SuperAdminDashboard() {
   );
 
   const renderSettingsContent = () => (
-    <div className="space-y-3 sm:space-y-4 lg:space-y-6">
-      <h2 className="text-xl sm:text-2xl font-bold">System Settings</h2>
-      
-      <Card>
-        <CardContent className="p-3 sm:p-4 lg:p-6">
-          <div className="text-center py-4 sm:py-6 lg:py-8">
-            <SettingsIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-2">Settings</h3>
-            <p className="text-gray-600 mb-4">Configure system settings and preferences</p>
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => setSystemSettingsOpen(true)}
-            >
-              Open Settings
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+    <SuperAdminSection view="settings">
+      <div className="flex flex-col items-center justify-center py-10 text-center sm:py-14">
+        <div className="sa-premium-icon-ring mb-5 h-16 w-16">
+          <SettingsIcon className="h-7 w-7 text-[var(--brand-emerald)]" />
+        </div>
+        <h3 className="text-xl font-bold text-slate-900">Platform configuration</h3>
+        <p className="mt-2 max-w-md text-sm text-slate-600">
+          Shortcuts to core modules. Secrets and database URLs are configured on the server.
+        </p>
+        <Button
+          type="button"
+          className="mt-6 rounded-xl bg-[var(--brand-navy)] px-6 hover:bg-[var(--brand-navy-hover)]"
+          onClick={() => setSystemSettingsOpen(true)}
+        >
+          Open settings hub
+        </Button>
+      </div>
+    </SuperAdminSection>
   );
 
-  const renderVidyaAIContent = () => {
-    const quickActions = [
-      {
-        title: "View AI Usage Reports",
-        description: "Review adoption and query patterns by school",
-        icon: BarChart3Icon,
-        prompt: "Show AI usage statistics across schools",
-      },
-      {
-        title: "Monitor Active Sessions",
-        description: "Track live AI conversations across organizations",
-        icon: Monitor,
-        prompt: "Monitor active AI sessions and highlight spikes",
-      },
-      {
-        title: "Configure AI Models",
-        description: "Tune model behavior and global response controls",
-        icon: BrainCircuitIcon,
-        prompt: "Configure model behavior and recommended guardrails",
-      },
-      {
-        title: "Risk & Compliance Insights",
-        description: "Audit policy exceptions and moderation signals",
-        icon: Shield,
-        prompt: "Detect anomalies in AI responses and compliance risks",
-      },
-    ];
-
+  const wrapWithSection = (view: SuperAdminView, node: React.ReactNode) => {
+    if (view === "dashboard" || view === "products") return node;
     return (
-      <div className="space-y-3 sm:space-y-4 lg:space-y-6">
-        <div className="rounded-2xl border border-orange-200 bg-gradient-to-r from-orange-400 to-orange-500 p-3 sm:p-4 lg:p-6 shadow-lg">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center border border-white/30">
-              <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
-            </div>
-            <Badge className="bg-white text-orange-600 hover:bg-white">System Control</Badge>
-          </div>
-          <h2 className="text-2xl sm:text-3xl font-bold text-white">AI System Assistant</h2>
-          <p className="text-white/90 mt-1">Manage and monitor AI across all schools</p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-          {quickActions.map((action) => {
-            const Icon = action.icon;
-            return (
-              <Card
-                key={action.title}
-                className="cursor-pointer border-slate-200 bg-white shadow-sm transition-shadow hover:shadow-md"
-                onClick={() =>
-                  window.dispatchEvent(
-                    new CustomEvent("vidya-chat-prefill", {
-                      detail: {
-                        role: "super_admin",
-                        message: action.prompt,
-                      },
-                    })
-                  )
-                }
-              >
-                <CardContent className="p-4">
-                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-orange-100 to-orange-200 flex items-center justify-center mb-3">
-                    <Icon className="w-4 h-4 sm:w-5 sm:h-5 text-orange-600" />
-                  </div>
-                  <h3 className="text-xs sm:text-sm font-semibold text-slate-900">{action.title}</h3>
-                  <p className="text-xs text-slate-600 mt-1">{action.description}</p>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-
-        <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_320px] gap-3 sm:p-4 lg:p-6 items-start">
-          <div className="w-full rounded-2xl bg-[#F5F7FA] border border-slate-200 shadow-[0_20px_40px_-30px_rgba(15,23,42,0.8)] p-2">
-            <Suspense fallback={lazySectionFallback}>
-              <AIChat
-                userId="super-admin"
-                context={{}}
-                promptVariant="super-admin"
-                className="w-full h-[640px]"
-              />
-            </Suspense>
-          </div>
-
-          <Card className="border-slate-200 shadow-sm bg-white">
-            <CardHeader className="pb-3 border-b border-slate-100">
-              <CardTitle className="text-sm sm:text-base font-semibold text-slate-900 flex items-center gap-2">
-                <Grid3x3 className="w-3 h-3 sm:w-4 sm:h-4 text-orange-500" />
-                AI Operations Panel
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-4 space-y-4">
-              <div className="p-3 rounded-lg border border-slate-200 bg-slate-50">
-                <p className="text-xs uppercase tracking-wide text-slate-500">AI Status</p>
-                <div className="mt-1 flex items-center justify-between">
-                  <span className="text-xs sm:text-sm font-medium text-slate-800">Inference Service</span>
-                  <Badge className="bg-green-100 text-green-700 hover:bg-green-100">Online</Badge>
-                </div>
-              </div>
-
-              <div className="p-3 rounded-lg border border-slate-200 bg-slate-50">
-                <p className="text-xs uppercase tracking-wide text-slate-500">Model Version</p>
-                <div className="mt-1 flex items-center justify-between">
-                  <span className="text-xs sm:text-sm font-medium text-slate-800">Primary Model</span>
-                  <span className="text-xs sm:text-sm text-slate-600">v3.2.1</span>
-                </div>
-              </div>
-
-              <div className="p-3 rounded-lg border border-slate-200 bg-slate-50">
-                <p className="text-xs uppercase tracking-wide text-slate-500">Active Requests</p>
-                <div className="mt-1 flex items-center justify-between">
-                  <span className="text-xs sm:text-sm font-medium text-slate-800">Current Queue</span>
-                  <span className="text-xs sm:text-sm font-semibold text-orange-600">124</span>
-                </div>
-              </div>
-
-              <Button
-                type="button"
-                className="w-full bg-gradient-to-r from-orange-400 to-orange-500 hover:from-orange-500 hover:to-orange-600"
-                onClick={() => setVidyaSettingsOpen(true)}
-              >
-                Open System Controls
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+      <SuperAdminSection view={view} flush>
+        {node}
+      </SuperAdminSection>
     );
   };
 
   const renderContent = () => {
-    switch (currentView) {
-      case 'dashboard':
-        return renderDashboardContent();
-      case 'board':
-        return renderBoardDashboard();
-      case 'admins':
-        return renderAdminsContent();
-      case 'subjects-and-content':
-        return (
+    const view = currentView;
+    let body: React.ReactNode;
+    switch (view) {
+      case "dashboard":
+        body = renderDashboardContent();
+        break;
+      case "products":
+        body = (
           <Suspense fallback={lazySectionFallback}>
-            <SubjectContentManagement />
+            <ProductManagement />
           </Suspense>
         );
-      case 'content':
-        // Legacy view id — same as Subject & Content (replaces old upload grid page).
-        return (
+        break;
+      case "admins":
+        body = renderAdminsContent();
+        break;
+      case "subjects-and-content":
+      case "content":
+        body = (
           <Suspense fallback={lazySectionFallback}>
-            <SubjectContentManagement />
+            <ProductCurriculumHub />
           </Suspense>
         );
-      case 'subjects':
-        return (
+        break;
+      case "viswam-ott":
+        body = (
+          <Suspense fallback={lazySectionFallback}>
+            <SuperAdminOttStudio />
+          </Suspense>
+        );
+        break;
+      case "subjects":
+        body = (
           <Suspense fallback={lazySectionFallback}>
             <SubjectManagement />
           </Suspense>
         );
-      case 'exams':
-        return (
+        break;
+      case "calendar":
+        body = (
           <Suspense fallback={lazySectionFallback}>
-            <ExamManagement />
+            <SuperAdminCalendar />
           </Suspense>
         );
-      case 'iq-rank-boost':
-        return (
-          <Suspense fallback={lazySectionFallback}>
-            <IQRankBoostActivities />
-          </Suspense>
-        );
-      case 'calendar':
-        return (
-          <Suspense fallback={lazySectionFallback}>
-            <SuperAdminCalendar
-              onNavigateToExams={(prefill) => {
-                sessionStorage.setItem('examCalendarPrefill', JSON.stringify(prefill));
-                setCurrentView('exams');
-              }}
-            />
-          </Suspense>
-        );
-      case 'vidya-ai':
-        return renderVidyaAIContent();
-      case 'analytics':
-        return renderAnalyticsContent();
-      case 'board-comparison':
-        return renderBoardComparisonContent();
-      case 'ai-analytics':
-        return renderAnalyticsContent();
-      case 'ai-tool-generations':
-        return (
-          <Suspense fallback={lazySectionFallback}>
-            <AiToolGenerationsPanel />
-          </Suspense>
-        );
-      case 'ai-tool-topics':
-        return (
-          <Suspense fallback={lazySectionFallback}>
-            <AiToolTopicsManagement />
-          </Suspense>
-        );
-      case 'ai-content-engine':
-        return (
-          <Suspense fallback={lazySectionFallback}>
-            <AIContentEngine />
-          </Suspense>
-        );
-      case 'ai-generator':
-        return (
-          <Suspense fallback={lazySectionFallback}>
-            <SuperAdminAiGenerator />
-          </Suspense>
-        );
-      case 'subscriptions':
-        return renderSubscriptionsContent();
-      case 'settings':
+        break;
+      case "analytics":
+        body = renderAnalyticsContent();
+        break;
+      case "subscriptions":
+        body = renderSubscriptionsContent();
+        break;
+      case "settings":
         return renderSettingsContent();
       default:
-        return renderDashboardContent();
+        body = renderDashboardContent();
     }
+    return wrapWithSection(view, body);
   };
 
   const handleLogout = () => {
@@ -1097,8 +821,7 @@ export default function SuperAdminDashboard() {
   };
 
   return (
-    <div className="bg-gray-50 min-h-screen">
-      {/* Fixed sidebar */}
+    <div className="sa-premium-shell min-h-screen">
       <SuperAdminSidebar
         currentView={currentView}
         onViewChange={handleViewChange}
@@ -1106,98 +829,20 @@ export default function SuperAdminDashboard() {
         onLogout={handleLogout}
       />
 
-      {/* Scrollable main content area */}
       <div
         className={cn(
-          "flex flex-col overflow-x-hidden",
-          superAdminDrawerNav ? "ml-0 min-h-screen pt-14 pb-16 sm:pb-0" : "sm:ml-[60px] lg:ml-64 min-h-screen",
+          "flex min-h-screen flex-col overflow-x-hidden",
+          superAdminDrawerNav ? "ml-0 pt-14 pb-20 sm:pb-0" : "sm:ml-[68px] lg:ml-[17.5rem]",
         )}
       >
-        <div
-          className={cn(
-            "flex-1 min-h-0",
-            currentView === "ai-tool-generations"
-              ? "p-0"
-              : superAdminDrawerNav
-                ? "p-3 sm:p-4"
-                : "p-3 sm:p-4 lg:p-6",
-          )}
-        >
+        <main className={cn("mx-auto w-full max-w-[1600px] flex-1", superAdminDrawerNav ? "px-3 py-4 sm:px-4" : "px-3 py-4 sm:px-5 lg:px-8 lg:py-6")}>
+          <SuperAdminTopBar currentView={currentView} userName={user.fullName} />
           {renderContent()}
-        </div>
+        </main>
       </div>
 
-      <Dialog open={vidyaSettingsOpen} onOpenChange={setVidyaSettingsOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Vidya AI settings</DialogTitle>
-            <DialogDescription>
-              Model choice and API credentials are configured on the server (environment / deployment). Here you can set
-              tutor display preferences for this browser and jump to related tools.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <Label htmlFor="vidya-depth">Default explanation depth</Label>
-              <Select
-                value={vidyaExplainDepth}
-                onValueChange={(v: "concise" | "balanced" | "detailed") => setVidyaExplainDepth(v)}
-              >
-                <SelectTrigger id="vidya-depth">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="concise">Concise — short answers</SelectItem>
-                  <SelectItem value="balanced">Balanced — recommended</SelectItem>
-                  <SelectItem value="detailed">Detailed — step-by-step</SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                Stored locally in your browser; future chat updates can read this preference.
-              </p>
-            </div>
-            <div className="flex flex-col gap-2 pt-2">
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full justify-start"
-                onClick={() => {
-                  setVidyaSettingsOpen(false);
-                  setCurrentView("analytics");
-                }}
-              >
-                Open AI Analytics
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full justify-start"
-                onClick={() => {
-                  setVidyaSettingsOpen(false);
-                  setCurrentView("settings");
-                }}
-              >
-                Open system settings
-              </Button>
-            </div>
-          </div>
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button type="button" variant="outline" onClick={() => setVidyaSettingsOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              className="bg-gradient-to-r from-orange-400 to-orange-300 hover:from-orange-500 hover:to-orange-400"
-              onClick={saveVidyaPreferences}
-            >
-              Save preferences
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       <Dialog open={systemSettingsOpen} onOpenChange={setSystemSettingsOpen}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="rounded-2xl border-slate-200 sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>System settings</DialogTitle>
             <DialogDescription>
@@ -1214,33 +859,10 @@ export default function SuperAdminDashboard() {
                   className="justify-start"
                   onClick={() => {
                     setSystemSettingsOpen(false);
-                    setCurrentView("vidya-ai");
-                    setVidyaSettingsOpen(true);
-                  }}
-                >
-                  Vidya AI preferences
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="justify-start"
-                  onClick={() => {
-                    setSystemSettingsOpen(false);
                     setCurrentView("calendar");
                   }}
                 >
                   School Calendar
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="justify-start"
-                  onClick={() => {
-                    setSystemSettingsOpen(false);
-                    setCurrentView("exams");
-                  }}
-                >
-                  Exam Management
                 </Button>
                 <Button
                   type="button"
@@ -1289,7 +911,7 @@ export default function SuperAdminDashboard() {
               </div>
             </div>
             <p className="text-xs text-muted-foreground leading-relaxed">
-              To change AI provider keys, JWT secrets, or database URLs, update the backend <code className="rounded bg-muted px-1">.env</code> and
+              To change JWT secrets or database URLs, update the backend <code className="rounded bg-muted px-1">.env</code> and
               redeploy.
             </p>
           </div>

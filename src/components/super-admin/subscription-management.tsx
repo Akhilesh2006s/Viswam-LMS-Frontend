@@ -22,7 +22,16 @@ import {
   IndianRupee,
   Repeat,
   AlertTriangle,
+  Wallet,
 } from 'lucide-react';
+import {
+  SuperAdminInnerPage,
+  SuperAdminToolbar,
+  SuperAdminStatCard,
+  SuperAdminEmptyState,
+  SA_BTN_PRIMARY,
+  SA_BTN_OUTLINE,
+} from '@/components/super-admin/premium';
 
 type PaymentRow = {
   id: string;
@@ -161,38 +170,29 @@ export default function SubscriptionManagement() {
   }, [load]);
 
   return (
-    <div className="space-y-3 sm:space-y-4 lg:space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Payments &amp; subscriptions</h2>
-          <p className="text-gray-600 mt-1">
-            Live data from Razorpay (payments and subscriptions). Configure API keys in the backend{' '}
-            <code className="rounded bg-muted px-1 text-xs">.env</code>.
+    <SuperAdminInnerPage
+      toolbar={
+        <SuperAdminToolbar>
+          <p className="text-sm text-slate-600">
+            Live Razorpay data — configure <code className="rounded bg-slate-100 px-1 text-xs">RAZORPAY_*</code> in backend .env
           </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" size="sm" onClick={load} disabled={loading}>
-            {loading ? <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 animate-spin" /> : <RefreshCw className="h-3 w-3 sm:h-4 sm:w-4" />}
-            <span className="ml-2">Refresh</span>
-          </Button>
-          <Button variant="outline" size="sm" asChild>
-            <a
-              href="https://dashboard.razorpay.com/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center"
-            >
-              Razorpay dashboard
-              <ExternalLink className="ml-2 h-3 w-3 sm:h-4 sm:w-4" />
-            </a>
-          </Button>
-        </div>
-      </div>
-
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" className={SA_BTN_OUTLINE} onClick={load} disabled={loading}>
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              <span className="ml-2">Refresh</span>
+            </Button>
+            <Button size="sm" className={SA_BTN_PRIMARY} asChild>
+              <a href="https://dashboard.razorpay.com/" target="_blank" rel="noopener noreferrer" className="inline-flex items-center">
+                Razorpay dashboard
+                <ExternalLink className="ml-2 h-4 w-4" />
+              </a>
+            </Button>
+          </div>
+        </SuperAdminToolbar>
+      }
+    >
       {loading && !data ? (
-        <div className="flex justify-center py-16 text-gray-500">
-          <Loader2 className="h-6 w-6 sm:h-7 sm:w-7 lg:h-8 lg:w-8 animate-spin text-orange-500" />
-        </div>
+        <SuperAdminEmptyState icon={Wallet} title="Loading billing" description="Fetching payments and subscriptions…" />
       ) : data ? (
         <>
           {!data.razorpayConfigured && (
@@ -216,45 +216,10 @@ export default function SubscriptionManagement() {
           )}
 
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <Card>
-              <CardHeader className="pb-2">
-                <CardDescription>Captured revenue (listed)</CardDescription>
-                <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
-                  <IndianRupee className="h-4 w-4 sm:h-5 sm:w-5 text-emerald-600" />
-                  {formatInr(data.summary.capturedAmountInr)}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="text-xs text-muted-foreground">
-                Sum of captured payments in the current fetch (latest 50).
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardDescription>Payments</CardDescription>
-                <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
-                  <CreditCard className="h-4 w-4 sm:h-5 sm:w-5 text-sky-600" />
-                  {data.summary.paymentsListed}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="text-xs text-muted-foreground">Rows loaded from Razorpay.</CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardDescription>Subscriptions</CardDescription>
-                <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
-                  <Repeat className="h-4 w-4 sm:h-5 sm:w-5 text-violet-600" />
-                  {data.summary.subscriptionsListed}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="text-xs text-muted-foreground">Razorpay subscription objects.</CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardDescription>Active subscriptions</CardDescription>
-                <CardTitle className="text-lg sm:text-xl">{data.summary.activeSubscriptions}</CardTitle>
-              </CardHeader>
-              <CardContent className="text-xs text-muted-foreground">Status active / authenticated.</CardContent>
-            </Card>
+            <SuperAdminStatCard label="Captured revenue" value={formatInr(data.summary.capturedAmountInr)} icon={IndianRupee} accent="emerald" hint="Latest 50 payments" />
+            <SuperAdminStatCard label="Payments listed" value={data.summary.paymentsListed} icon={CreditCard} accent="sky" />
+            <SuperAdminStatCard label="Subscriptions" value={data.summary.subscriptionsListed} icon={Repeat} accent="gold" />
+            <SuperAdminStatCard label="Active subs" value={data.summary.activeSubscriptions} icon={Wallet} accent="navy" />
           </div>
 
           <Tabs defaultValue="payments" className="w-full">
@@ -359,6 +324,6 @@ export default function SubscriptionManagement() {
           </Tabs>
         </>
       ) : null}
-    </div>
+    </SuperAdminInnerPage>
   );
 }

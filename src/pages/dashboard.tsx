@@ -1,4 +1,4 @@
-﻿import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -12,6 +12,8 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import Navigation from "@/components/navigation";
+import { StudentEcosystemHeader, StudentBottomNav } from "@/components/learning-ecosystem";
+import { usePageTitle } from "@/hooks/use-page-title";
 import {
   filterContentsBySchoolProgram,
   resolveIsAsliPrepExclusive,
@@ -23,6 +25,7 @@ import {
   isHomeworkContentType,
   isVideoContentType,
   nextChapterCompletedDates,
+  videoNumberOnly,
   type ChapterCompletedDates,
 } from "@/lib/video-chapter-schedule";
 import { StudentTeacherDiaryFeed } from "@/components/student/StudentTeacherDiaryFeed";
@@ -92,7 +95,6 @@ import DriveViewer from '@/components/drive-viewer';
 import VideoModal from '@/components/video-modal';
 import { API_BASE_URL, apiFetch } from '@/lib/api-config';
 import PdfPreviewPanel from '@/components/shared/PdfPreviewPanel';
-import { buildExamCalendarEntries } from '@/lib/exam-calendar-entries';
 import { buildTimetableCalendarEntries } from '@/lib/timetable-calendar-entries';
 import { useTimetableEntries } from '@/hooks/useTimetable';
 import { format, startOfMonth, endOfMonth, startOfWeek, addDays, parseISO } from 'date-fns';
@@ -114,7 +116,6 @@ import {
   writeDashboardStatsCache,
 } from '@/utils/dashboard-stats-cache';
 import { InteractiveBackground, FloatingParticles } from "@/components/background/InteractiveBackground";
-import AdaptiveRecommendations from "@/components/dashboard/AdaptiveRecommendations";
 
 // Mock user ID - in a real app, this would come from authentication
 const MOCK_USER_ID = "user-1";
@@ -281,6 +282,7 @@ function buildSessionTimeBaselineFromCache() {
 }
 
 export default function Dashboard() {
+  usePageTitle("Dashboard");
   const [, setLocation] = useLocation();
   const isMobile = useIsMobile();
   const [user, setUser] = useState<any>(() => initialStoredUser || null);
@@ -300,9 +302,8 @@ export default function Dashboard() {
   const [homeworkSubmissionDescription, setHomeworkSubmissionDescription] = useState('');
   const [isSubmittingHomework, setIsSubmittingHomework] = useState(false);
   const [homeworkSubmitError, setHomeworkSubmitError] = useState<string>('');
-  const [riskAnalysisReports, setRiskAnalysisReports] = useState<any[]>([]);
-  const [isLoadingReports, setIsLoadingReports] = useState(false);
   const [studyStreak, setStudyStreak] = useState<{ count: number; message?: string } | null>(null);
+  const [rankingsPreview] = useState<any[]>([]);
   const bootstrapAppliedRef = useRef(false);
 
   // Preview videos fallback (bootstrap supplies these in the same request)
@@ -332,9 +333,7 @@ export default function Dashboard() {
   }, []);
 
   // Fetch real dashboard data
-  const [stats, setStats] = useState({ questionsAnswered: 0, accuracyRate: 0, rank: 0 });
-  const [exams, setExams] = useState<any[]>([]);
-  const [examResults, setExamResults] = useState<any[]>([]);
+  const [stats, setStats] = useState({ questionsAnswered: 0, accuracyRate: 0, rank: 0, examResultCount: 0 });
   const [subjectProgress, setSubjectProgress] = useState<any[]>([]);
   const [overallProgress, setOverallProgress] = useState(0);
   const [isLoadingDashboard, setIsLoadingDashboard] = useState(true);
@@ -570,275 +569,85 @@ export default function Dashboard() {
           return;
         }
 
-        // Fetch exam results to calculate stats
-        const [examsRes, resultsRes, rankingsRes] = await Promise.all([
-          fetch(`${API_BASE_URL}/api/student/exams`, {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json'
-            }
-          }),
-          fetch(`${API_BASE_URL}/api/student/exam-results`, {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json'
-            }
-          }),
-          fetch(`${API_BASE_URL}/api/student/rankings`, {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json'
-            }
-          })
-        ]);
-
-        let examsData = [];
-        if (examsRes.ok) {
-          const examsJson = await examsRes.json();
-          examsData = examsJson.data || [];
-          setExams(examsData);
-        }
-
-        let resultsData = [];
-        if (resultsRes.ok) {
-          const resultsJson = await resultsRes.json();
-          resultsData = resultsJson.data || [];
-          setExamResults(resultsData);
-        }
-
-        let rankingsData = [];
-        if (rankingsRes.ok) {
-          const rankingsJson = await rankingsRes.json();
-          rankingsData = rankingsJson.data || [];
-        }
-
-        // Calculate real stats from exam results
-        const totalQuestions = resultsData.reduce((sum: number, r: any) => sum + (r.totalQuestions || 0), 0);
-        const correctAnswers = resultsData.reduce((sum: number, r: any) => sum + (r.correctAnswers || 0), 0);
-        const totalMarks = resultsData.reduce((sum: number, r: any) => sum + (r.totalMarks || 0), 0);
-        const obtainedMarks = resultsData.reduce((sum: number, r: any) => sum + (r.obtainedMarks || 0), 0);
-        const avgAccuracy = totalQuestions > 0 ? (correctAnswers / totalQuestions) * 100 : 0;
-        const avgScore = totalMarks > 0 ? (obtainedMarks / totalMarks) * 100 : 0;
-        
-        // Get average rank
-        const avgRank = rankingsData.length > 0 
-          ? Math.round(rankingsData.reduce((sum: number, r: any) => sum + (r.rank || 0), 0) / rankingsData.length)
-          : 0;
-
-        // Fetch actual subject names from API FIRST to map exam subject keys to real names
-        let subjectNameMap = new Map<string, string>(); // Maps subject keys (maths, physics, etc.) to actual names
         let subjectsList: any[] = [];
         try {
-          const token = localStorage.getItem('authToken');
-          if (token) {
-            const subjectsResponse = await fetch(`${API_BASE_URL}/api/student/subjects`, {
-              headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
-              }
-            });
-            
-            if (subjectsResponse.ok) {
-              const subjectsData = await subjectsResponse.json();
-              subjectsList = subjectsData.subjects || subjectsData.data || [];
-              
-              // Create a map from subject keys to actual names
-              // Map common exam subject keys to actual subject names
-              subjectsList.forEach((subject: any) => {
-                const subjectName = subject.name || '';
-                const subjectNameLower = subjectName.toLowerCase();
-                
-                // Map common variations
-                if (subjectNameLower.includes('math') || subjectNameLower.includes('mathematics')) {
-                  subjectNameMap.set('maths', subjectName);
-                  subjectNameMap.set('mathematics', subjectName);
-                }
-                if (subjectNameLower.includes('physics')) {
-                  subjectNameMap.set('physics', subjectName);
-                }
-                if (subjectNameLower.includes('chemistry')) {
-                  subjectNameMap.set('chemistry', subjectName);
-                }
-                
-                // Also map by exact name match (case-insensitive)
-                subjectNameMap.set(subjectNameLower, subjectName);
-              });
-            }
+          const subjectsResponse = await fetch(`${API_BASE_URL}/api/student/subjects`, {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+          });
+          if (subjectsResponse.ok) {
+            const subjectsData = await subjectsResponse.json();
+            subjectsList = subjectsData.subjects || subjectsData.data || [];
           }
         } catch (error) {
-          console.error('Failed to fetch subjects for name mapping:', error);
+          console.error('Failed to fetch subjects:', error);
         }
 
-        // Calculate subject-wise progress from exam results
-        const subjectMap = new Map<string, { total: number; correct: number; exams: number }>();
-        
-        resultsData.forEach((result: any) => {
-          if (result.subjectWiseScore && typeof result.subjectWiseScore === 'object') {
-            Object.entries(result.subjectWiseScore).forEach(([subject, score]: [string, any]) => {
-              if (!subjectMap.has(subject)) {
-                subjectMap.set(subject, { total: 0, correct: 0, exams: 0 });
-              }
-              const subj = subjectMap.get(subject)!;
-              subj.total += score.total || 0;
-              subj.correct += score.correct || 0;
-              subj.exams += 1;
-            });
-          }
-        });
-
-        // Convert subject map to progress array with actual subject names
-        const progressArray = Array.from(subjectMap.entries()).map(([key, data]) => {
-          const progress = data.total > 0 ? Math.round((data.correct / data.total) * 100) : 0;
-          // Get actual subject name from map, or capitalize the key as fallback
-          const actualName = subjectNameMap.get(key.toLowerCase()) || 
-                           subjectNameMap.get(key) || 
-                           key.charAt(0).toUpperCase() + key.slice(1);
-          const colors = [
-            'bg-orange-100 text-orange-600',
-            'bg-sky-100 text-sky-600',
-            'bg-teal-100 text-teal-600',
-            'bg-orange-100 text-orange-600',
-            'bg-sky-100 text-sky-600'
-          ];
-          return {
-            id: key.toLowerCase(),
-            name: actualName,
-            progress: progress,
-            trend: progress >= 70 ? 'up' as const : progress >= 50 ? 'neutral' as const : 'down' as const,
-            currentTopic: `${actualName} - Recent Exams`,
-            color: colors[Math.min(subjectMap.size - 1, Math.floor(Math.random() * colors.length))]
-          };
-        });
-
-        // Fetch subject progress from learning paths (localStorage)
-        // Get all subjects assigned to the student
-        let learningPathProgress: Map<string, number> = new Map();
-        try {
-          const token = localStorage.getItem('authToken');
-          if (token && subjectsList.length > 0) {
-            // Get progress for each subject from localStorage and content count
-            for (const subject of subjectsList) {
-              const subjectId = subject._id || subject.id;
-              try {
-                const stored = localStorage.getItem(`completed_content_${subjectId}`);
-                if (stored) {
-                  const completedIds = JSON.parse(stored);
-                  
-                  // Use contentCount from bootstrap/subjects API (avoids N per-subject fetches)
-                  try {
-                    const totalContent =
-                      Number(subject.contentCount) > 0
-                        ? Number(subject.contentCount)
-                        : 0;
-
-                    if (totalContent > 0) {
-                      const progress = Math.round((completedIds.length / totalContent) * 100);
-                      learningPathProgress.set(subjectId, progress);
-                    } else if (completedIds.length > 0) {
-                      learningPathProgress.set(subjectId, 0);
-                    }
-                  } catch (contentError) {
-                    console.error('Error fetching content for subject:', subjectId, contentError);
-                    // Fallback: use completed count as rough estimate
-                    if (completedIds.length > 0) {
-                      const progress = Math.min(100, (completedIds.length * 10));
-                      learningPathProgress.set(subjectId, progress);
-                    }
-                  }
-                }
-              } catch (e) {
-                console.error('Error reading progress for subject:', subjectId, e);
-              }
+        const learningPathProgress = new Map<string, number>();
+        for (const subject of subjectsList) {
+          const subjectId = subject._id || subject.id;
+          try {
+            const stored = localStorage.getItem(`completed_content_${subjectId}`);
+            if (!stored) continue;
+            const completedIds = JSON.parse(stored);
+            const totalContent = Number(subject.contentCount) > 0 ? Number(subject.contentCount) : 0;
+            if (totalContent > 0) {
+              learningPathProgress.set(
+                subjectId,
+                Math.round((completedIds.length / totalContent) * 100),
+              );
+            } else if (completedIds.length > 0) {
+              learningPathProgress.set(subjectId, Math.min(100, completedIds.length * 10));
             }
+          } catch (e) {
+            console.error('Error reading progress for subject:', subjectId, e);
           }
-        } catch (error) {
-          console.error('Failed to fetch learning path progress:', error);
         }
 
-        // Merge exam progress with learning path progress
-        // If a subject has both, take the average or use the higher value
-        const mergedProgress = new Map<string, { progress: number; name: string; color: string; currentTopic: string }>();
-        
-        // Add exam-based progress
-        progressArray.forEach(subj => {
-          mergedProgress.set(subj.id, {
-            progress: subj.progress,
-            name: subj.name,
-            color: subj.color,
-            currentTopic: subj.currentTopic
-          });
-        });
+        const colors = [
+          'bg-orange-100 text-orange-600',
+          'bg-sky-100 text-sky-600',
+          'bg-teal-100 text-teal-600',
+          'bg-emerald-100 text-emerald-600',
+        ];
+        const finalProgressArray = Array.from(learningPathProgress.entries()).map(
+          ([subjectId, progress], idx) => {
+            const subject = subjectsList.find((s) => (s._id || s.id) === subjectId);
+            const name = subject?.name || 'Subject';
+            return {
+              id: subjectId,
+              name,
+              progress,
+              trend: (progress >= 70 ? 'up' : progress >= 50 ? 'neutral' : 'down') as const,
+              currentTopic: `${name} - Learning path`,
+              color: colors[idx % colors.length],
+            };
+          },
+        );
 
-        // Merge with learning path progress
-        learningPathProgress.forEach((progress, subjectId) => {
-          // Find the subject name from the subjects list
-          const subject = subjectsList.find(s => (s._id || s.id) === subjectId);
-          const subjectName = subject?.name || 'Subject';
-          
-          // Try to match by subject ID or find existing entry
-          let existing = null;
-          // Check if this subject matches any exam-based subject by name
-          Array.from(mergedProgress.entries()).forEach(([key, value]) => {
-            if (value.name === subjectName) {
-              existing = value;
-              // Update the existing entry with averaged progress
-              mergedProgress.set(key, {
-                ...value,
-                progress: Math.round((value.progress + progress) / 2)
-              });
-            }
-          });
-          
-          // If we found a match, skip adding new entry
-          if (existing) {
-            return;
-          }
-          
-          // If no match found, add as new entry
-          if (!existing) {
-            const colors = [
-              'bg-orange-100 text-orange-600',
-              'bg-green-100 text-green-600',
-              'bg-orange-100 text-orange-600',
-              'bg-orange-100 text-orange-600',
-              'bg-orange-100 text-orange-600'
-            ];
-            // Use subject ID as key, but display actual name
-            mergedProgress.set(subjectId, {
-              progress: progress,
-              name: subjectName,
-              color: colors[Math.floor(Math.random() * colors.length)],
-              currentTopic: `${subjectName} - Learning Path`
-            });
-          }
-        });
+        const calculatedOverallProgress =
+          finalProgressArray.length > 0
+            ? Math.round(
+                finalProgressArray.reduce((sum, s) => sum + s.progress, 0) / finalProgressArray.length,
+              )
+            : 0;
 
-        // Convert to array (include id from map key for React keys)
-        const finalProgressArray = Array.from(mergedProgress.entries()).map(([id, value]) => ({ ...value, id }));
-
-        // Calculate overall progress as average of all subject progress
-        const calculatedOverallProgress = finalProgressArray.length > 0
-          ? Math.round(finalProgressArray.reduce((sum, s) => sum + s.progress, 0) / finalProgressArray.length)
-          : 0;
-
-        // If no subject progress from exams, set default empty
         if (finalProgressArray.length === 0) {
           setSubjectProgress([]);
-          // Try to load saved overall progress from database
           loadOverallProgressFromDB();
         } else {
           setSubjectProgress(finalProgressArray);
           setOverallProgress(calculatedOverallProgress);
-          
-          // Save overall progress to database
           saveOverallProgressToDB(calculatedOverallProgress);
         }
 
-        // Set calculated stats
         setStats({
-          questionsAnswered: totalQuestions,
-          accuracyRate: Math.round(avgAccuracy),
-          rank: avgRank || 0
+          questionsAnswered: 0,
+          accuracyRate: calculatedOverallProgress,
+          rank: 0,
+          examResultCount: 0,
         });
 
       } catch (error) {
@@ -1654,34 +1463,6 @@ export default function Dashboard() {
 
     fetchHomeworkSubmissions();
 
-    // Fetch risk analysis reports
-    const fetchRiskAnalysisReports = async () => {
-      try {
-        setIsLoadingReports(true);
-        const token = localStorage.getItem('authToken');
-        if (!token) return;
-
-        const response = await fetch(`${API_BASE_URL}/api/student/risk-analysis-reports`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          if (data.success) {
-            setRiskAnalysisReports(data.data || []);
-          }
-        }
-      } catch (error) {
-        console.error('Failed to fetch risk analysis reports:', error);
-      } finally {
-        setIsLoadingReports(false);
-      }
-    };
-
-    fetchRiskAnalysisReports();
   }, []);
 
   const handleWatchVideo = (video: any) => {
@@ -1699,10 +1480,6 @@ export default function Dashboard() {
 
   // Memoize sliced arrays to avoid recalculating on every render
   // IMPORTANT: All hooks must be called before any early returns
-  const availableTests = useMemo(() => {
-    return exams.slice(0, 2); // Show first 2 exams as available tests
-  }, [exams]);
-
   const topIncompleteContent = useMemo(() => {
     return incompleteContent.slice(0, 10);
   }, [incompleteContent]);
@@ -1782,11 +1559,10 @@ export default function Dashboard() {
       })
       .filter(Boolean) as any[];
 
-    const examEntries = buildExamCalendarEntries(exams);
     const timetableCalendarEntries = buildTimetableCalendarEntries(monthTimetableEntries);
 
-    return [...quizEntries, ...examEntries, ...timetableCalendarEntries];
-  }, [incompleteQuizzes, exams, monthTimetableEntries]);
+    return [...quizEntries, ...timetableCalendarEntries];
+  }, [incompleteQuizzes, monthTimetableEntries]);
 
   const entriesByDate = useMemo(() => {
     return calendarEntries.reduce((acc: Record<string, any[]>, entry: any) => {
@@ -1842,93 +1618,44 @@ export default function Dashboard() {
   const recommendedVideos = [];
 
   return (
-    <>
+    <div className="viswam-student-app">
       <Navigation />
-      <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-responsive pb-responsive bg-sky-50 min-h-screen relative">
-        {/* Interactive Background */}
-        <div className="fixed inset-0 z-0 bg-sky-50">
-          {/* Interactive Background - Disabled for better performance */}
-          {/* <InteractiveBackground />
-          <FloatingParticles /> */}
-        </div>
-        
-        {/* Welcome Section */}
-        <div className="mt-6 sm:mt-8 mb-6 relative z-10">
-        {studyStreak && studyStreak.count > 0 && (
-          <div className="mb-4 flex items-center gap-2 rounded-xl border border-orange-200 bg-orange-50 px-4 py-2.5">
-            <Flame className="h-5 w-5 shrink-0 text-orange-500" aria-hidden />
-            <div>
-              <p className="text-xs sm:text-sm font-semibold text-orange-700">{studyStreak.count}-day study streak!</p>
-              <p className="text-xs text-orange-600">{studyStreak.message || 'Keep it up!'}</p>
-            </div>
-          </div>
-        )}
-        <div className="bg-gradient-to-r from-blue-500 via-blue-400 to-teal-400 rounded-2xl p-4 sm:p-6 lg:p-8 text-white relative overflow-hidden shadow-xl">
-        <div className="absolute inset-0 bg-white/10 backdrop-blur-sm"></div>
-            <div className="relative z-10 flex flex-row items-center justify-between gap-3 sm:gap-4">
-              {/* Left side - Text content */}
-              <div className="flex-1 min-w-0">
-                <h1 className="text-base sm:text-xl lg:text-3xl font-bold mb-1 sm:mb-2 leading-tight">
-                  Welcome back, {getStudentDisplayName(user)}!
-                </h1>
-                <p className="text-white/90 mb-2 sm:mb-4 text-[11px] sm:text-sm leading-snug line-clamp-3 sm:line-clamp-none">
-                  Ready to continue your {user?.educationStream || 'JEE'} preparation journey? Your Vidya AI has personalized recommendations waiting.
-                </p>
-                
-                <div className="flex flex-row flex-wrap gap-2 sm:gap-3">
-                  <Button 
-                    className="bg-white text-orange-600 hover:bg-orange-50 hover:text-orange-700 font-semibold text-[11px] sm:text-sm py-1.5 sm:py-2 px-2.5 sm:px-4 h-auto whitespace-nowrap"
-                    onClick={() => setLocation('/learning-paths')}
-                  >
-                    Continue Learning
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    className="border-white/30 bg-white/10 text-white hover:bg-white/20 text-[11px] sm:text-sm py-1.5 sm:py-2 px-2.5 sm:px-4 h-auto whitespace-nowrap"
-                    onClick={() => setLocation('/ai-tutor')}
-                  >
-                    Ask Vidya AI
-                  </Button>
-                </div>
-              </div>
-              
-              {/* Right side - Vidya image (same row as desktop) */}
-              <div className="flex-shrink-0">
-                <div className="w-[4.5rem] h-[3.25rem] sm:w-40 sm:h-28 lg:w-44 lg:h-32 relative">
-                  <div className="absolute inset-0 bg-white/15 rounded-xl sm:rounded-2xl backdrop-blur-sm p-1 sm:p-1.5 border border-white/30 shadow-lg">
-                    <img 
-                      src="/Vidya-ai.jpg" 
-                      alt="Vidya AI" 
-                      draggable={false}
-                      className="w-full h-full object-cover object-center rounded-lg sm:rounded-xl"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+      <div className="viswam-student-main relative z-10 mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 pt-responsive">
+        <div className="mt-4 sm:mt-6">
+          <StudentEcosystemHeader
+            displayName={getStudentDisplayName(user)}
+            educationStream={user?.educationStream}
+            overallProgress={overallProgress}
+            studyStreak={studyStreak}
+            stats={stats}
+            subjectProgress={subjectProgress}
+            subjects={subjects}
+            dashboardTodoStats={dashboardTodoStats}
+            weeklyStudyMinutes={studyTimeThisWeek}
+            rankingsPreview={rankingsPreview}
+          />
         </div>
 
-        {/* Summary Statistics Cards */}
+        {/* Study metrics — compact row */}
         <div className="mb-8 relative z-10">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Today's Progress */}
-            <Card className="bg-gradient-to-r from-orange-300 to-orange-400 text-white border-0 shadow-lg rounded-lg hover:shadow-md transition-all duration-200 h-full">
+            <Card className="viswam-stat-card border-l-4 border-l-[var(--brand-emerald)] h-full">
               <CardContent className="p-3 sm:p-4 lg:p-6 flex flex-col h-full relative">
-                <div className="absolute top-3 sm:p-4 lg:p-6 right-6 w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
-                  <Target className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+                <div className="absolute top-3 sm:p-4 lg:p-6 right-6 w-10 h-10 bg-[var(--brand-navy)]/5 rounded-xl flex items-center justify-center">
+                  <Target className="w-4 h-4 sm:w-5 sm:h-5 text-[var(--brand-navy)]" />
                 </div>
-                <p className="text-xs sm:text-sm font-medium text-white/90 mb-4 pr-12">Today's Progress</p>
+                <p className="text-xs sm:text-sm font-medium text-[var(--text-secondary)] mb-4 pr-12">Today's Progress</p>
                 {(() => {
                   const { totalTodos, completedTodos } = dashboardTodoStats;
                   const percentage = totalTodos > 0 ? Math.round((completedTodos / totalTodos) * 100) : 0;
                   return (
                     <>
-                      <p className="text-2xl sm:text-3xl font-bold text-white mb-3 leading-tight">{completedTodos}/{totalTodos}</p>
-                      <div className="w-full bg-white/20 rounded-full h-2 mb-2 overflow-hidden">
-                        <div className="bg-white h-2 rounded-full transition-all duration-500" style={{ width: `${percentage}%` }}></div>
+                      <p className="text-2xl sm:text-3xl font-bold text-[var(--text-primary)] mb-3 leading-tight">{completedTodos}/{totalTodos}</p>
+                      <div className="w-full bg-muted rounded-full h-2 mb-2 overflow-hidden">
+                        <div className="bg-[var(--brand-emerald)] h-2 rounded-full transition-all duration-500" style={{ width: `${percentage}%` }}></div>
                       </div>
-                      <p className="text-xs text-white/80 mt-auto">Tasks completed {percentage}%</p>
+                      <p className="text-xs text-[var(--text-secondary)] mt-auto">Tasks completed {percentage}%</p>
                     </>
                   );
                 })()}
@@ -1936,48 +1663,48 @@ export default function Dashboard() {
             </Card>
 
             {/* Study Time */}
-            <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white border-0 shadow-lg rounded-lg hover:shadow-md transition-all duration-200 h-full">
+            <Card className="viswam-stat-card border-l-4 border-l-[var(--brand-navy)] h-full">
               <CardContent className="p-3 sm:p-4 lg:p-6 flex flex-col h-full relative">
-                <div className="absolute top-3 sm:p-4 lg:p-6 right-6 w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
-                  <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+                <div className="absolute top-3 sm:p-4 lg:p-6 right-6 w-10 h-10 bg-[var(--brand-navy)]/5 rounded-xl flex items-center justify-center">
+                  <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-[var(--brand-navy)]" />
                 </div>
-                <p className="text-xs sm:text-sm font-medium text-white/90 mb-4 pr-12">Study Time</p>
-                <p className="text-2xl sm:text-3xl font-bold text-white mb-2 leading-tight transition-all duration-300">
+                <p className="text-xs sm:text-sm font-medium text-[var(--text-secondary)] mb-4 pr-12">Study Time</p>
+                <p className="text-2xl sm:text-3xl font-bold text-[var(--text-primary)] mb-2 leading-tight transition-all duration-300">
                   {studyTimeToday >= 60 
                     ? `${(studyTimeToday / 60).toFixed(1)} hrs` 
                     : studyTimeToday < 1 && studyTimeToday > 0
                     ? '<1m'
                     : `${Math.round(studyTimeToday)}m`}
                 </p>
-                <p className="text-xs text-white/80 mt-auto">Logged in today</p>
+                <p className="text-xs text-[var(--text-secondary)] mt-auto">Logged in today</p>
               </CardContent>
             </Card>
 
             {/* This Week */}
-            <Card className="bg-gradient-to-br from-teal-400 to-teal-500 text-white border-0 shadow-lg rounded-lg hover:shadow-md transition-all duration-200 h-full">
+            <Card className="viswam-stat-card border-l-4 border-l-[var(--brand-gold)] h-full">
               <CardContent className="p-3 sm:p-4 lg:p-6 flex flex-col h-full relative">
-                <div className="absolute top-3 sm:p-4 lg:p-6 right-6 w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
-                  <Calendar className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+                <div className="absolute top-3 sm:p-4 lg:p-6 right-6 w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center">
+                  <Calendar className="w-4 h-4 sm:w-5 sm:h-5 text-amber-700" />
                 </div>
-                <p className="text-xs sm:text-sm font-medium text-white/90 mb-4 pr-12">This Week</p>
-                <p className="text-2xl sm:text-3xl font-bold text-white mb-2 leading-tight transition-all duration-300">
+                <p className="text-xs sm:text-sm font-medium text-[var(--text-secondary)] mb-4 pr-12">This Week</p>
+                <p className="text-2xl sm:text-3xl font-bold text-[var(--text-primary)] mb-2 leading-tight transition-all duration-300">
                   {studyTimeThisWeek >= 60 
                     ? `${(studyTimeThisWeek / 60).toFixed(1)} hrs` 
                     : studyTimeThisWeek < 1 && studyTimeThisWeek > 0
                     ? '<1m'
                     : `${Math.round(studyTimeThisWeek)}m`}
                 </p>
-                <p className="text-xs text-white/80 mt-auto">Study time this week</p>
+                <p className="text-xs text-[var(--text-secondary)] mt-auto">Study time this week</p>
               </CardContent>
             </Card>
 
             {/* Efficiency */}
-            <Card className="bg-gradient-to-r from-orange-300 to-orange-400 text-white border-0 shadow-lg rounded-lg hover:shadow-md transition-all duration-200 h-full">
+            <Card className="viswam-stat-card border-l-4 border-l-[var(--brand-emerald)] h-full">
               <CardContent className="p-3 sm:p-4 lg:p-6 flex flex-col h-full relative">
-                <div className="absolute top-3 sm:p-4 lg:p-6 right-6 w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
-                  <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+                <div className="absolute top-3 sm:p-4 lg:p-6 right-6 w-10 h-10 bg-[var(--brand-emerald)]/10 rounded-xl flex items-center justify-center">
+                  <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 text-[var(--brand-emerald)]" />
                 </div>
-                <p className="text-xs sm:text-sm font-medium text-white/90 mb-4 pr-12">Efficiency</p>
+                <p className="text-xs sm:text-sm font-medium text-[var(--text-secondary)] mb-4 pr-12">Efficiency</p>
                 {(() => {
                   const { totalTodos, completedTodos } = dashboardTodoStats;
                   const efficiency =
@@ -1996,8 +1723,8 @@ export default function Dashboard() {
                         : 'Content & quizzes';
                   return (
                     <>
-                      <p className="text-2xl sm:text-3xl font-bold text-white mb-2 leading-tight">{efficiency}%</p>
-                      <p className="text-xs text-white/80 mt-auto">{completedLabel}</p>
+                      <p className="text-2xl sm:text-3xl font-bold text-[var(--text-primary)] mb-2 leading-tight">{efficiency}%</p>
+                      <p className="text-xs text-[var(--text-secondary)] mt-auto">{completedLabel}</p>
                     </>
                   );
                 })()}
@@ -2015,7 +1742,7 @@ export default function Dashboard() {
                   <div>
                     <CardTitle className="text-lg sm:text-xl font-bold text-gray-900">Study Calendar</CardTitle>
                     <p className="text-xs sm:text-sm text-gray-600 mt-1">
-                      Quizzes by due date; exams on their scheduled dates
+                      Quizzes by due date and class timetable
                     </p>
                   </div>
                   <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
@@ -2108,7 +1835,7 @@ export default function Dashboard() {
 
             <Card className="bg-white rounded-xl shadow-md">
               <CardHeader className="pb-3">
-                <CardTitle className="text-base sm:text-lg font-semibold text-gray-900">Study & exams</CardTitle>
+                <CardTitle className="text-base sm:text-lg font-semibold text-gray-900">Study schedule</CardTitle>
                 <p className="text-xs sm:text-sm text-gray-600">
                   {selectedCalendarDate.toLocaleDateString('en-US', {
                     weekday: 'long',
@@ -2124,15 +1851,13 @@ export default function Dashboard() {
                 ) : selectedDateEntries.length === 0 ? (
                   <div className="text-center py-3 sm:py-4 lg:py-6">
                     <CalendarIcon className="w-6 h-6 sm:w-7 sm:h-7 lg:w-8 lg:h-8 text-gray-300 mx-auto mb-2" />
-                    <p className="text-xs sm:text-sm font-medium text-gray-600">No study tasks or exams</p>
+                    <p className="text-xs sm:text-sm font-medium text-gray-600">No study tasks for this day</p>
                     <p className="text-xs text-gray-500 mt-1">Class sessions for this day are in the timetable table below.</p>
                   </div>
                 ) : (
                   selectedDateEntries.map((entry: any) => {
                     const badgeClass =
-                      entry.type === 'exam'
-                        ? 'bg-red-100 text-red-700'
-                        : entry.type === 'quiz'
+                      entry.type === 'quiz'
                         ? 'bg-orange-100 text-orange-700'
                         : entry.type === 'timetable'
                         ? 'bg-sky-100 text-sky-700'
@@ -2152,16 +1877,7 @@ export default function Dashboard() {
                         className={`p-3 rounded-lg border border-gray-200 transition-colors ${isClickable ? 'hover:bg-gray-50 cursor-pointer' : 'bg-sky-50/40'}`}
                         onClick={() => {
                           if (entry.type === 'timetable') return;
-                          if (entry.type === 'exam') {
-                            const examId = String(entry.id || entry.source?._id || '');
-                            if (examId) {
-                              setLocation(`/student-exams?examId=${encodeURIComponent(examId)}`);
-                            } else {
-                              setLocation('/student-exams');
-                            }
-                          } else {
-                            handleOpenPreview(entry.source, entry.type === 'quiz');
-                          }
+                          handleOpenPreview(entry.source, entry.type === 'quiz');
                         }}
                       >
                         <div className="flex items-center justify-between gap-2">
@@ -2422,107 +2138,6 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* AI Risk Analysis Reports Section */}
-        {riskAnalysisReports.length > 0 && (
-          <div className="mb-responsive relative z-10">
-            <Card className="bg-white/60 backdrop-blur-xl border-white/20 shadow-xl">
-              <CardHeader>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-gradient-to-br from-orange-400 to-red-500 rounded-lg flex items-center justify-center">
-                    <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
-                  </div>
-                  <CardTitle className="bg-gradient-to-r from-orange-600 via-orange-400 to-red-500 bg-clip-text text-transparent">
-                    AI Risk Analysis Reports
-                  </CardTitle>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {riskAnalysisReports.map((report: any) => (
-                    <div
-                      key={report._id}
-                      className={`p-4 rounded-lg border-l-4 ${
-                        report.isRead
-                          ? 'bg-gray-50 border-gray-300'
-                          : 'bg-orange-50 border-orange-500'
-                      }`}
-                    >
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <Brain className="w-3 h-3 sm:w-4 sm:h-4 text-orange-600" />
-                            <h5 className="font-semibold text-gray-900">
-                              Performance Risk Analysis Report
-                            </h5>
-                            {!report.isRead && (
-                              <Badge className="bg-orange-500 text-white text-xs">New</Badge>
-                            )}
-                          </div>
-                          <p className="text-xs sm:text-sm text-gray-600 mb-2">
-                            Sent by {report.adminId?.fullName || 'Administrator'} on{' '}
-                            {new Date(report.sentAt).toLocaleDateString()}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={async () => {
-                            try {
-                              const token = localStorage.getItem('authToken');
-                              const response = await fetch(
-                                `${API_BASE_URL}/api/student/risk-analysis-reports/${report._id}/download`,
-                                {
-                                  headers: {
-                                    'Authorization': `Bearer ${token}`
-                                  }
-                                }
-                              );
-
-                              if (response.ok) {
-                                const blob = await response.blob();
-                                const url = window.URL.createObjectURL(blob);
-                                const a = document.createElement('a');
-                                a.href = url;
-                                a.download = report.pdfFilename || 'risk-analysis-report.pdf';
-                                document.body.appendChild(a);
-                                a.click();
-                                window.URL.revokeObjectURL(url);
-                                document.body.removeChild(a);
-
-                                // Refresh reports to update read status
-                                const refreshResponse = await fetch(`${API_BASE_URL}/api/student/risk-analysis-reports`, {
-                                  headers: {
-                                    'Authorization': `Bearer ${token}`,
-                                    'Content-Type': 'application/json'
-                                  }
-                                });
-                                if (refreshResponse.ok) {
-                                  const refreshData = await refreshResponse.json();
-                                  if (refreshData.success) {
-                                    setRiskAnalysisReports(refreshData.data || []);
-                                  }
-                                }
-                              }
-                            } catch (error) {
-                              console.error('Failed to download report:', error);
-                            }
-                          }}
-                          className="text-orange-600 border-orange-300 hover:bg-orange-50"
-                        >
-                          <Download className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
-                          Download PDF
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
         {/* Homework Submissions Section */}
         <div className="mb-responsive relative z-10">
           <Card className="bg-white rounded-xl shadow-md">
@@ -2653,7 +2268,7 @@ export default function Dashboard() {
                 <div className="flex items-center justify-between">
                   <CardTitle className="bg-gradient-to-r from-orange-600 via-orange-400 to-teal-500 bg-clip-text text-transparent">Your Learning Progress</CardTitle>
                   <Badge className="bg-gradient-to-r from-orange-400 to-teal-500 text-white shadow-lg">
-                    Asli Learn
+                    VISWAM LMS
                   </Badge>
                 </div>
               </CardHeader>
@@ -2695,17 +2310,13 @@ export default function Dashboard() {
                     </div>
                   )) : (
                     <div className="text-center py-4 text-gray-500">
-                      Complete exams to see your subject-wise progress
+                      Complete lessons and quizzes to see your subject-wise progress
                     </div>
                   )}
                 </div>
 
               </CardContent>
             </Card>
-
-            {/* Adaptive Learning - Recommendation Engine */}
-            <AdaptiveRecommendations />
-
 
                   </div>
         </div>
@@ -2964,7 +2575,11 @@ export default function Dashboard() {
                     className="bg-gradient-to-r from-orange-400 to-orange-600 hover:from-orange-500 hover:to-orange-700 text-white"
                     onClick={() => {
                       setIsPreviewOpen(false);
-                      setLocation('/learning-paths');
+                      const qid = selectedScheduleItem._id || selectedScheduleItem.id;
+                      const sid = selectedScheduleItem.subjectId || getContentSubjectId(selectedScheduleItem);
+                      const ch = videoNumberOnly(selectedScheduleItem.chapter);
+                      const qs = sid && ch ? `?subjectId=${encodeURIComponent(sid)}&chapter=${encodeURIComponent(ch)}` : '';
+                      setLocation(`/quiz/${qid}${qs}`);
                     }}
                   >
                     Start Quiz
@@ -3084,6 +2699,7 @@ export default function Dashboard() {
         onClose={handleCloseVideoModal}
         video={selectedVideo}
       />
-    </>
+      <StudentBottomNav />
+    </div>
   );
 }

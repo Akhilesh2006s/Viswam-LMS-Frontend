@@ -3,22 +3,11 @@ import { motion } from 'framer-motion';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { API_BASE_URL } from '@/lib/api-config';
-import { 
-  ChevronLeft, 
-  ChevronRight, 
-  Plus, 
-  Calendar as CalendarIcon,
-  X,
-  Image as ImageIcon,
-  Edit,
-  Trash2
-} from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface Event {
   _id?: string;
@@ -27,7 +16,8 @@ interface Event {
   date: string;
   startDate?: string;
   endDate?: string;
-  type?: 'event' | 'exam';
+  type?: 'event' | 'exam' | 'holiday';
+  eventKind?: string;
   examType?: string;
   examId?: string;
   photo?: string;
@@ -40,82 +30,63 @@ export default function AdminCalendar() {
   const { toast } = useToast();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [events, setEvents] = useState<Event[]>([]);
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const [isEventDialogOpen, setIsEventDialogOpen] = useState(false);
-  const [isEditMode, setIsEditMode] = useState(false);
-  const [editingEvent, setEditingEvent] = useState<Event | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
 
-  const [eventForm, setEventForm] = useState({
-    name: '',
-    date: '',
-    photo: null as File | null,
-    photoUrl: '',
-    description: ''
-  });
+  const monthKey = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
 
-  // Fetch events on component mount
   useEffect(() => {
     fetchEvents();
-  }, []);
+  }, [monthKey]);
 
   const fetchEvents = async () => {
     try {
       setIsLoading(true);
       const token = localStorage.getItem('authToken');
-      const [eventsResponse, examsResponse] = await Promise.all([
-        fetch(`${API_BASE_URL}/api/admin/events`, {
+      const response = await fetch(
+        `${API_BASE_URL}/api/admin/calendar/events?month=${monthKey}`,
+        {
           headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        }),
-        fetch(`${API_BASE_URL}/api/admin/exams/viewable`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        }),
-      ]);
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
 
-      const calendarEvents: Event[] = [];
-
-      if (eventsResponse.ok) {
-        const data = await eventsResponse.json();
-        const baseEvents = Array.isArray(data) ? data : (data.events || data.data || []);
-        calendarEvents.push(
-          ...baseEvents.map((event: any) => ({
-            ...event,
-            type: 'event' as const,
-            startDate: event.date,
-            endDate: event.date,
-          }))
-        );
+      if (!response.ok) {
+        throw new Error(`Failed to load calendar (${response.status})`);
       }
 
-      if (examsResponse.ok) {
-        const examData = await examsResponse.json();
-        const exams = examData?.data || [];
-        calendarEvents.push(
-          ...exams.map((exam: any) => ({
-            id: `exam-${exam._id}`,
-            examId: exam._id,
-            name: exam.title,
-            date: exam.startDate,
-            startDate: exam.startDate,
-            endDate: exam.endDate,
-            description: exam.description,
-            type: 'exam' as const,
-            examType: exam.examType,
-          }))
-        );
-      }
+      const payload = await response.json();
+      const rows = Array.isArray(payload?.data) ? payload.data : [];
+      const calendarEvents: Event[] = rows.map((row: Record<string, unknown>) => {
+        const eventType = String(row.eventType || '');
+        let type: Event['type'] = 'event';
+        if (eventType === 'exam') type = 'exam';
+        else if (eventType === 'holiday') type = 'holiday';
+
+        return {
+          id: String(row.id || ''),
+          name: String(row.title || 'Untitled'),
+          date: String(row.startDate || ''),
+          startDate: String(row.startDate || ''),
+          endDate: String(row.endDate || row.startDate || ''),
+          type,
+          examType: row.examType ? String(row.examType) : undefined,
+          description: row.description ? String(row.description) : '',
+          photo: row.photo ? String(row.photo) : undefined,
+        };
+      });
 
       setEvents(calendarEvents);
     } catch (error) {
       console.error('Error fetching events:', error);
+      toast({
+        title: 'Could not load calendar',
+        description: 'Please refresh and try again.',
+        variant: 'destructive',
+      });
     } finally {
       setIsLoading(false);
     }
@@ -166,17 +137,7 @@ export default function AdminCalendar() {
       const startStr = `${normalizedStartDate.getFullYear()}-${String(normalizedStartDate.getMonth() + 1).padStart(2, '0')}-${String(normalizedStartDate.getDate()).padStart(2, '0')}`;
       const endStr = `${normalizedEndDate.getFullYear()}-${String(normalizedEndDate.getMonth() + 1).padStart(2, '0')}-${String(normalizedEndDate.getDate()).padStart(2, '0')}`;
 
-      const matches = dateStr >= startStr && dateStr <= endStr;
-      if (matches) {
-        console.log('Event matched for date:', {
-          calendarDate: dateStr,
-          eventStartDate: startStr,
-          eventEndDate: endStr,
-          eventName: event.name,
-          eventId: event._id || event.id
-        });
-      }
-      return matches;
+      return dateStr >= startStr && dateStr <= endStr;
     });
   };
 
@@ -205,189 +166,10 @@ export default function AdminCalendar() {
     setCurrentDate(new Date());
   };
 
-  // Handle date click
-  const handleDateClick = (date: Date) => {
-    // Normalize date to local timezone to avoid timezone issues
-    const normalizedDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-    const year = normalizedDate.getFullYear();
-    const month = String(normalizedDate.getMonth() + 1).padStart(2, '0');
-    const day = String(normalizedDate.getDate()).padStart(2, '0');
-    const dateString = `${year}-${month}-${day}`;
-    
-    console.log('Date clicked:', {
-      originalDate: date,
-      normalizedDate: normalizedDate,
-      dateString: dateString,
-      dayOfMonth: date.getDate()
-    });
-    
-    setSelectedDate(normalizedDate);
-    setEventForm({
-      name: '',
-      date: dateString,
-      photo: null,
-      photoUrl: '',
-      description: ''
-    });
-    setIsEditMode(false);
-    setEditingEvent(null);
-    setIsEventDialogOpen(true);
-  };
-
-  // Handle event form submit
-  const handleEventSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!eventForm.name || !eventForm.date) {
-      toast({
-        title: "Error",
-        description: "Please fill in all required fields",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      const token = localStorage.getItem('authToken');
-      const formData = new FormData();
-      formData.append('name', eventForm.name);
-      formData.append('date', eventForm.date);
-      formData.append('description', eventForm.description);
-      
-      if (eventForm.photo) {
-        formData.append('photo', eventForm.photo);
-      }
-
-      const url = isEditMode && editingEvent
-        ? `${API_BASE_URL}/api/admin/events/${editingEvent._id || editingEvent.id}`
-        : `${API_BASE_URL}/api/admin/events`;
-
-      const response = await fetch(url, {
-        method: isEditMode ? 'PUT' : 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-        body: formData,
-      });
-
-      if (response.ok) {
-        toast({
-          title: "Success",
-          description: isEditMode ? "Event updated successfully" : "Event created successfully",
-        });
-        setIsEventDialogOpen(false);
-        resetForm();
-        fetchEvents();
-      } else {
-        const error = await response.json();
-        toast({
-          title: "Error",
-          description: error.message || "Failed to save event",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
-      console.error('Error saving event:', error);
-      toast({
-        title: "Error",
-        description: "Failed to save event",
-        variant: "destructive",
-      });
-    }
-  };
-
-  // Handle delete event
-  const handleDeleteEvent = async (event: Event) => {
-    if (!confirm('Are you sure you want to delete this event?')) {
-      return;
-    }
-
-    try {
-      const token = localStorage.getItem('authToken');
-      const response = await fetch(`${API_BASE_URL}/api/admin/events/${event._id || event.id}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      if (response.ok) {
-        toast({
-          title: "Success",
-          description: "Event deleted successfully",
-        });
-        fetchEvents();
-      } else {
-        toast({
-          title: "Error",
-          description: "Failed to delete event",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
-      console.error('Error deleting event:', error);
-      toast({
-        title: "Error",
-        description: "Failed to delete event",
-        variant: "destructive",
-      });
-    }
-  };
-
-  // Handle edit event
-  const handleEditEvent = (event: Event, e?: React.MouseEvent) => {
-    if (e && typeof e.stopPropagation === 'function') {
-      e.stopPropagation();
-    }
-    setEditingEvent(event);
-    setIsEditMode(true);
-    setEventForm({
-      name: event.name,
-      date: new Date(event.date).toISOString().split('T')[0],
-      photo: null,
-      photoUrl: event.photo || '',
-      description: event.description || ''
-    });
-    setSelectedDate(new Date(event.date));
-    setIsEventDialogOpen(true);
-  };
-
-  // Handle view event
   const handleViewEvent = (event: Event, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-    console.log('Viewing event:', {
-      eventId: event._id || event.id,
-      eventName: event.name,
-      eventDate: event.date,
-      eventDateFormatted: new Date(event.date).toLocaleDateString()
-    });
     setSelectedEvent(event);
     setIsViewDialogOpen(true);
-  };
-
-  // Reset form
-  const resetForm = () => {
-    setEventForm({
-      name: '',
-      date: selectedDate ? selectedDate.toISOString().split('T')[0] : '',
-      photo: null,
-      photoUrl: '',
-      description: ''
-    });
-    setIsEditMode(false);
-    setEditingEvent(null);
-  };
-
-  // Handle photo change
-  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setEventForm({
-        ...eventForm,
-        photo: file,
-        photoUrl: URL.createObjectURL(file)
-      });
-    }
   };
 
   // Get month name
@@ -407,7 +189,14 @@ export default function AdminCalendar() {
 
   const getEventColor = (event: Event, index: number) => {
     if (event.type === 'exam') return 'bg-blue-600';
+    if (event.type === 'holiday') return 'bg-amber-600';
     return eventColors[index % eventColors.length];
+  };
+
+  const eventTypeLabel = (event: Event) => {
+    if (event.type === 'exam') return 'Exam';
+    if (event.type === 'holiday') return 'Holiday';
+    return 'Event';
   };
 
   const monthlyEvents = useMemo(() => {
@@ -447,7 +236,7 @@ export default function AdminCalendar() {
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 className="text-xl sm:text-2xl sm:text-3xl font-bold text-gray-900">Calendar</h2>
-          <p className="text-sm sm:text-base text-gray-600 mt-1">Manage and view your events</p>
+          <p className="text-sm sm:text-base text-gray-600 mt-1">View-only — events are added by Super Admin</p>
         </div>
         <Button onClick={goToToday} variant="outline" className="shrink-0">
           Today
@@ -498,8 +287,8 @@ export default function AdminCalendar() {
                         >
                           <div className="flex items-center justify-between gap-2">
                             <p className="text-xs sm:text-sm font-medium text-sky-900 truncate">{event.name}</p>
-                            <Badge className={event.type === 'exam' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}>
-                              {event.type === 'exam' ? 'Exam' : 'Event'}
+                            <Badge className={event.type === 'exam' ? 'bg-blue-100 text-blue-700' : event.type === 'holiday' ? 'bg-amber-100 text-amber-800' : 'bg-orange-100 text-orange-700'}>
+                              {eventTypeLabel(event)}
                             </Badge>
                           </div>
                         </button>
@@ -533,14 +322,11 @@ export default function AdminCalendar() {
                     <motion.div
                       key={index}
                       className={`
-                        min-h-[116px] sm:min-h-[100px] border border-gray-200 rounded-lg p-1.5 sm:p-2 cursor-pointer
-                        transition-all hover:bg-gray-50 relative
+                        min-h-[116px] sm:min-h-[100px] border border-gray-200 rounded-lg p-1.5 sm:p-2
+                        relative
                         ${!isCurrentMonthDay ? 'bg-gray-50 opacity-50' : 'bg-white'}
                         ${isTodayDate ? 'ring-2 ring-orange-500' : ''}
                       `}
-                      onClick={() => handleDateClick(date)}
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
                     >
                       <div
                         className={`
@@ -579,11 +365,6 @@ export default function AdminCalendar() {
                             +{dayEvents.length - 3} more
                           </div>
                         )}
-                        {dayEvents.length === 0 && (
-                          <div className="text-[10px] sm:text-xs text-gray-400 text-center py-1">
-                            Tap to add
-                          </div>
-                        )}
                       </div>
                     </motion.div>
                   );
@@ -615,8 +396,8 @@ export default function AdminCalendar() {
                       >
                         <div className="flex items-center justify-between gap-2">
                           <p className="text-xs sm:text-sm font-medium text-sky-900 truncate">{event.name}</p>
-                          <Badge className={event.type === 'exam' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}>
-                            {event.type === 'exam' ? 'Exam' : 'Event'}
+                          <Badge className={event.type === 'exam' ? 'bg-blue-100 text-blue-700' : event.type === 'holiday' ? 'bg-amber-100 text-amber-800' : 'bg-orange-100 text-orange-700'}>
+                            {eventTypeLabel(event)}
                           </Badge>
                         </div>
                         <p className="text-xs text-sky-700 mt-1">
@@ -632,83 +413,6 @@ export default function AdminCalendar() {
           )}
         </CardContent>
       </Card>
-
-      {/* Add/Edit Event Dialog */}
-      <Dialog open={isEventDialogOpen} onOpenChange={setIsEventDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{isEditMode ? 'Edit Event' : 'Add Event'}</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleEventSubmit} className="space-y-4">
-            <div>
-              <Label htmlFor="event-name">Event Name *</Label>
-              <Input
-                id="event-name"
-                value={eventForm.name}
-                onChange={(e) => setEventForm({ ...eventForm, name: e.target.value })}
-                placeholder="Enter event name"
-                required
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="event-photo">Photo</Label>
-              <div className="space-y-2">
-                {eventForm.photoUrl && (
-                  <div className="relative w-full h-48 rounded-lg overflow-hidden border">
-                    <img
-                      src={eventForm.photoUrl}
-                      alt="Event preview"
-                      className="w-full h-full object-cover"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setEventForm({ ...eventForm, photo: null, photoUrl: '' })}
-                      className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
-                    >
-                      <X className="h-3 w-3 sm:h-4 sm:w-4" />
-                    </button>
-                  </div>
-                )}
-                <Input
-                  id="event-photo"
-                  type="file"
-                  accept="image/*"
-                  onChange={handlePhotoChange}
-                  className="cursor-pointer"
-                />
-              </div>
-            </div>
-
-            <div>
-              <Label htmlFor="event-description">Description</Label>
-              <Textarea
-                id="event-description"
-                value={eventForm.description}
-                onChange={(e) => setEventForm({ ...eventForm, description: e.target.value })}
-                placeholder="Enter event description"
-                rows={4}
-              />
-            </div>
-
-            <div className="flex justify-end space-x-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setIsEventDialogOpen(false);
-                  resetForm();
-                }}
-              >
-                Cancel
-              </Button>
-              <Button type="submit">
-                {isEditMode ? 'Update Event' : 'Create Event'}
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
 
       {/* View Event Dialog */}
       <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
@@ -763,30 +467,6 @@ export default function AdminCalendar() {
                   <p className="text-gray-700 whitespace-pre-wrap">{selectedEvent.description}</p>
                 </div>
               )}
-              {selectedEvent.type !== 'exam' ? (
-                <div className="flex justify-end space-x-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setIsViewDialogOpen(false);
-                      handleEditEvent(selectedEvent);
-                    }}
-                  >
-                    <Edit className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
-                    Edit
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    onClick={() => {
-                      setIsViewDialogOpen(false);
-                      handleDeleteEvent(selectedEvent);
-                    }}
-                  >
-                    <Trash2 className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
-                    Delete
-                  </Button>
-                </div>
-              ) : null}
             </div>
           )}
         </DialogContent>

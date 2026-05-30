@@ -99,35 +99,16 @@ export default function Profile() {
         'Content-Type': 'application/json',
       };
       try {
-        const [resultsRes, rankingsRes, focusRes, progressRes, meRes] = await Promise.all([
-          fetch(`${API_BASE_URL}/api/student/exam-results`, { headers }),
-          fetch(`${API_BASE_URL}/api/student/rankings`, { headers }),
-          apiFetch('/api/vidya/student/focus-card').catch(() => null),
+        const [progressRes, meRes] = await Promise.all([
           fetch(`${API_BASE_URL}/api/student/learning-progress`, { headers }),
           fetch(`${API_BASE_URL}/api/auth/me`, { headers }),
         ]);
 
-        if (resultsRes.ok) {
-          const json = await resultsRes.json();
-          const rows = Array.isArray(json.data) ? json.data : [];
-          setExamResults(dedupeStudentExamResults(rows, getExamIdFromResult));
-        } else {
-          setExamResults([]);
-        }
-
-        if (rankingsRes.ok) {
-          const json = await rankingsRes.json();
-          setRankings(Array.isArray(json.data) ? json.data : []);
-        } else {
-          setRankings([]);
-        }
+        setExamResults([]);
+        setRankings([]);
 
         let streak = 0;
-        if (focusRes?.ok) {
-          const focusJson = await focusRes.json();
-          streak = Number(focusJson?.studyStreak?.current ?? focusJson?.studyStreak?.count ?? 0);
-        }
-        if ((!Number.isFinite(streak) || streak <= 0) && meRes.ok) {
+        if (meRes.ok) {
           const meJson = await meRes.json();
           streak = Number(meJson?.user?.studyStreak?.current ?? 0);
         }
@@ -582,9 +563,9 @@ export default function Profile() {
                         </div>
                         <div className="text-center">
                           <div className="text-2xl sm:text-3xl font-bold text-purple-600 mb-1">
-                            {stats.rank > 0 ? `#${stats.rank}` : '—'}
+                            {streakCount > 0 ? `${streakCount}d` : '—'}
                           </div>
-                          <p className="text-xs sm:text-sm text-gray-600">Avg Exam Rank</p>
+                          <p className="text-xs sm:text-sm text-gray-600">Learning streak</p>
                         </div>
                       </div>
                     )}
@@ -629,7 +610,7 @@ export default function Profile() {
                             Total: {weeklyHoursTotal} hours this week
                           </p>
                           <p className="text-[10px] text-gray-500 mt-1">
-                            From exam time and content study sessions
+                            From content study sessions
                           </p>
                         </div>
                       </>

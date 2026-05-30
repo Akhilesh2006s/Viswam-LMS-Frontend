@@ -1,4 +1,4 @@
-import { API_BASE_URL } from '@/lib/api-config';
+import { resolveMediaUrl } from '@/lib/media-url';
 
 export type EduOTTVideoLike = {
   thumbnailUrl?: string;
@@ -37,15 +37,8 @@ export function isYouTubeVideo(video: EduOTTVideoLike): boolean {
 
 function normalizeThumbnailUrl(thumbnailUrl: string): string {
   const trimmed = thumbnailUrl.trim();
-  if (
-    trimmed.startsWith('http') ||
-    trimmed.startsWith('//') ||
-    trimmed.startsWith('data:')
-  ) {
-    return trimmed;
-  }
-  if (trimmed.startsWith('/')) return `${API_BASE_URL}${trimmed}`;
-  return `${API_BASE_URL}/${trimmed}`;
+  if (trimmed.startsWith('data:')) return trimmed;
+  return resolveMediaUrl(trimmed);
 }
 
 /** Thumbnail for grid cards — prefers stored image, then YouTube preview from any video URL. */
@@ -68,7 +61,7 @@ export function getEduOTTPlaybackUrl(video: EduOTTVideoLike): {
   const youtubeUrl = resolveYouTubeUrl(video);
   if (youtubeUrl) return { isYouTube: true, url: youtubeUrl };
   const file = video.videoUrl || video.fileUrl;
-  if (file) return { isYouTube: false, url: file };
+  if (file) return { isYouTube: false, url: resolveMediaUrl(file) };
   return { isYouTube: false, url: null };
 }
 

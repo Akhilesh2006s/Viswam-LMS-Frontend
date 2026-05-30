@@ -1,12 +1,14 @@
 import { Link } from "wouter";
+import { usePageTitle } from "@/hooks/use-page-title";
 
 export default function Privacy() {
+  usePageTitle("Privacy");
   return (
     <main className="min-h-screen bg-slate-50 text-slate-900">
       <div className="mx-auto max-w-3xl px-3 sm:px-4 lg:px-6 py-12">
         <h1 className="text-2xl sm:text-3xl font-bold">Privacy Policy</h1>
         <p className="mt-3 text-slate-600">
-          This policy describes how AsliLearn AI collects, uses, and protects your
+          This policy describes how VISWAM LMS by VISWAM EDUTECH collects, uses, and protects your
           information when you use our learning platform.
         </p>
 
@@ -22,7 +24,7 @@ export default function Privacy() {
         <section className="mt-8 space-y-4">
           <h2 className="text-lg sm:text-xl font-semibold">How we use information</h2>
           <p className="text-slate-700">
-            We use this information to operate and improve AsliLearn AI, personalize
+            We use this information to operate and improve VISWAM LMS, personalize
             learning features, communicate with you about your account, and comply
             with legal obligations where applicable.
           </p>

@@ -601,7 +601,7 @@ export default function LiveSessions() {
                     <SelectValue placeholder="Select board" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="ASLI_EXCLUSIVE_SCHOOLS">Asli Exclusive Schools</SelectItem>
+                    <SelectItem value="ASLI_EXCLUSIVE_SCHOOLS">VISWAM Exclusive Schools</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -712,7 +712,7 @@ export default function LiveSessions() {
                     <SelectValue placeholder="Select board" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="ASLI_EXCLUSIVE_SCHOOLS">Asli Exclusive Schools</SelectItem>
+                    <SelectItem value="ASLI_EXCLUSIVE_SCHOOLS">VISWAM Exclusive Schools</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

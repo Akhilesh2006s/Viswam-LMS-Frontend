@@ -3,8 +3,8 @@ import { useEffect, useState } from 'react';
 /** Viewport breakpoint (Tailwind `board`). */
 const VIEWPORT_BOARD_QUERY = '(min-width: 2560px)';
 
-/** Manual override on the panel browser console: localStorage.setItem('aslilearn_digital_board', '1') */
-const STORAGE_KEY = 'aslilearn_digital_board';
+/** Manual override on the panel browser console: localStorage.setItem('viswam_lms_digital_board', '1') */
+const STORAGE_KEY = "viswam_lms_digital_board";
 
 /**
  * True on large classroom / 4K panels — not normal laptops.

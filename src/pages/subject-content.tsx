@@ -12,27 +12,25 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { 
   Play, 
-  Clock, 
-  Users, 
   BookOpen,
   Target,
   Award,
   ArrowLeft,
-  CheckCircle,
-  FileText,
-  Video,
-  Youtube,
+  CalendarDays,
   Filter,
   X,
 } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { subjectTheme } from '@/lib/gamification/constants';
+import { ProgressRing } from '@/components/learning-ecosystem/ProgressRing';
 import Navigation from '@/components/navigation';
+import { ChapterJourney, StudentBottomNav, type ChapterQuiz } from '@/components/learning-ecosystem';
+import type { ChapterCompletedDates, ChapterQuizPassed } from '@/lib/video-chapter-schedule';
+import { API_BASE_URL } from '@/lib/api-config';
 import StudentPageLoader from '@/components/student/StudentPageLoader';
 import VideoModal from '@/components/video-modal';
 import CalendarView from '@/components/student/calendar-view';
-import VidyaAIFloatingAssistant from '@/components/student/VidyaAIFloatingAssistant';
 import { Link } from 'wouter';
-import { API_BASE_URL } from '@/lib/api-config';
-import { useIsMobile } from '@/hooks/use-mobile';
 
 interface Subject {
   _id: string;
@@ -86,13 +84,14 @@ interface ContentItem {
 
 export default function SubjectContent() {
   const [, params] = useRoute('/subject/:id');
-  const isMobile = useIsMobile();
   const [subject, setSubject] = useState<Subject | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedVideo, setSelectedVideo] = useState<Video | null>(null);
   const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
-  // Show calendar by default when accessed from learning paths
-  const [showCalendar, setShowCalendar] = useState(true);
+  const [viewMode, setViewMode] = useState<'journey' | 'calendar'>('journey');
+  const [subjectQuizzes, setSubjectQuizzes] = useState<ChapterQuiz[]>([]);
+  const [chapterCompletedDates, setChapterCompletedDates] = useState<ChapterCompletedDates>({});
+  const [chapterQuizPassed, setChapterQuizPassed] = useState<ChapterQuizPassed>({});
   const [contents, setContents] = useState<ContentItem[]>([]);
   const [loadingContents, setLoadingContents] = useState(false);
   const [completedContentIds, setCompletedContentIds] = useState<Set<string>>(new Set());
@@ -213,9 +212,27 @@ export default function SubjectContent() {
     setSubject(prev => prev ? { ...prev, progress } : prev);
   };
 
+  const loadChapterProgress = async (subjectId: string) => {
+    try {
+      const token = localStorage.getItem('authToken');
+      const res = await fetch(`${API_BASE_URL}/api/student/video-chapter-progress`, {
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.data?.[subjectId]) setChapterCompletedDates(json.data[subjectId]);
+        if (json.quizPassedBySubject?.[subjectId]) setChapterQuizPassed(json.quizPassedBySubject[subjectId]);
+      }
+    } catch {
+      /* ignore */
+    }
+  };
+
   const fetchSubjectContent = async (subjectId: string) => {
     try {
-      const [subjectResponse, videosResponse, contentsResponse] = await Promise.all([
+      const token = localStorage.getItem('authToken');
+      const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+      const [subjectResponse, videosResponse, contentsResponse, quizzesResponse] = await Promise.all([
         fetch(`${API_BASE_URL}/api/subjects/${subjectId}`, {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
@@ -228,13 +245,10 @@ export default function SubjectContent() {
             'Content-Type': 'application/json',
           }
         }),
-        fetch(`${API_BASE_URL}/api/student/asli-prep-content?subject=${encodeURIComponent(subjectId)}`, {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
-            'Content-Type': 'application/json',
-          }
-        })
+        fetch(`${API_BASE_URL}/api/student/asli-prep-content?subject=${encodeURIComponent(subjectId)}`, { headers }),
+        fetch(`${API_BASE_URL}/api/student/quizzes`, { headers }),
       ]);
+      void loadChapterProgress(subjectId);
       
       let subjectName = '';
       
@@ -341,6 +355,24 @@ export default function SubjectContent() {
       }
       setLoadingContents(false);
 
+      if (quizzesResponse.ok) {
+        const qJson = await quizzesResponse.json();
+        const all = qJson.data || qJson || [];
+        const forSubject = all.filter(
+          (q: any) =>
+            (q.subjectIds || []).map(String).includes(subjectId) ||
+            (q.subjectId && String(q.subjectId) === subjectId),
+        );
+        setSubjectQuizzes(
+          forSubject.map((q: any) => ({
+            _id: q._id,
+            title: q.title,
+            hasAttempted: q.hasAttempted,
+            lastScore: q.lastScore,
+          })),
+        );
+      }
+
     } catch (error) {
       console.error('Failed to fetch subject content:', error);
       // Set fallback data on error
@@ -411,78 +443,105 @@ export default function SubjectContent() {
   }
 
   const Icon = getIcon(subject.icon);
+  const theme = subjectTheme(subject.name);
+
+  const journeyVideos = (contents.length ? contents : subject.videos || []).filter(
+    (c: any) => String(c.type || 'Video').toLowerCase() === 'video',
+  ) as any[];
 
   return (
-    <>
+    <div className="viswam-student-app">
       <Navigation />
-      <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 sm:pt-24 pb-8 relative">
+      <div className="viswam-student-main w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 sm:pt-24 relative">
         
-        {!isMobile && <VidyaAIFloatingAssistant />}
         
-        {/* Header Section */}
-        <div className="mb-8">
-          <div className="flex items-center mb-4">
-            <Link href="/learning-paths">
-              <Button 
-                variant="outline" 
-                className="mr-4 bg-white/90 backdrop-blur-sm border-blue-200 text-blue-700 shadow-sm hover:bg-blue-50 hover:text-blue-800 hover:shadow-md transition-all"
-              >
-                <ArrowLeft className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
-                Back to Learning Path
-              </Button>
-            </Link>
-          </div>
-          
-          <div className="gradient-primary rounded-2xl p-5 sm:p-8 text-white relative overflow-hidden">
-            <div className="relative z-10">
-              <div className="flex items-center space-x-4 mb-4">
-                <div className={`w-16 h-16 ${subject.color} rounded-2xl flex items-center justify-center`}>
-                  <Icon className="w-6 h-6 sm:w-7 sm:h-7 lg:w-8 lg:h-8" />
-                </div>
-                <div>
-                  <h1 className="text-2xl sm:text-3xl font-bold mb-2">{subject.name}</h1>
-                  <p className="text-blue-100">{subject.description}</p>
-                </div>
-              </div>
+        <Link
+          href="/learning-paths"
+          className="mb-4 inline-flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-slate-900"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to Learn
+        </Link>
 
-              {/* Progress */}
-              <div className="mb-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs sm:text-sm font-medium text-blue-100">Your Progress</span>
-                  <span className="text-xs sm:text-sm font-medium text-white">{subject.progress || 0}%</span>
-                </div>
-                <Progress value={subject.progress || 0} className="h-2 bg-white/20 [&>div]:bg-white" />
-              </div>
-
-              <div className="flex flex-wrap gap-4">
-                {!showCalendar && (
-                  <Button 
-                    className="bg-white text-primary hover:bg-blue-50"
-                    onClick={() => setShowCalendar(true)}
-                  >
-                    <Play className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
-                    Start Learning
-                  </Button>
+        <section className="eco-hero mb-6 p-5 sm:p-8 text-white">
+          <div className="eco-hero-mesh" aria-hidden />
+          <div className="relative z-10 flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex min-w-0 flex-1 items-start gap-4">
+              <div
+                className={cn(
+                  'flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br shadow-lg',
+                  theme.gradientClass,
                 )}
+              >
+                <Icon className="h-7 w-7" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-widest text-amber-300/90">Subject</p>
+                <h1 className="mt-1 text-2xl font-bold capitalize sm:text-3xl">{subject.name}</h1>
+                {subject.description ? (
+                  <p className="mt-1 max-w-lg text-sm text-white/75">{subject.description}</p>
+                ) : null}
+                <div className="mt-4 max-w-md">
+                  <div className="mb-1.5 flex items-center justify-between text-xs font-medium text-white/80">
+                    <span>Your progress</span>
+                    <span>{subject.progress || 0}%</span>
+                  </div>
+                  <Progress value={subject.progress || 0} className="h-2 bg-white/20 [&>div]:bg-emerald-400" />
+                </div>
               </div>
             </div>
-            
-            {/* Decorative elements */}
-            <div className="absolute top-0 right-0 w-64 h-64 opacity-10">
-              <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-                <path fill="currentColor" d="M47.1,-78.5C58.9,-69.2,64.3,-50.4,73.2,-32.8C82.1,-15.1,94.5,1.4,94.4,17.9C94.3,34.4,81.7,50.9,66.3,63.2C50.9,75.5,32.7,83.6,13.8,87.1C-5.1,90.6,-24.7,89.5,-41.6,82.1C-58.5,74.7,-72.7,61,-79.8,44.8C-86.9,28.6,-86.9,9.9,-83.2,-6.8C-79.5,-23.5,-72.1,-38.2,-61.3,-49.6C-50.5,-61,-36.3,-69.1,-21.4,-75.8C-6.5,-82.5,9.1,-87.8,25.2,-84.9C41.3,-82,57.9,-70,47.1,-78.5Z" transform="translate(100 100)"/>
-              </svg>
-            </div>
+            <ProgressRing percent={subject.progress || 0} color={theme.accent} />
           </div>
+        </section>
+
+        <div className="mb-6 flex rounded-xl border border-slate-200 bg-slate-100/80 p-1">
+          <button
+            type="button"
+            onClick={() => setViewMode('journey')}
+            className={cn(
+              'flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-all',
+              viewMode === 'journey'
+                ? 'bg-white text-slate-900 shadow-sm'
+                : 'text-slate-600 hover:text-slate-900',
+            )}
+          >
+            <Play className="h-4 w-4" />
+            Chapter journey
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode('calendar')}
+            className={cn(
+              'flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-all',
+              viewMode === 'calendar'
+                ? 'bg-white text-slate-900 shadow-sm'
+                : 'text-slate-600 hover:text-slate-900',
+            )}
+          >
+            <CalendarDays className="h-4 w-4" />
+            Schedule
+          </button>
         </div>
 
-        {/* Calendar View */}
-        {showCalendar ? (
-          <div className="space-y-3 sm:space-y-4 lg:space-y-6">
-            <div className="mb-4 flex items-center justify-between flex-wrap gap-4">
+        {viewMode === 'journey' ? (
+          <div className="rounded-2xl border border-slate-200/90 bg-white p-4 sm:p-6 shadow-sm">
+          <ChapterJourney
+            subjectId={params?.id || subject._id}
+            videos={journeyVideos}
+            quizzes={subjectQuizzes}
+            completedVideoIds={completedContentIds}
+            chapterCompletedDates={chapterCompletedDates}
+            chapterQuizPassed={chapterQuizPassed}
+            onPlayVideo={(v) => handleVideoClick(v as Video)}
+          />
+          </div>
+        ) : (
+        viewMode === 'calendar' ? (
+          <div className="rounded-2xl border border-slate-200/90 bg-white p-4 sm:p-6 shadow-sm space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
-                <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Learning Calendar</h2>
-                <p className="text-gray-600 mt-1">Content organized by upload date</p>
+                <h2 className="text-lg font-bold text-slate-900">Your schedule</h2>
+                <p className="text-sm text-slate-500">Homework and materials by date</p>
               </div>
               
               {/* Content Type Filter */}
@@ -554,66 +613,7 @@ export default function SubjectContent() {
               />
             )}
           </div>
-        ) : (
-          /* Content Tabs */
-          <Tabs defaultValue="videos" className="space-y-3 sm:space-y-4 lg:space-y-6">
-            <TabsList className="grid w-full grid-cols-1">
-              <TabsTrigger value="videos" className="flex items-center space-x-2">
-                <Video className="w-3 h-3 sm:w-4 sm:h-4" />
-                <span>Videos ({subject.videos?.length || 0})</span>
-              </TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="videos" className="space-y-3 sm:space-y-4 lg:space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:p-4 lg:p-6">
-              {subject.videos?.map((video) => (
-                <Card key={video._id} className="hover:shadow-lg transition-shadow duration-200">
-                  <CardHeader>
-                    <div className="aspect-video bg-gray-100 rounded-lg mb-4 flex items-center justify-center">
-                      {video.isYouTubeVideo ? (
-                        <Youtube className="w-12 h-12 text-red-500" />
-                      ) : (
-                        <Video className="w-12 h-12 text-blue-500" />
-                      )}
-                    </div>
-                    <CardTitle className="text-base sm:text-lg">{video.title}</CardTitle>
-                    <p className="text-gray-600 text-xs sm:text-sm">{video.description}</p>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="flex items-center justify-between text-xs sm:text-sm text-gray-600">
-                      <div className="flex items-center space-x-1">
-                        <Clock className="w-3 h-3 sm:w-4 sm:h-4" />
-                        <span>{video.duration} min</span>
-                      </div>
-                      <div className="flex items-center space-x-1">
-                        <Users className="w-3 h-3 sm:w-4 sm:h-4" />
-                        <span>{video.views} views</span>
-                      </div>
-                    </div>
-
-                    <Button 
-                      className="w-full gradient-primary text-white"
-                      onClick={() => handleVideoClick(video)}
-                    >
-                      <Play className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
-                      Watch Video
-                    </Button>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-
-            {(!subject.videos || subject.videos.length === 0) && (
-              <div className="text-center py-12">
-                <Video className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-2">No videos available</h3>
-                <p className="text-gray-600">Videos will appear here once they are added to this learning path.</p>
-              </div>
-            )}
-          </TabsContent>
-
-          </Tabs>
-        )}
+        ) : null)}
       </div>
 
       {/* Video Modal */}
@@ -631,6 +631,7 @@ export default function SubjectContent() {
           isYouTubeVideo: selectedVideo.isYouTubeVideo || false
         } : null}
       />
-    </>
+      <StudentBottomNav />
+    </div>
   );
 }

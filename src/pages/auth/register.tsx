@@ -1,24 +1,25 @@
 import { useState } from 'react';
-import { useLocation } from 'wouter';
-import { motion } from 'framer-motion';
+import { useLocation, Link } from 'wouter';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Eye, EyeOff, Mail, Lock, User, ArrowLeft, Sparkles, CheckCircle } from 'lucide-react';
-import { Link } from 'wouter';
+import { Eye, EyeOff, Mail, Lock, User, ArrowLeft, CheckCircle, Loader2 } from 'lucide-react';
 import { API_BASE_URL } from '@/lib/api-config';
+import { AuthSplitLayout } from '@/components/layout/AuthSplitLayout';
+import { usePageTitle } from '@/hooks/use-page-title';
+import { PRODUCT_NAME } from '@/lib/brand';
 
 const Register = () => {
+  usePageTitle('Register');
   const [, setLocation] = useLocation();
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
     password: '',
     confirmPassword: '',
-    role: 'student'
+    role: 'student',
   });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -36,9 +37,8 @@ const Register = () => {
       setIsLoading(false);
       return;
     }
-
     if (formData.password.length < 6) {
-      setError('Password must be at least 6 characters long');
+      setError('Password must be at least 6 characters');
       setIsLoading(false);
       return;
     }
@@ -46,275 +46,141 @@ const Register = () => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           fullName: formData.fullName,
           email: formData.email,
           password: formData.password,
-          role: formData.role
+          role: formData.role,
         }),
       });
-
       const data = await response.json();
-
       if (response.ok) {
         setSuccess(true);
-        setTimeout(() => {
-          setLocation('/auth/login');
-        }, 2000);
+        setTimeout(() => setLocation('/'), 2000);
       } else {
         setError(data.message || 'Registration failed');
       }
-    } catch (err) {
+    } catch {
       setError('Network error. Please try again.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    });
-  };
-
-  const handleRoleChange = (value: string) => {
-    setFormData({
-      ...formData,
-      role: value
-    });
-  };
-
   if (success) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center p-4">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.6 }}
-          className="text-center"
-        >
-          <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-            <CheckCircle className="w-10 h-10 text-green-600" />
+      <AuthSplitLayout title="You're all set" description="Your account was created successfully.">
+        <div className="text-center py-6">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50">
+            <CheckCircle className="h-8 w-8 text-[var(--success)]" />
           </div>
-          <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-4">
-            Account Created Successfully!
-          </h2>
-          <p className="text-gray-600 mb-6">
-            You can now sign in with your credentials.
-          </p>
-          <Link href="/auth/login">
-            <Button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white">
-              Go to Sign In
-            </Button>
+          <p className="text-sm text-[var(--text-secondary)] mb-6">Redirecting you to sign in…</p>
+          <Link href="/">
+            <Button>Go to sign in</Button>
           </Link>
-        </motion.div>
-      </div>
+        </div>
+      </AuthSplitLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute top-20 left-10 w-72 h-72 bg-blue-400/20 rounded-full blur-3xl"></div>
-        <div className="absolute bottom-20 right-10 w-96 h-96 bg-purple-400/20 rounded-full blur-3xl"></div>
-      </div>
+    <AuthSplitLayout
+      title="Create account"
+      description={`Create your ${PRODUCT_NAME} account for your school or institution.`}
+      footer={
+        <Link href="/" className="inline-flex items-center gap-2 text-sm text-[var(--text-secondary)] hover:text-[var(--brand-navy)]">
+          <ArrowLeft className="h-4 w-4" />
+          Back to sign in
+        </Link>
+      }
+    >
+      {error && (
+        <Alert variant="destructive" className="mb-4">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
 
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6 }}
-        className="relative z-10 w-full max-w-md sm:max-w-lg"
-      >
-        <Card className="backdrop-blur-sm bg-white/80 border-white/20 shadow-2xl">
-          <CardHeader className="text-center space-y-4 px-4 sm:px-6">
-            <motion.div
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ duration: 0.6, delay: 0.2 }}
-              className="w-16 h-16 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center mx-auto"
-            >
-              <Sparkles className="w-6 h-6 sm:w-7 sm:h-7 lg:w-8 lg:h-8 text-white" />
-            </motion.div>
-            <CardTitle className="text-xl sm:text-2xl font-bold text-gray-900">
-              Create Your Account
-            </CardTitle>
-            <p className="text-gray-600">
-              Join thousands of students learning with AI
-            </p>
-          </CardHeader>
-          
-          <CardContent className="space-y-5 sm:space-y-6 px-4 sm:px-6 pb-6 sm:pb-8">
-            {error && (
-              <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3 }}
-              >
-                <Alert variant="destructive">
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
-              </motion.div>
-            )}
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="fullName">Full name</Label>
+          <div className="relative">
+            <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--text-secondary)] pointer-events-none" />
+            <Input id="fullName" name="fullName" value={formData.fullName} onChange={(e) => setFormData({ ...formData, fullName: e.target.value })} className="pl-10" required />
+          </div>
+        </div>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="fullName" className="text-xs sm:text-sm font-medium text-gray-700">
-                  Full Name
-                </Label>
-                <div className="relative">
-                  <User className="absolute left-3 sm:left-4 top-1/2 z-10 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-gray-400 pointer-events-none" />
-                  <Input
-                    id="fullName"
-                    name="fullName"
-                    type="text"
-                    value={formData.fullName}
-                    onChange={handleChange}
-                    placeholder="Enter your full name"
-                    className="h-11 sm:h-12 px-0 pl-10 sm:pl-12 pr-4 text-sm sm:text-base"
-                    required
-                  />
-                </div>
-              </div>
+        <div className="space-y-2">
+          <Label htmlFor="email">Email</Label>
+          <div className="relative">
+            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--text-secondary)] pointer-events-none" />
+            <Input id="email" name="email" type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} className="pl-10" required />
+          </div>
+        </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="email" className="text-xs sm:text-sm font-medium text-gray-700">
-                  Email Address
-                </Label>
-                <div className="relative">
-                  <Mail className="absolute left-3 sm:left-4 top-1/2 z-10 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-gray-400 pointer-events-none" />
-                  <Input
-                    id="email"
-                    name="email"
-                    type="email"
-                    value={formData.email}
-                    onChange={handleChange}
-                    placeholder="Enter your email"
-                    className="h-11 sm:h-12 px-0 pl-10 sm:pl-12 pr-4 text-sm sm:text-base"
-                    required
-                  />
-                </div>
-              </div>
+        <div className="space-y-2">
+          <Label>Account type</Label>
+          <Select value={formData.role} onValueChange={(role) => setFormData({ ...formData, role })}>
+            <SelectTrigger>
+              <SelectValue placeholder="Select type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="student">Student</SelectItem>
+              <SelectItem value="admin">School admin</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="role" className="text-xs sm:text-sm font-medium text-gray-700">
-                  Account Type
-                </Label>
-                <Select value={formData.role} onValueChange={handleRoleChange}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select account type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="student">Student</SelectItem>
-                    <SelectItem value="admin">Admin</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+        <div className="space-y-2">
+          <Label htmlFor="password">Password</Label>
+          <div className="relative">
+            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--text-secondary)] pointer-events-none" />
+            <Input id="password" name="password" type={showPassword ? 'text' : 'password'} value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} className="pl-10 pr-10" required />
+            <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)]">
+              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          </div>
+        </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="password" className="text-xs sm:text-sm font-medium text-gray-700">
-                  Password
-                </Label>
-                <div className="relative">
-                  <Lock className="absolute left-3 sm:left-4 top-1/2 z-10 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-gray-400 pointer-events-none" />
-                  <Input
-                    id="password"
-                    name="password"
-                    type={showPassword ? 'text' : 'password'}
-                    value={formData.password}
-                    onChange={handleChange}
-                    placeholder="Create a password"
-                    className="h-11 sm:h-12 px-0 pl-10 sm:pl-12 pr-10 sm:pr-12 text-sm sm:text-base"
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 sm:right-4 top-1/2 z-10 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4 sm:w-5 sm:h-5" /> : <Eye className="w-4 h-4 sm:w-5 sm:h-5" />}
-                  </button>
-                </div>
-              </div>
+        <div className="space-y-2">
+          <Label htmlFor="confirmPassword">Confirm password</Label>
+          <div className="relative">
+            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--text-secondary)] pointer-events-none" />
+            <Input id="confirmPassword" name="confirmPassword" type={showConfirmPassword ? 'text' : 'password'} value={formData.confirmPassword} onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })} className="pl-10 pr-10" required />
+            <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)]">
+              {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          </div>
+        </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="confirmPassword" className="text-xs sm:text-sm font-medium text-gray-700">
-                  Confirm Password
-                </Label>
-                <div className="relative">
-                  <Lock className="absolute left-3 sm:left-4 top-1/2 z-10 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-gray-400 pointer-events-none" />
-                  <Input
-                    id="confirmPassword"
-                    name="confirmPassword"
-                    type={showConfirmPassword ? 'text' : 'password'}
-                    value={formData.confirmPassword}
-                    onChange={handleChange}
-                    placeholder="Confirm your password"
-                    className="h-11 sm:h-12 px-0 pl-10 sm:pl-12 pr-10 sm:pr-12 text-sm sm:text-base"
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute right-3 sm:right-4 top-1/2 z-10 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  >
-                    {showConfirmPassword ? <EyeOff className="w-4 h-4 sm:w-5 sm:h-5" /> : <Eye className="w-4 h-4 sm:w-5 sm:h-5" />}
-                  </button>
-                </div>
-              </div>
+        <label className="flex items-start gap-2 text-xs text-[var(--text-secondary)]">
+          <input type="checkbox" className="mt-0.5 rounded" required />
+          <span>
+            I agree to the <Link href="/terms" className="text-[var(--brand-navy)] font-medium">Terms</Link> and{' '}
+            <Link href="/privacy" className="text-[var(--brand-navy)] font-medium">Privacy Policy</Link>
+          </span>
+        </label>
 
-              <div className="flex items-start space-x-2">
-                <input
-                  id="terms"
-                  type="checkbox"
-                  className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 mt-1"
-                  required
-                />
-                <Label htmlFor="terms" className="text-xs sm:text-sm text-gray-600 leading-6">
-                  I agree to the{' '}
-                  <Link href="/terms" className="text-blue-600 hover:text-blue-700">
-                    Terms of Service
-                  </Link>{' '}
-                  and{' '}
-                  <Link href="/privacy" className="text-blue-600 hover:text-blue-700">
-                    Privacy Policy
-                  </Link>
-                </Label>
-              </div>
+        <Button type="submit" className="w-full h-11" disabled={isLoading}>
+          {isLoading ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Creating account…
+            </>
+          ) : (
+            'Create account'
+          )}
+        </Button>
+      </form>
 
-              <Button
-                type="submit"
-                className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
-                disabled={isLoading}
-              >
-                {isLoading ? 'Creating Account...' : 'Create Account'}
-              </Button>
-            </form>
-
-            <div className="text-center">
-              <p className="text-xs sm:text-sm text-gray-600">
-                Already have an account?{' '}
-                <Link href="/auth/login" className="text-blue-600 hover:text-blue-700 font-medium">
-                  Sign in here
-                </Link>
-              </p>
-            </div>
-
-            <div className="text-center">
-              <Link href="/" className="inline-flex items-center text-xs sm:text-sm text-gray-600 hover:text-gray-800">
-                <ArrowLeft className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
-                Back to Home
-              </Link>
-            </div>
-          </CardContent>
-        </Card>
-      </motion.div>
-    </div>
+      <p className="mt-6 text-center text-sm text-[var(--text-secondary)]">
+        Already have an account?{' '}
+        <Link href="/" className="font-semibold text-[var(--brand-navy)] hover:underline">
+          Sign in
+        </Link>
+      </p>
+    </AuthSplitLayout>
   );
 };
 
 export default Register;
-

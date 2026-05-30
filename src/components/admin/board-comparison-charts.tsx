@@ -16,7 +16,7 @@ interface BoardAnalytics {
 const ASLI_EXCLUSIVE_BOARD_KEYS = new Set([
   'ASLI_EXCLUSIVE_SCHOOLS',
   'ASLI EXCLUSIVE SCHOOLS',
-  'Asli Exclusive Schools',
+  'VISWAM Exclusive Schools',
 ]);
 
 function isAsliExclusiveBoardLabel(name: string): boolean {
@@ -38,7 +38,7 @@ export default function BoardComparisonCharts() {
   const formatBoardName = (name: string): string => {
     if (!name) return name;
     if (name === 'ASLI EXCLUSIVE SCHOOLS' || name === 'ASLI_EXCLUSIVE_SCHOOLS') {
-      return 'Asli Exclusive Schools';
+      return 'VISWAM Exclusive Schools';
     }
     return name;
   };
@@ -157,7 +157,7 @@ export default function BoardComparisonCharts() {
     const max = maxValue || getMaxValue(analytics, dataKey as any);
     
     return (
-      <Card>
+      <Card className="sa-inner-card">
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
             <span className="flex items-center">
@@ -333,14 +333,11 @@ export default function BoardComparisonCharts() {
   }
 
   return (
-    <div className="space-y-3 sm:space-y-4 lg:space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-gray-600 mt-1">Compare performance across curriculum boards</p>
-        </div>
-        <Button onClick={fetchBoardAnalytics} variant="outline">
-          <TrendingUp className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
-          Refresh
+    <div className="sa-premium-inner space-y-5">
+      <div className="flex justify-end">
+        <Button onClick={fetchBoardAnalytics} variant="outline" className="rounded-xl border-slate-200">
+          <TrendingUp className="mr-2 h-4 w-4" />
+          Refresh comparison
         </Button>
       </div>
 

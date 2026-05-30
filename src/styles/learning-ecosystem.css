@@ -1,0 +1,296 @@
+/* VISWAM LMS — Premium Learning Ecosystem */
+
+.viswam-student-app {
+  min-height: 100vh;
+  background: var(--ecosystem-bg, #f8fafc);
+  background-image:
+    radial-gradient(ellipse 100% 80% at 0% -20%, rgba(0, 168, 107, 0.07), transparent 50%),
+    radial-gradient(ellipse 80% 60% at 100% 0%, rgba(212, 175, 55, 0.05), transparent 45%);
+}
+
+.viswam-student-main {
+  padding-bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
+}
+
+@media (min-width: 768px) {
+  .viswam-student-main {
+    padding-bottom: 2rem;
+  }
+}
+
+/* Hero */
+.eco-hero {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1.5rem;
+  background: linear-gradient(135deg, #0b1f3a 0%, #102b4e 40%, #0d3d5c 100%);
+  box-shadow: 0 20px 50px rgba(11, 31, 58, 0.22);
+}
+
+.eco-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 85% 15%, rgba(212, 175, 55, 0.18), transparent 40%),
+    radial-gradient(circle at 10% 90%, rgba(0, 168, 107, 0.15), transparent 45%);
+  pointer-events: none;
+}
+
+.eco-hero-mesh {
+  position: absolute;
+  right: -20%;
+  top: -30%;
+  width: 55%;
+  height: 140%;
+  background: linear-gradient(160deg, rgba(0, 168, 107, 0.12), transparent);
+  border-radius: 50%;
+  filter: blur(40px);
+  pointer-events: none;
+}
+
+/* Gamification chips */
+.eco-stat-chip {
+  border-radius: 1rem;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  background: rgba(255, 255, 255, 0.95);
+  padding: 1rem 1.125rem;
+  box-shadow: 0 4px 20px rgba(11, 31, 58, 0.05);
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.eco-stat-chip:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px rgba(11, 31, 58, 0.08);
+}
+
+.eco-xp-bar {
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(11, 31, 58, 0.08);
+  overflow: hidden;
+}
+
+.eco-xp-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #00a86b, #38bdf8);
+  transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Subject journey cards */
+.eco-subject-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1.25rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #fff;
+  min-height: 168px;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  cursor: pointer;
+}
+
+.eco-subject-card:hover {
+  transform: translateY(-4px) scale(1.01);
+  box-shadow: 0 20px 40px rgba(11, 31, 58, 0.2);
+}
+
+.eco-subject-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent 30%, rgba(0, 0, 0, 0.35) 100%);
+  pointer-events: none;
+}
+
+.eco-progress-ring {
+  --ring-size: 52px;
+  width: var(--ring-size);
+  height: var(--ring-size);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: conic-gradient(
+    var(--ring-color, #00a86b) calc(var(--ring-pct, 0) * 1%),
+    rgba(255, 255, 255, 0.2) 0
+  );
+}
+
+.eco-progress-ring-inner {
+  width: calc(var(--ring-size) - 10px);
+  height: calc(var(--ring-size) - 10px);
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(4px);
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+/* Netflix rows */
+.eco-ott-row {
+  margin-bottom: 1.75rem;
+}
+
+.eco-ott-row-title {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 0.75rem;
+  letter-spacing: -0.02em;
+}
+
+.eco-ott-scroll {
+  display: flex;
+  gap: 0.75rem;
+  overflow-x: auto;
+  padding-bottom: 0.5rem;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+
+.eco-ott-scroll::-webkit-scrollbar {
+  height: 6px;
+}
+
+.eco-ott-scroll::-webkit-scrollbar-thumb {
+  background: rgba(11, 31, 58, 0.15);
+  border-radius: 999px;
+}
+
+.eco-ott-poster {
+  flex: 0 0 auto;
+  width: min(280px, 72vw);
+  scroll-snap-align: start;
+  border-radius: 1rem;
+  overflow: hidden;
+  aspect-ratio: 16 / 9;
+  background: #0f172a;
+  transition: transform 0.25s ease;
+}
+
+.eco-ott-poster:hover {
+  transform: scale(1.03);
+}
+
+/* Roadmap */
+.eco-roadmap-step {
+  position: relative;
+  padding-left: 2rem;
+}
+
+.eco-roadmap-step::before {
+  content: "";
+  position: absolute;
+  left: 0.55rem;
+  top: 2rem;
+  bottom: -1rem;
+  width: 2px;
+  background: linear-gradient(180deg, #00a86b, rgba(0, 168, 107, 0.1));
+}
+
+.eco-roadmap-step:last-child::before {
+  display: none;
+}
+
+.eco-roadmap-node {
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 50%;
+  border: 3px solid #fff;
+  box-shadow: 0 0 0 2px #00a86b;
+  background: #00a86b;
+  position: absolute;
+  left: 0;
+  top: 1.25rem;
+}
+
+.eco-roadmap-node.locked {
+  background: #94a3b8;
+  box-shadow: 0 0 0 2px #cbd5e1;
+}
+
+/* Bottom nav */
+.eco-bottom-nav {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 50;
+  border-top: 1px solid rgba(226, 232, 240, 0.9);
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(16px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  box-shadow: 0 -8px 32px rgba(11, 31, 58, 0.08);
+}
+
+@media (min-width: 768px) {
+  .eco-bottom-nav {
+    display: none;
+  }
+}
+
+.eco-bottom-nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.5rem 0.25rem;
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: #64748b;
+  transition: color 0.2s;
+}
+
+.eco-bottom-nav-item.active {
+  color: #00a86b;
+}
+
+.eco-bottom-nav-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 0.75rem;
+  transition: background 0.2s;
+}
+
+.eco-bottom-nav-item.active .eco-bottom-nav-icon {
+  background: rgba(0, 168, 107, 0.12);
+}
+
+/* Badge */
+.eco-badge-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border-radius: 999px;
+  border: 1px solid rgba(212, 175, 55, 0.35);
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.12), rgba(255, 255, 255, 0.9));
+  padding: 0.35rem 0.65rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #0b1f3a;
+}
+
+.eco-badge-pill.locked {
+  opacity: 0.45;
+  filter: grayscale(0.6);
+}
+
+@keyframes eco-pop {
+  0% {
+    transform: scale(0.92);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.eco-animate-in {
+  animation: eco-pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}

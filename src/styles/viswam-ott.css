@@ -1,0 +1,533 @@
+/* VISWAM OTT — Premium streaming platform */
+
+.viswam-ott {
+  --ott-navy: #0b1f3a;
+  --ott-emerald: #00a86b;
+  --ott-gold: #d4af37;
+  --ott-bg: #0f172a;
+  --ott-surface: #1e293b;
+  --ott-muted: #94a3b8;
+  min-height: 100vh;
+  background: var(--ott-bg);
+  color: #f8fafc;
+}
+
+.viswam-ott-light {
+  background: #f8fafc;
+  color: var(--ott-navy);
+}
+
+.viswam-ott-main {
+  padding-bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
+}
+
+@media (min-width: 768px) {
+  .viswam-ott-main {
+    padding-bottom: 2rem;
+  }
+}
+
+/* Top bar */
+.ott-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.98) 0%, rgba(15, 23, 42, 0.85) 70%, transparent 100%);
+  backdrop-filter: blur(12px);
+}
+
+.ott-topbar-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.ott-brand-title {
+  font-size: 1.125rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  background: linear-gradient(135deg, #fff 0%, var(--ott-emerald) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.ott-brand-sub {
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--ott-gold);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+/* Hero */
+.ott-hero {
+  position: relative;
+  margin: 0 1rem 2rem;
+  min-height: min(52vh, 420px);
+  border-radius: 1.25rem;
+  overflow: hidden;
+  background: linear-gradient(135deg, var(--ott-navy) 0%, #102b4e 50%, #0d3d5c 100%);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+}
+
+.ott-hero-bg {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  opacity: 0.35;
+}
+
+.ott-hero-scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, rgba(11, 31, 58, 0.95) 0%, rgba(11, 31, 58, 0.5) 55%, transparent 100%),
+    linear-gradient(0deg, rgba(15, 23, 42, 0.9) 0%, transparent 50%);
+}
+
+.ott-hero-content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  min-height: inherit;
+  padding: 2rem 1.5rem 2.5rem;
+  max-width: 640px;
+}
+
+.ott-hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 999px;
+  background: rgba(212, 175, 55, 0.2);
+  border: 1px solid rgba(212, 175, 55, 0.4);
+  color: var(--ott-gold);
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  width: fit-content;
+  margin-bottom: 0.75rem;
+}
+
+.ott-hero h1 {
+  font-size: clamp(1.75rem, 5vw, 2.75rem);
+  font-weight: 800;
+  line-height: 1.1;
+  margin-bottom: 0.75rem;
+}
+
+.ott-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+
+.ott-btn-play {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 1.5rem;
+  border-radius: 0.75rem;
+  background: var(--ott-emerald);
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.9rem;
+  border: none;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+  box-shadow: 0 8px 24px rgba(0, 168, 107, 0.35);
+}
+
+.ott-btn-play:hover {
+  transform: scale(1.03);
+  box-shadow: 0 12px 32px rgba(0, 168, 107, 0.45);
+}
+
+.ott-btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 1.25rem;
+  border-radius: 0.75rem;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.ott-btn-ghost:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Content rows */
+.ott-section {
+  margin-bottom: 2rem;
+  padding: 0 1rem;
+}
+
+.ott-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.85rem;
+}
+
+.ott-section-title {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: #f8fafc;
+}
+
+.ott-section-sub {
+  font-size: 0.75rem;
+  color: var(--ott-muted);
+}
+
+.ott-row-scroll {
+  display: flex;
+  gap: 0.75rem;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  padding-bottom: 0.5rem;
+  scrollbar-width: thin;
+}
+
+.ott-row-scroll::-webkit-scrollbar {
+  height: 5px;
+}
+
+.ott-row-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 999px;
+}
+
+/* Poster card */
+.ott-poster {
+  flex: 0 0 auto;
+  width: min(260px, 70vw);
+  scroll-snap-align: start;
+  border-radius: 0.75rem;
+  overflow: hidden;
+  background: var(--ott-surface);
+  cursor: pointer;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.ott-poster:hover {
+  transform: scale(1.04) translateY(-4px);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
+  z-index: 2;
+}
+
+.ott-poster-thumb {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  background: linear-gradient(135deg, var(--ott-navy), var(--ott-emerald));
+}
+
+.ott-poster-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.ott-poster-progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 4px;
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.ott-poster-progress span {
+  display: block;
+  height: 100%;
+  background: var(--ott-emerald);
+  box-shadow: 0 0 8px var(--ott-emerald);
+}
+
+.ott-poster-play {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.35);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.ott-poster:hover .ott-poster-play {
+  opacity: 1;
+}
+
+.ott-poster-play-icon {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 50%;
+  background: var(--ott-emerald);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+}
+
+.ott-poster-meta {
+  padding: 0.65rem 0.75rem;
+}
+
+.ott-poster-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-clamp: 2;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.ott-poster-tag {
+  font-size: 0.7rem;
+  color: var(--ott-emerald);
+  margin-top: 0.2rem;
+}
+
+/* Player page */
+.ott-player-layout {
+  display: grid;
+  gap: 1.5rem;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+@media (min-width: 1024px) {
+  .ott-player-layout {
+    grid-template-columns: 1fr 320px;
+  }
+}
+
+.ott-player-frame {
+  border-radius: 1rem;
+  overflow: hidden;
+  background: #000;
+  aspect-ratio: 16 / 9;
+}
+
+.ott-player-frame video,
+.ott-player-frame iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.ott-player-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.ott-control-chip {
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  background: var(--ott-surface);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #e2e8f0;
+  cursor: pointer;
+}
+
+.ott-control-chip.active {
+  background: var(--ott-emerald);
+  border-color: var(--ott-emerald);
+  color: #fff;
+}
+
+/* Bottom nav */
+.ott-bottom-nav {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 50;
+  background: rgba(15, 23, 42, 0.96);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  backdrop-filter: blur(16px);
+}
+
+.ott-bottom-nav-inner {
+  display: flex;
+  max-width: 32rem;
+  margin: 0 auto;
+}
+
+.ott-bottom-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.5rem;
+  font-size: 0.6rem;
+  font-weight: 600;
+  color: var(--ott-muted);
+  text-decoration: none;
+}
+
+.ott-bottom-item.active {
+  color: var(--ott-emerald);
+}
+
+.ott-bottom-icon {
+  width: 2.25rem;
+  height: 2.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.65rem;
+}
+
+.ott-bottom-item.active .ott-bottom-icon {
+  background: rgba(0, 168, 107, 0.15);
+}
+
+/* XP toast */
+.ott-xp-pop {
+  animation: ott-xp-in 0.5s ease-out;
+}
+
+@keyframes ott-xp-in {
+  0% {
+    opacity: 0;
+    transform: translateY(12px) scale(0.9);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Course page */
+.ott-course-banner {
+  min-height: 220px;
+  border-radius: 1rem;
+  background: linear-gradient(135deg, var(--ott-navy), #0d3d5c);
+  padding: 2rem;
+  margin: 1rem;
+}
+
+/* Compact hero when no featured video */
+.ott-hero-compact {
+  min-height: min(28vh, 220px);
+  margin-bottom: 1.25rem;
+}
+
+.ott-hero-compact .ott-hero-content {
+  padding: 1.5rem 1.25rem 1.75rem;
+}
+
+.ott-hero-compact h1 {
+  font-size: clamp(1.35rem, 4vw, 2rem);
+}
+
+/* Video grid — primary catalog */
+.ott-video-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
+  gap: 1rem;
+}
+
+.ott-video-grid .ott-poster {
+  width: 100%;
+  max-width: none;
+}
+
+.ott-count-badge {
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.2rem 0.65rem;
+  border-radius: 999px;
+  background: rgba(0, 168, 107, 0.2);
+  color: var(--ott-emerald);
+  border: 1px solid rgba(0, 168, 107, 0.35);
+}
+
+/* Dark filter panel */
+.ott-filter-panel {
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(30, 41, 59, 0.65);
+  padding: 1rem;
+  backdrop-filter: blur(8px);
+}
+
+.ott-filters-wrap {
+  max-width: 1400px;
+}
+
+/* Empty state */
+.ott-empty {
+  text-align: center;
+  padding: 2.5rem 1.5rem 3rem;
+  border-radius: 1.25rem;
+  margin-bottom: 1.5rem;
+  background: linear-gradient(180deg, rgba(30, 41, 59, 0.5) 0%, transparent 100%);
+  border: 1px dashed rgba(255, 255, 255, 0.12);
+}
+
+.ott-empty-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 4rem;
+  height: 4rem;
+  border-radius: 1rem;
+  background: rgba(0, 168, 107, 0.12);
+  margin-bottom: 1rem;
+}
+
+.ott-empty-text {
+  max-width: 32rem;
+  margin: 0.75rem auto 1.25rem;
+  font-size: 0.9rem;
+  color: var(--ott-muted);
+  line-height: 1.5;
+}
+
+.ott-empty-tips {
+  list-style: none;
+  padding: 0;
+  margin: 0 auto;
+  max-width: 22rem;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  font-size: 0.8rem;
+  color: #cbd5e1;
+}
+
+.ott-empty-tips li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}

@@ -1,400 +1,110 @@
 import { useEffect, useState } from "react";
-import { useLocation, useRoute } from "wouter";
-import { ArrowLeft, Loader2, School } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { useRoute, useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { API_BASE_URL } from "@/lib/api-config";
-import { useToast } from "@/hooks/use-toast";
-import { queueSuperAdminViewRestore } from "@/lib/super-admin-nav";
+import { ArrowLeft, Loader2 } from "lucide-react";
 
-const SUPER_ADMIN_DASHBOARD_HREF = "/super-admin/dashboard";
-
-const resolveLogoUrl = (logoUrl?: string): string => {
-  if (!logoUrl) return "";
-  if (/^https?:\/\//i.test(logoUrl)) return logoUrl;
-  return `${API_BASE_URL}${logoUrl.startsWith("/") ? logoUrl : `/${logoUrl}`}`;
-};
-
-const PORTAL_FEATURE_LABELS = [
-  "User Management",
-  "Content Management",
-  "Analytics",
-  "Subscriptions",
-  "Settings",
-] as const;
-
-function isFullPortalAccess(perms: string[] | undefined): boolean {
-  if (!perms?.length) return true;
-  const set = new Set(perms);
-  return PORTAL_FEATURE_LABELS.every((f) => set.has(f));
-}
-
-type SchoolDetails = {
-  doorNo?: string;
-  street?: string;
-  area?: string;
-  city?: string;
-  district?: string;
-  state?: string;
-  medium?: string;
-  classesFrom?: string;
-  classesTo?: string;
-  totalStrength?: string;
-  schoolType?: string;
-};
-
-type Profile = {
-  id: string;
-  name: string;
-  email: string;
-  board?: string;
-  schoolName?: string;
-  schoolLogo?: string;
-  contactPerson?: string;
-  phone?: string;
-  place?: string;
-  pin?: string;
-  state?: string;
-  schoolDetails?: SchoolDetails;
-  status?: string;
-  joinDate?: string;
-  permissions?: string[];
-};
-
-type BillingPayment = {
-  id: string;
-  amount: number;
-  currency: string;
-  status: string;
-  method: string;
-  email: string;
-  createdAt: string | null;
-};
-
-type BillingSubscription = {
-  id: string;
-  status: string;
-  planId: string;
-  customerId: string;
-  currentStart: string | null;
-  currentEnd: string | null;
-  paidCount?: number;
-  totalCount?: number;
+type SchoolDetailPayload = {
+  profile?: {
+    id?: string;
+    name?: string;
+    email?: string;
+    schoolName?: string;
+    board?: string;
+    status?: string;
+    place?: string;
+    state?: string;
+    joinDate?: string;
+  };
+  stats?: { students?: number; teachers?: number };
 };
 
 export default function SuperAdminSchoolDetail() {
   const [, params] = useRoute("/super-admin/schools/:id");
   const [, setLocation] = useLocation();
-  const id = params?.id;
-  const { toast } = useToast();
-
-  const backToSchoolManagement = () => {
-    queueSuperAdminViewRestore("admins");
-    setLocation(SUPER_ADMIN_DASHBOARD_HREF);
-  };
+  const schoolId = params?.id;
   const [loading, setLoading] = useState(true);
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [stats, setStats] = useState({ students: 0, teachers: 0 });
-  const [billing, setBilling] = useState<{
-    razorpayConfigured: boolean;
-    razorpayError: string | null;
-    payments: BillingPayment[];
-    subscriptions: BillingSubscription[];
-  } | null>(null);
+  const [data, setData] = useState<SchoolDetailPayload | null>(null);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    if (!id) return;
+    if (!schoolId) return;
+    const token = localStorage.getItem("authToken");
+    if (!token) {
+      setLocation("/auth/login");
+      return;
+    }
+    setLoading(true);
+    fetch(`${API_BASE_URL}/api/super-admin/admins/${schoolId}/school-detail`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.json())
+      .then((json) => {
+        if (!json?.success) throw new Error(json?.message || "Failed to load school");
+        setData(json.data);
+        setError("");
+      })
+      .catch((e: Error) => setError(e.message || "Failed to load school"))
+      .finally(() => setLoading(false));
+  }, [schoolId, setLocation]);
 
-    const load = async () => {
-      setLoading(true);
-      try {
-        const token = localStorage.getItem("authToken");
-        const res = await fetch(`${API_BASE_URL}/api/super-admin/admins/${id}/school-detail`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        });
-        const json = await res.json();
-        if (!res.ok || !json?.success) {
-          throw new Error(json?.message || "Failed to load school");
-        }
-        setProfile(json.data.profile);
-        setStats(json.data.stats || { students: 0, teachers: 0 });
-        setBilling(json.data.billing);
-      } catch (e) {
-        toast({
-          title: "Error",
-          description: e instanceof Error ? e.message : "Could not load school details",
-          variant: "destructive",
-        });
-        setProfile(null);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    load();
-  }, [id, toast]);
-
-  if (!id) {
-    return null;
-  }
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3 text-slate-600">
-          <Loader2 className="h-10 w-10 animate-spin text-orange-500" />
-          <p className="text-xs sm:text-sm">Loading school details…</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!profile) {
-    return (
-      <div className="min-h-screen bg-slate-50 p-3 sm:p-4 lg:p-6">
-        <Button variant="outline" className="mb-6 gap-2" onClick={backToSchoolManagement}>
-          <ArrowLeft className="h-3 w-3 sm:h-4 sm:w-4" />
-          Back to School Management
-        </Button>
-        <p className="text-slate-600">School could not be loaded.</p>
-      </div>
-    );
-  }
-
-  const sd = profile.schoolDetails || {};
+  const profile = data?.profile;
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <div className="mx-auto max-w-5xl px-4 py-4 sm:py-6 lg:py-8">
-        <Button variant="outline" className="mb-6 gap-2" onClick={backToSchoolManagement}>
-          <ArrowLeft className="h-3 w-3 sm:h-4 sm:w-4" />
-          Back to School Management
-        </Button>
+    <div className="min-h-screen bg-gray-50 p-4 sm:p-6 lg:p-8">
+      <Button variant="ghost" className="mb-4" onClick={() => setLocation("/super-admin/dashboard")}>
+        <ArrowLeft className="mr-2 h-4 w-4" />
+        Back to dashboard
+      </Button>
 
-        <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="flex items-start gap-4">
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-orange-200 bg-white shadow-sm">
-              {profile.schoolLogo ? (
-                <img
-                  src={resolveLogoUrl(profile.schoolLogo)}
-                  alt=""
-                  className="h-11 w-11 object-contain"
-                />
-              ) : (
-                <School className="h-7 w-7 text-orange-500" />
-              )}
-            </div>
-            <div>
-              <h1 className="text-xl sm:text-2xl font-bold text-slate-900">
-                {profile.schoolName || profile.name || "School"}
-              </h1>
-              <p className="text-slate-600">{profile.email}</p>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {profile.board && <Badge variant="outline">{profile.board}</Badge>}
-                {profile.state && <Badge variant="outline">{profile.state}</Badge>}
-                <Badge variant={profile.status === "Active" ? "default" : "secondary"}>
-                  {profile.status || "—"}
-                </Badge>
-              </div>
-            </div>
+      {loading ? (
+        <div className="flex items-center gap-2 text-gray-600">
+          <Loader2 className="h-5 w-5 animate-spin" />
+          Loading school…
+        </div>
+      ) : error ? (
+        <p className="text-red-600">{error}</p>
+      ) : (
+        <div className="space-y-4 max-w-3xl">
+          <Card>
+            <CardHeader>
+              <CardTitle>{profile?.schoolName || profile?.name || "School"}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2 text-sm text-gray-700">
+              <p>
+                <span className="font-medium">Admin:</span> {profile?.name} ({profile?.email})
+              </p>
+              <p>
+                <span className="font-medium">Board:</span> {profile?.board || "—"}
+              </p>
+              <p>
+                <span className="font-medium">Location:</span>{" "}
+                {[profile?.place, profile?.state].filter(Boolean).join(", ") || "—"}
+              </p>
+              <Badge variant={profile?.status === "Active" ? "default" : "secondary"}>
+                {profile?.status || "Unknown"}
+              </Badge>
+            </CardContent>
+          </Card>
+
+          <div className="grid grid-cols-2 gap-4">
+            <Card>
+              <CardContent className="pt-6">
+                <p className="text-2xl font-bold">{data?.stats?.students ?? 0}</p>
+                <p className="text-sm text-gray-600">Students</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-6">
+                <p className="text-2xl font-bold">{data?.stats?.teachers ?? 0}</p>
+                <p className="text-sm text-gray-600">Teachers</p>
+              </CardContent>
+            </Card>
           </div>
-          <Card className="sm:w-64 border-orange-100 bg-white shadow-sm">
-            <CardContent className="p-4">
-              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">On platform</p>
-              <div className="mt-2 flex justify-between text-xs sm:text-sm">
-                <span className="text-slate-600">Students</span>
-                <span className="font-semibold text-slate-900">{stats.students}</span>
-              </div>
-              <div className="mt-1 flex justify-between text-xs sm:text-sm">
-                <span className="text-slate-600">Teachers</span>
-                <span className="font-semibold text-slate-900">{stats.teachers}</span>
-              </div>
-            </CardContent>
-          </Card>
         </div>
-
-        <div className="grid gap-3 sm:p-4 lg:p-6 md:grid-cols-2">
-          <Card className="border-slate-200 shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-base sm:text-lg">Administrator</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2 text-xs sm:text-sm">
-              <DetailRow label="Name" value={profile.name} />
-              <DetailRow label="Email" value={profile.email} />
-              <DetailRow label="Contact person" value={profile.contactPerson} />
-              <DetailRow label="Phone" value={profile.phone} />
-              <DetailRow
-                label="Joined"
-                value={profile.joinDate ? new Date(profile.joinDate).toLocaleString() : "—"}
-              />
-            </CardContent>
-          </Card>
-
-          <Card className="border-slate-200 shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-base sm:text-lg">Address & school</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2 text-xs sm:text-sm">
-              <DetailRow label="Door no." value={sd.doorNo} />
-              <DetailRow label="Street" value={sd.street} />
-              <DetailRow label="Area" value={sd.area} />
-              <DetailRow label="City" value={sd.city} />
-              <DetailRow label="District" value={sd.district} />
-              <DetailRow label="State" value={sd.state || profile.state} />
-              <DetailRow label="PIN" value={profile.pin} />
-              <DetailRow label="Medium" value={sd.medium} />
-              <DetailRow
-                label="Classes"
-                value={
-                  sd.classesFrom || sd.classesTo
-                    ? `${sd.classesFrom || "—"} – ${sd.classesTo || "—"}`
-                    : undefined
-                }
-              />
-              <DetailRow label="Total strength" value={sd.totalStrength} />
-              <DetailRow label="School type" value={sd.schoolType} />
-              <DetailRow label="Place (summary)" value={profile.place} />
-            </CardContent>
-          </Card>
-        </div>
-
-        <Card className="mt-6 border-slate-200 shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-base sm:text-lg">Admin portal access</CardTitle>
-            <p className="text-xs sm:text-sm text-slate-500">
-              Modules enabled for this school&apos;s admin dashboard. Edit the school in School Management to change
-              access.
-            </p>
-          </CardHeader>
-          <CardContent className="text-xs sm:text-sm">
-            {isFullPortalAccess(profile.permissions) ? (
-              <p className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-emerald-900">
-                <span className="font-medium">Full portal access</span> — all modules are enabled.
-              </p>
-            ) : (
-              <div className="space-y-2">
-                <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-amber-950">
-                  <span className="font-medium">Limited access</span> — only the modules below are stored for this
-                  school.
-                </p>
-                <ul className="list-inside list-disc text-slate-700">
-                  {(profile.permissions || []).map((p) => (
-                    <li key={p}>{p}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="mt-6 border-slate-200 shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-base sm:text-lg">Subscription & billing (Razorpay)</CardTitle>
-            <p className="text-xs sm:text-sm text-slate-500">
-              Payments match this school&apos;s admin email. Subscriptions match when the Razorpay customer uses the
-              same email.
-            </p>
-          </CardHeader>
-          <CardContent className="space-y-3 sm:space-y-4 lg:space-y-6">
-            {!billing?.razorpayConfigured && (
-              <p className="rounded-md bg-amber-50 px-3 py-2 text-xs sm:text-sm text-amber-900">
-                Razorpay is not configured on the server. Set <code className="text-xs">RAZORPAY_KEY_ID</code> and{" "}
-                <code className="text-xs">RAZORPAY_KEY_SECRET</code> to load live billing data.
-              </p>
-            )}
-            {billing?.razorpayError && (
-              <p className="rounded-md bg-red-50 px-3 py-2 text-xs sm:text-sm text-red-800">{billing.razorpayError}</p>
-            )}
-
-            <div>
-              <h3 className="mb-2 text-xs sm:text-sm font-semibold text-slate-800">Subscriptions</h3>
-              {!billing?.subscriptions?.length ? (
-                <p className="text-xs sm:text-sm text-slate-500">No matching subscriptions for this admin email.</p>
-              ) : (
-                <div className="overflow-x-auto rounded-md border">
-                  <table className="w-full text-left text-xs sm:text-sm">
-                    <thead className="bg-slate-100 text-slate-700">
-                      <tr>
-                        <th className="px-3 py-2">ID</th>
-                        <th className="px-3 py-2">Status</th>
-                        <th className="px-3 py-2">Plan</th>
-                        <th className="px-3 py-2">Current period</th>
-                        <th className="px-3 py-2">Paid / Total</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {billing.subscriptions.map((s) => (
-                        <tr key={s.id} className="border-t">
-                          <td className="px-3 py-2 font-mono text-xs">{s.id}</td>
-                          <td className="px-3 py-2">{s.status}</td>
-                          <td className="px-3 py-2">{s.planId}</td>
-                          <td className="px-3 py-2 text-xs">
-                            {s.currentStart && new Date(s.currentStart).toLocaleDateString()} –{" "}
-                            {s.currentEnd && new Date(s.currentEnd).toLocaleDateString()}
-                          </td>
-                          <td className="px-3 py-2">
-                            {s.paidCount ?? "—"} / {s.totalCount ?? "—"}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-
-            <div>
-              <h3 className="mb-2 text-xs sm:text-sm font-semibold text-slate-800">Payments</h3>
-              {!billing?.payments?.length ? (
-                <p className="text-xs sm:text-sm text-slate-500">No matching payments for this admin email.</p>
-              ) : (
-                <div className="overflow-x-auto rounded-md border">
-                  <table className="w-full text-left text-xs sm:text-sm">
-                    <thead className="bg-slate-100 text-slate-700">
-                      <tr>
-                        <th className="px-3 py-2">Date</th>
-                        <th className="px-3 py-2">Amount</th>
-                        <th className="px-3 py-2">Status</th>
-                        <th className="px-3 py-2">Method</th>
-                        <th className="px-3 py-2">ID</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {billing.payments.map((p) => (
-                        <tr key={p.id} className="border-t">
-                          <td className="px-3 py-2 text-xs">
-                            {p.createdAt ? new Date(p.createdAt).toLocaleString() : "—"}
-                          </td>
-                          <td className="px-3 py-2">
-                            {p.amount} {p.currency}
-                          </td>
-                          <td className="px-3 py-2">{p.status}</td>
-                          <td className="px-3 py-2">{p.method}</td>
-                          <td className="px-3 py-2 font-mono text-xs">{p.id}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    </div>
-  );
-}
-
-function DetailRow({ label, value }: { label: string; value?: string | null }) {
-  if (!value || String(value).trim() === "") return null;
-  return (
-    <div className="flex gap-2">
-      <span className="min-w-[8rem] text-slate-500">{label}</span>
-      <span className="text-slate-900">{value}</span>
+      )}
     </div>
   );
 }

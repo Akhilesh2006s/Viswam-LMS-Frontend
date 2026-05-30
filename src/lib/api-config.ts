@@ -2,19 +2,31 @@
 // - Development: use local/non-SSL backend if needed
 // - Production: MUST use HTTPS API endpoint (no mixed content)
 
+import { isCdnHostedUrl, resolveMediaUrl } from "./media-url";
+
 const DEV_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
-const PROD_URL = import.meta.env.VITE_API_URL_PROD || "https://api.aslilearn.ai";
+const PROD_URL =
+  import.meta.env.VITE_API_URL_PROD ||
+  (typeof window !== "undefined" ? window.location.origin : "");
 
 export const API_BASE_URL =
   import.meta.env.MODE === "production" ? PROD_URL : DEV_URL;
 
 /** PDFs on our hosts can load in an iframe without the student proxy. */
 export function isOurBackendPdfUrl(url: string): boolean {
+  if (isCdnHostedUrl(url)) return false;
   try {
     const parsed = new URL(url);
     const host = parsed.hostname;
+    const apiHost = (() => {
+      try {
+        return new URL(API_BASE_URL).hostname;
+      } catch {
+        return "";
+      }
+    })();
     return (
-      host.includes("aslilearn.ai") ||
+      host === apiHost ||
       host === "localhost" ||
       host === "127.0.0.1"
     );
@@ -69,14 +81,9 @@ export function appendPdfViewerChromelessHash(src: string): string {
   }
 }
 
-/** Absolute URL for a stored content file path or full URL. */
+/** Absolute URL for a stored content file path or full URL (Cloudflare CDN when configured). */
 export function normalizeContentFileUrl(fileUrl: string): string {
-  if (!fileUrl?.trim()) return "";
-  const raw = fileUrl.trim();
-  if (raw.startsWith("http://") || raw.startsWith("https://")) return raw;
-  if (raw.startsWith("//")) return `https:${raw}`;
-  if (raw.startsWith("/")) return `${API_BASE_URL}${raw}`;
-  return `${API_BASE_URL}/${raw}`;
+  return resolveMediaUrl(fileUrl);
 }
 
 /**

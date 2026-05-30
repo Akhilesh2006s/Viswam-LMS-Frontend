@@ -4,9 +4,8 @@ const RESTORE_VIEW_KEY = "superAdminRestoreView";
 
 const RESTORABLE_VIEWS: SuperAdminView[] = [
   "admins",
-  "board",
+  "products",
   "subjects-and-content",
-  "exams",
   "analytics",
   "dashboard",
 ];

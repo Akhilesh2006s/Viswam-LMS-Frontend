@@ -1,6 +1,7 @@
 /** Chapter/module scheduling for student Today's Tasks (videos only). */
 
 export type ChapterCompletedDates = Record<string, string>;
+export type ChapterQuizPassed = Record<string, boolean>;
 
 export function videoNumberOnly(value: string | undefined): string {
   return String(value || '').replace(/\D/g, '');
@@ -46,30 +47,71 @@ export function isChapterFullyComplete(
   return chapterVideos.every((v) => completedIds.has(String(v._id || v.id)));
 }
 
+export function isChapterQuizPassed(chapter: string, quizPassed: ChapterQuizPassed): boolean {
+  return !!quizPassed[chapter] || !!quizPassed[videoNumberOnly(chapter)];
+}
+
+/** Chapter done = all videos complete + quiz passed (if quiz required for subject flow). */
+export function isChapterFullyGated(
+  chapter: string,
+  subjectVideos: { chapter?: string; _id?: string; id?: string }[],
+  completedIds: Set<string>,
+  quizPassed: ChapterQuizPassed,
+  requireQuiz = true
+): boolean {
+  const chVideos = subjectVideos.filter((v) => videoNumberOnly(v.chapter) === chapter);
+  if (!isChapterFullyComplete(chVideos, completedIds)) return false;
+  if (!requireQuiz) return true;
+  return isChapterQuizPassed(chapter, quizPassed);
+}
+
 /**
- * Active chapter = first chapter (sorted) where not all modules are done,
- * or all done but completion was today (next chapter unlocks tomorrow).
+ * Active chapter = first chapter where videos or quiz gate is incomplete.
+ * Legacy day-unlock applies only when quizPassed map is empty.
  */
 export function getActiveChapterNumber(
   subjectVideos: { chapter?: string; _id?: string; id?: string }[],
   completedIds: Set<string>,
-  chapterCompletedDates: ChapterCompletedDates
+  chapterCompletedDates: ChapterCompletedDates,
+  chapterQuizPassed: ChapterQuizPassed = {}
 ): string | null {
   const chapters = getSortedChapterNumbers(subjectVideos);
   if (chapters.length === 0) return null;
   const today = new Date().toDateString();
+  const useQuizGate = Object.keys(chapterQuizPassed).length > 0;
 
   for (const ch of chapters) {
     const chVideos = subjectVideos.filter((v) => videoNumberOnly(v.chapter) === ch);
-    const allDone = isChapterFullyComplete(chVideos, completedIds);
+    const allVideosDone = isChapterFullyComplete(chVideos, completedIds);
 
-    if (!allDone) return ch;
+    if (!allVideosDone) return ch;
+
+    if (useQuizGate) {
+      if (!isChapterQuizPassed(ch, chapterQuizPassed)) return ch;
+      continue;
+    }
 
     const doneDate = chapterCompletedDates[ch];
     if (!doneDate || doneDate === today) return ch;
   }
 
   return chapters[chapters.length - 1];
+}
+
+export function isChapterLocked(
+  chapter: string,
+  subjectVideos: { chapter?: string; _id?: string; id?: string }[],
+  completedIds: Set<string>,
+  chapterCompletedDates: ChapterCompletedDates,
+  chapterQuizPassed: ChapterQuizPassed,
+  activeChapter: string | null
+): boolean {
+  if (!activeChapter) return false;
+  const chapters = getSortedChapterNumbers(subjectVideos);
+  const activeIdx = chapters.indexOf(activeChapter);
+  const idx = chapters.indexOf(chapter);
+  if (idx < 0 || activeIdx < 0) return false;
+  return idx > activeIdx;
 }
 
 export function filterIncompleteVideosForTodaysTasks(

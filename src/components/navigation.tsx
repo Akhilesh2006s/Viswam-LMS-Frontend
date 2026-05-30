@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { BookOpen, FileText, MessageCircle, User, Menu, LogOut, Sparkles, Video } from "lucide-react";
+import { BookOpen, User, Menu, LogOut, Video, LayoutDashboard } from "lucide-react";
 import { API_BASE_URL } from '@/lib/api-config';
 import { clearAuthData, getAuthToken, getUser, setUser } from '@/lib/auth-utils';
 import { fetchAuthUser } from '@/lib/auth-session';
@@ -8,8 +8,10 @@ import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useState, useEffect } from "react";
+import { ViswamLogo } from "@/components/brand/ViswamLogo";
+import { usePageTitle } from "@/hooks/use-page-title";
 
-const NAV_INITIALS_KEY = 'aslilearn_nav_initials';
+const NAV_INITIALS_KEY = "viswam_lms_nav_initials";
 
 function initialsFromName(name: string | undefined | null): string {
   if (!name || !String(name).trim()) return '';
@@ -49,6 +51,7 @@ function readInitialsForNav(): string {
 }
 
 export default function Navigation() {
+  usePageTitle("Student Portal");
   const [location, setLocation] = useLocation();
   const isMobile = useIsMobile();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -130,17 +133,14 @@ export default function Navigation() {
 
   const prefetchStudentRoute = (path: string) => {
     switch (path) {
+      case "/dashboard":
+        void import("@/pages/dashboard");
+        break;
       case "/learning-paths":
         void import("@/pages/learning-paths");
         break;
       case "/edu-ott":
         void import("@/pages/edu-ott");
-        break;
-      case "/student-exams":
-        void import("@/pages/student-exams");
-        break;
-      case "/ai-tutor":
-        void import("@/pages/ai-tutor");
         break;
       default:
         break;
@@ -148,15 +148,15 @@ export default function Navigation() {
   };
 
   const navItems = [
+    { path: "/dashboard", label: "Home", icon: LayoutDashboard },
     { path: "/learning-paths", label: "Learning Paths", icon: BookOpen },
-    { path: "/edu-ott", label: "EduOTT", icon: Video },
-    { path: "/student-exams", label: "Exams", icon: FileText },
-    { path: "/ai-tutor", label: "Vidya AI", icon: MessageCircle },
+    { path: "/edu-ott", label: "VISWAM OTT", icon: Video },
   ];
 
   const getCompactLabel = (label: string) => {
-    if (label === "Learning Paths") return "Learning";
-    if (label === "Vidya AI") return "Vidya";
+    if (label === "Learning Paths") return "Learn";
+    if (label === "VISWAM OTT") return "OTT";
+    if (label === "Home") return "Home";
     return label;
   };
 
@@ -164,7 +164,9 @@ export default function Navigation() {
     <>
       {navItems.map((item) => {
         const Icon = item.icon;
-        const isActive = location === item.path;
+        const isActive =
+          location === item.path ||
+          (item.path === "/dashboard" && (location === "/" || location === ""));
 
         return (
           <Link key={item.path} href={item.path}>
@@ -172,10 +174,10 @@ export default function Navigation() {
               onMouseEnter={() => prefetchStudentRoute(item.path)}
               onFocus={() => prefetchStudentRoute(item.path)}
               variant="ghost"
-              className={`w-full justify-start rounded-xl transition-all duration-300 group ${
+              className={`w-full justify-start rounded-xl transition-all duration-200 ${
                 isActive 
-                  ? "bg-gradient-to-r from-sky-300 to-teal-400 text-white shadow-lg scale-105" 
-                  : "text-gray-700 hover:bg-gradient-to-r hover:from-sky-50 hover:to-teal-50 hover:text-sky-700 hover:scale-105"
+                  ? "bg-[var(--brand-emerald)] text-white" 
+                  : "text-[var(--text-primary)] hover:bg-muted"
               }`}
             >
               <Icon className={`w-3 h-3 sm:w-4 sm:h-4 mr-3 transition-transform ${isActive ? 'scale-110' : 'group-hover:scale-110'}`} />
@@ -190,44 +192,35 @@ export default function Navigation() {
   return (
     <>
       {/* Desktop Header - Modern Gradient Theme */}
-      <nav className="fixed top-0 left-0 right-0 z-50 backdrop-blur-xl bg-white/80 border-b border-blue-200/40 shadow-xl">
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-[var(--brand-navy)] border-b border-white/10 shadow-lg">
         <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-5 lg:px-8">
-          <div className="flex justify-between items-center h-16 sm:h-20">
-            {/* Logo Section - simplified, no border around logo */}
+          <div className="flex justify-between items-center h-16 sm:h-[4.25rem]">
             <div className="flex items-center space-x-2 sm:space-x-4">
               <Link href="/dashboard">
-                <div className="flex items-center space-x-2 sm:space-x-3 cursor-pointer group min-w-0">
-                  <img 
-                    src="/logo.jpg" 
-                    alt="ASLILEARN Logo" 
-                    className="w-10 h-10 sm:w-12 sm:h-12 lg:w-14 lg:h-14 rounded-xl sm:rounded-2xl object-contain group-hover:scale-105 transition-transform duration-300 shrink-0"
-                  />
-                  <div className="flex flex-col min-w-0">
-                    <span className="text-base sm:text-lg md:text-xl lg:text-2xl font-bold bg-gradient-to-r from-blue-600 via-cyan-500 to-blue-600 bg-clip-text text-transparent bg-[length:200%_auto] animate-gradient truncate">
-                      ASLILEARN AI
-                    </span>
-                    <span className="hidden xl:block text-xs text-gray-600 font-medium -mt-1">AI-Powered Learning</span>
-                  </div>
+                <div className="cursor-pointer scale-[0.92] sm:scale-100 origin-left">
+                  <ViswamLogo subtitle="Student Portal" variant="light" size="sm" showCompany={false} />
                 </div>
               </Link>
             </div>
             
             {/* Navigation Links - Modern Design */}
             {!isMobile && (
-              <div className="hidden md:flex items-center space-x-1 bg-white/50 backdrop-blur-md rounded-full p-1 md:p-1.5 border border-blue-100/50 shadow-lg">
+              <div className="hidden md:flex items-center gap-1 rounded-xl bg-white/5 p-1 border border-white/10">
                 {navItems.map((item) => {
                   const Icon = item.icon;
-                  const isActive = location === item.path;
+                  const isActive =
+          location === item.path ||
+          (item.path === "/dashboard" && (location === "/" || location === ""));
 
                   return (
                     <Link key={item.path} href={item.path}>
                       <button
                         onMouseEnter={() => prefetchStudentRoute(item.path)}
                         onFocus={() => prefetchStudentRoute(item.path)}
-                        className={`relative px-3 lg:px-5 py-2 lg:py-2.5 rounded-full transition-all duration-300 flex items-center space-x-1.5 lg:space-x-2 group ${
+                        className={`relative px-3 lg:px-4 py-2 rounded-lg transition-all duration-200 flex items-center gap-2 text-sm font-medium ${
                         isActive 
-                          ? "bg-gradient-to-r from-sky-300 to-teal-400 text-white shadow-lg scale-105" 
-                          : "text-gray-700 hover:bg-gradient-to-r hover:from-sky-50 hover:to-teal-50 hover:text-sky-700"
+                          ? "bg-[var(--brand-emerald)] text-white shadow-sm" 
+                          : "text-white/80 hover:bg-white/10 hover:text-white"
                       }`}>
                         <Icon className={`w-3 h-3 sm:w-4 sm:h-4 transition-transform ${isActive ? 'scale-110' : 'group-hover:scale-110'}`} />
                         <span className="font-medium text-xs lg:text-sm">{getCompactLabel(item.label)}</span>
@@ -249,35 +242,20 @@ export default function Navigation() {
                     <Button 
                       variant="ghost" 
                       size="icon"
-                      className="w-11 h-11 rounded-full bg-gradient-to-br from-blue-100 to-cyan-100 hover:from-blue-200 hover:to-cyan-200 backdrop-blur-sm border border-blue-200/50 shadow-md hover:shadow-lg transition-all duration-300 hover:scale-110"
+                      className="h-11 w-11 rounded-full border border-white/20 bg-white/10 text-white hover:bg-white/20"
                     >
-                      <Menu className="w-4 h-4 sm:w-5 sm:h-5 text-blue-700" />
+                      <Menu className="h-5 w-5" />
                     </Button>
                   </SheetTrigger>
-                  <SheetContent side="right" className="w-72 bg-gradient-to-br from-white via-blue-50/30 to-cyan-50/30 backdrop-blur-xl border-l border-blue-200/30">
-                    <div className="flex flex-col space-y-3 mt-8">
-                      {/* Mobile Logo */}
+                  <SheetContent side="right" className="w-72 border-l border-slate-200 bg-[#f8fafc]">
+                    <div className="mt-8 flex flex-col space-y-3">
                       <Link href="/dashboard">
-                        <div className="flex items-center space-x-3 mb-6 pb-4 border-b border-blue-200/30 cursor-pointer hover:opacity-80 transition-opacity">
-                          <div className="w-12 h-12 rounded-xl flex items-center justify-center shadow-xl bg-gradient-to-br from-blue-600 to-cyan-500 p-1">
-                            <div className="w-full h-full rounded-lg bg-white flex items-center justify-center overflow-hidden">
-                              <img 
-                                src="/logo.jpg" 
-                                alt="ASLILEARN Logo" 
-                                className="w-full h-full object-contain p-1"
-                              />
-                            </div>
-                          </div>
-                          <div className="flex flex-col">
-                            <span className="text-base sm:text-lg font-bold bg-gradient-to-r from-blue-600 to-cyan-500 bg-clip-text text-transparent">
-                              ASLILEARN AI
-                            </span>
-                            <span className="text-xs text-gray-600 font-medium">AI-Powered Learning</span>
-                          </div>
+                        <div className="mb-6 cursor-pointer border-b border-slate-200 pb-4 hover:opacity-90">
+                          <ViswamLogo subtitle="Student Portal" variant="dark" size="md" showCompany={false} />
                         </div>
                       </Link>
                       <NavContent />
-                      <div className="pt-4 border-t border-blue-200/30">
+                      <div className="border-t border-slate-200 pt-4">
                         <Button 
                           onClick={handleLogout}
                           disabled={isLoggingOut}
@@ -294,7 +272,7 @@ export default function Navigation() {
               ) : (
                 <div className="flex items-center space-x-2 lg:space-x-3">
                   <Link href="/profile">
-                    <div className="w-10 h-10 lg:w-11 lg:h-11 bg-gradient-to-br from-blue-600 to-cyan-500 rounded-full flex items-center justify-center cursor-pointer shadow-lg backdrop-blur-sm border-2 border-white hover:scale-110 transition-transform duration-300 hover:shadow-xl group">
+                    <div className="w-10 h-10 lg:w-11 lg:h-11 bg-[var(--brand-emerald)] rounded-full flex items-center justify-center cursor-pointer shadow-md border-2 border-white/20 hover:brightness-110 transition-all duration-200 group">
                       {userInitials ? (
                         <span className="text-xs lg:text-sm font-semibold text-white group-hover:scale-110 transition-transform">
                           {userInitials}
@@ -308,7 +286,7 @@ export default function Navigation() {
                     onClick={handleLogout}
                     disabled={isLoggingOut}
                     variant="ghost"
-                    className="px-3 lg:px-5 py-2 lg:py-2.5 rounded-full bg-gradient-to-r from-red-500/10 to-red-600/10 hover:from-red-500/20 hover:to-red-600/20 text-red-600 backdrop-blur-sm border border-red-300/30 shadow-md hover:shadow-lg transition-all duration-300 hover:scale-105 font-medium"
+                    className="rounded-full border border-red-200/60 px-3 py-2 text-red-600 hover:bg-red-50 lg:px-5 lg:py-2.5 font-medium"
                   >
                     <LogOut className="w-3 h-3 sm:w-4 sm:h-4 lg:mr-2" />
                     <span className="hidden lg:inline">{isLoggingOut ? "Logging out..." : "Logout"}</span>

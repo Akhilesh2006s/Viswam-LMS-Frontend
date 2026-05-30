@@ -19,12 +19,16 @@ const SUBJECT_ALL = '__all__';
 type EduOTTGlobalFilterBarProps = {
   classOptions: string[];
   subjectOptions: string[];
+  /** Dark theme for Viswam OTT pages */
+  variant?: 'light' | 'dark';
 };
 
 export function EduOTTGlobalFilterBar({
   classOptions,
   subjectOptions,
+  variant = 'light',
 }: EduOTTGlobalFilterBarProps) {
+  const isDark = variant === 'dark';
   const {
     selectedClass,
     selectedSubject,
@@ -40,15 +44,29 @@ export function EduOTTGlobalFilterBar({
     selectedSubject != null;
 
   return (
-    <div className="space-y-3 rounded-xl border border-sky-200/80 bg-white/90 p-4 shadow-sm">
+    <div
+      className={
+        isDark
+          ? 'ott-filter-panel space-y-3'
+          : 'space-y-3 rounded-xl border border-sky-200/80 bg-white/90 p-4 shadow-sm'
+      }
+    >
       <div className="flex flex-col gap-4 lg:flex-row lg:flex-wrap lg:items-end">
         <div className="space-y-1.5 w-full sm:w-auto min-w-[180px]">
-          <Label className="text-xs text-gray-500">Select class</Label>
+          <Label className={isDark ? 'text-xs text-slate-400' : 'text-xs text-gray-500'}>
+            Select class
+          </Label>
           <Select
             value={eduottClassToSelectValue(selectedClass)}
             onValueChange={(v) => setSelectedClass(eduottSelectValueToClass(v))}
           >
-            <SelectTrigger className="w-full md:w-[200px] bg-white border-2 border-sky-200 hover:border-sky-300 focus:border-sky-400 focus:ring-sky-200 shadow-sm">
+            <SelectTrigger
+              className={
+                isDark
+                  ? 'w-full md:w-[200px] bg-slate-800/80 border border-white/15 text-white'
+                  : 'w-full md:w-[200px] bg-white border-2 border-sky-200 hover:border-sky-300 focus:border-sky-400 focus:ring-sky-200 shadow-sm'
+              }
+            >
               <SelectValue placeholder="All classes" />
             </SelectTrigger>
             <SelectContent>
@@ -62,15 +80,25 @@ export function EduOTTGlobalFilterBar({
           </Select>
         </div>
         <div className="space-y-1.5 w-full sm:w-auto min-w-[200px]">
-          <Label className="text-xs text-gray-500">Select subject</Label>
+          <Label className={isDark ? 'text-xs text-slate-400' : 'text-xs text-gray-500'}>
+            Select subject
+          </Label>
           <Select
             value={selectedSubject ?? SUBJECT_ALL}
             onValueChange={(v) =>
               setSelectedSubject(v === SUBJECT_ALL ? null : v)
             }
           >
-            <SelectTrigger className="w-full md:w-[220px] bg-white border-2 border-sky-200 hover:border-sky-300 focus:border-sky-400 focus:ring-sky-200 shadow-sm">
-              <Filter className="w-3 h-3 sm:w-4 sm:h-4 mr-2 shrink-0 text-gray-500" />
+            <SelectTrigger
+              className={
+                isDark
+                  ? 'w-full md:w-[220px] bg-slate-800/80 border border-white/15 text-white'
+                  : 'w-full md:w-[220px] bg-white border-2 border-sky-200 hover:border-sky-300 focus:border-sky-400 focus:ring-sky-200 shadow-sm'
+              }
+            >
+              <Filter
+                className={`w-3 h-3 sm:w-4 sm:h-4 mr-2 shrink-0 ${isDark ? 'text-slate-400' : 'text-gray-500'}`}
+              />
               <SelectValue placeholder="All subjects" />
             </SelectTrigger>
             <SelectContent>
@@ -88,7 +116,11 @@ export function EduOTTGlobalFilterBar({
             type="button"
             variant="outline"
             size="sm"
-            className="shrink-0"
+            className={
+              isDark
+                ? 'shrink-0 border-white/20 text-white hover:bg-white/10'
+                : 'shrink-0'
+            }
             disabled={!hasActive}
             onClick={clearFilters}
           >

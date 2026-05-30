@@ -7,7 +7,6 @@ import { Progress } from '@/components/ui/progress';
 import { API_BASE_URL } from '@/lib/api-config';
 import { normalizeAndFormatExamDisplayText } from '@/lib/exam-text-normalize';
 import AdvancedPerformanceDashboard from '@/components/analytics/AdvancedPerformanceDashboard';
-import AiReportTab from '@/components/exam-analysis/AiReportTab';
 import {
   WeakSubjectResourcesCard,
   type WeakSubjectContentMap,
@@ -143,11 +142,6 @@ interface AiExamAnalysis {
     thisWeek?: string[];
     beforeNextExam?: string[];
   };
-  recommendedAiTools?: Array<{
-    toolType: string;
-    why: string;
-    howToUse: string;
-  }>;
   videoRecommendations?: Array<{
     title: string;
     subject?: string;
@@ -532,7 +526,7 @@ function normalizeMongoId(value: unknown): string {
 }
 
 export default function DetailedAnalysis({ result, examTitle, onBack }: DetailedAnalysisProps) {
-  const [activeTab, setActiveTab] = useState('ai');
+  const [activeTab, setActiveTab] = useState('questions');
   const [questionFilter, setQuestionFilter] = useState<QuestionFilterId>('all');
   const [expandedQuestionIndex, setExpandedQuestionIndex] = useState<number | null>(null);
   const [showAllQuestionsList, setShowAllQuestionsList] = useState(false);
@@ -960,68 +954,6 @@ export default function DetailedAnalysis({ result, examTitle, onBack }: Detailed
       cancelled = true;
     };
   }, [normalizeMongoId(result.examId), normalizeMongoId((result as ExamResult & { _id?: unknown })._id), result.attemptNumber]);
-
-  useEffect(() => {
-    if (!reviewHydrated) return;
-    let cancelled = false;
-    const fetchAiReport = async () => {
-      setAiLoading(true);
-      setAiError('');
-      const controller = new AbortController();
-      const timeoutMs = 120_000;
-      const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
-      try {
-        const token = localStorage.getItem('authToken');
-        const response = await fetch(`${API_BASE_URL}/api/student/exam-results/ai-analysis`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ result: displayResult, examTitle }),
-          signal: controller.signal,
-        });
-        const payload = await response.json().catch(() => ({}));
-        if (!response.ok || !payload?.success) {
-          throw new Error(payload?.message || 'Failed to generate AI report');
-        }
-        if (!cancelled) {
-          setAiAnalysis(payload?.data?.analysis || null);
-          setAnalysisMeta((payload?.data?.meta as AnalysisMeta) || null);
-        }
-      } catch (error: any) {
-        if (!cancelled) {
-          const aborted = error?.name === 'AbortError';
-          setAiError(
-            aborted
-              ? 'AI report is taking longer than expected. Refresh the page in a moment or try again.'
-              : error?.message || 'AI report unavailable',
-          );
-        }
-      } finally {
-        window.clearTimeout(timeoutId);
-        if (!cancelled) {
-          setAiLoading(false);
-        }
-      }
-    };
-
-    fetchAiReport();
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    displayResult.examId,
-    displayResult.correctAnswers,
-    displayResult.wrongAnswers,
-    displayResult.unattempted,
-    displayResult.obtainedMarks,
-    displayResult.percentage,
-    displayResult.attemptNumber,
-    displayResult._id,
-    examTitle,
-    reviewHydrated,
-  ]);
 
   const getGrade = (percentage: number) => {
     if (percentage >= 95) return { grade: 'A+', color: 'text-purple-600', bgColor: 'bg-gradient-to-r from-purple-100 to-pink-100', icon: Crown };
@@ -1959,7 +1891,6 @@ export default function DetailedAnalysis({ result, examTitle, onBack }: Detailed
       {/* Navigation Tabs */}
       <div className="bg-white border-b border-gray-200 px-4 sm:px-6 py-0 overflow-x-auto">
         <div className="flex gap-1 sm:gap-4 min-w-max">
-          <button type="button" onClick={() => setActiveTab('ai')} className={tabBtnClass('ai')}>AI Report</button>
           <button type="button" onClick={() => setActiveTab('questions')} className={tabBtnClass('questions')}>Questions</button>
           <button type="button" onClick={() => setActiveTab('advanced')} className={tabBtnClass('advanced')}>Advanced</button>
           <button type="button" onClick={() => setActiveTab('insights')} className={tabBtnClass('insights')}>Insights</button>
@@ -1971,33 +1902,6 @@ export default function DetailedAnalysis({ result, examTitle, onBack }: Detailed
 
       <div className="w-full max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
         {/* Tab Content */}
-
-        {/* AI Report Tab */}
-        {activeTab === 'ai' && (
-            <AiReportTab
-              result={result}
-              examTitle={examTitle}
-              studentName={studentName}
-              examDateLabel={examDateLabel}
-              aiAnalysis={aiAnalysis}
-              aiLoading={aiLoading}
-              aiError={aiError}
-              animatedMarks={animatedValues.obtainedMarks}
-              animatedCorrect={animatedValues.correctAnswers}
-              animatedWrong={animatedValues.wrongAnswers}
-              animatedSkipped={animatedValues.unattempted}
-              gradeLetter={grade.grade}
-              marksPercent={marksPercent}
-              accuracyRate={accuracyRate}
-              completionRate={completionRate}
-              attemptedCount={attemptedCount}
-              totalQuestionCount={totalQuestionCount}
-              mistakeTaxonomy={mistakeTaxonomy}
-              wrongQuickCount={questionFilterCounts.wrongQuick}
-              marksPerWrong={marksPerWrong}
-              scoreReconciliation={scoreReconciliation}
-            />
-        )}
 
         {/* Questions Tab */}
         {activeTab === 'questions' && (

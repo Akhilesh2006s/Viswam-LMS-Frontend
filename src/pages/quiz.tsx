@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useRoute } from 'wouter';
+import { useRoute, useLocation } from 'wouter';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -41,8 +41,18 @@ interface Quiz {
   subjectIds?: any[];
 }
 
+function getQuizContextFromUrl(): { subjectId?: string; chapter?: string } {
+  if (typeof window === 'undefined') return {};
+  const params = new URLSearchParams(window.location.search);
+  const subjectId = params.get('subjectId') || undefined;
+  const chapter = params.get('chapter') || undefined;
+  return { subjectId, chapter };
+}
+
 export default function QuizPage() {
   const [, params] = useRoute('/quiz/:id');
+  const [, setLocation] = useLocation();
+  const quizContext = getQuizContextFromUrl();
   const { toast } = useToast();
   const isMobile = useIsMobile();
   const [quiz, setQuiz] = useState<Quiz | null>(null);
@@ -58,6 +68,8 @@ export default function QuizPage() {
     unattempted: number;
     score: number;
     percentage: number;
+    xpAwarded?: number;
+    passed?: boolean;
   } | null>(null);
 
   useEffect(() => {
@@ -183,10 +195,9 @@ export default function QuizPage() {
       percentage: Math.round(percentage)
     });
 
-    // Save quiz attempt
     try {
       const token = localStorage.getItem('authToken');
-      await fetch(`${API_BASE_URL}/api/student/quizzes/${quiz._id}/submit`, {
+      const res = await fetch(`${API_BASE_URL}/api/student/quizzes/${quiz._id}/submit`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -194,10 +205,31 @@ export default function QuizPage() {
         },
         body: JSON.stringify({
           answers,
-          score: percentage,
-          timeTaken: quiz.duration * 60 - timeLeft
-        })
+          score: totalScore,
+          timeTaken: quiz.duration * 60 - timeLeft,
+          subjectId: quizContext.subjectId,
+          chapter: quizContext.chapter,
+        }),
       });
+      if (res.ok) {
+        const json = await res.json();
+        const d = json.data || {};
+        setResults((prev) =>
+          prev
+            ? {
+                ...prev,
+                xpAwarded: d.xpAwarded,
+                passed: d.passed,
+              }
+            : prev,
+        );
+        if (d.passed && d.xpAwarded) {
+          toast({
+            title: `+${d.xpAwarded} XP earned`,
+            description: 'Chapter quiz passed — next chapter unlocked!',
+          });
+        }
+      }
     } catch (error) {
       console.error('Error submitting quiz:', error);
     }
@@ -294,6 +326,11 @@ export default function QuizPage() {
                   {results.percentage}%
                 </div>
                 <p className="text-gray-600">Score: {results.score} / {quiz.totalPoints} points</p>
+                {results.passed && results.xpAwarded ? (
+                  <p className="mt-2 text-sm font-semibold text-[var(--brand-emerald)]">
+                    +{results.xpAwarded} XP · Next chapter unlocked
+                  </p>
+                ) : null}
               </div>
               
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -314,12 +351,23 @@ export default function QuizPage() {
                 </div>
               </div>
 
-              <Button 
-                className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
-                onClick={() => window.location.href = '/dashboard'}
-              >
-                Back to Dashboard
-              </Button>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                {quizContext.subjectId ? (
+                  <Button
+                    className="flex-1 bg-[var(--brand-emerald)] hover:opacity-90 text-white"
+                    onClick={() => setLocation(`/subject/${quizContext.subjectId}`)}
+                  >
+                    Back to subject
+                  </Button>
+                ) : null}
+                <Button
+                  variant={quizContext.subjectId ? 'outline' : 'default'}
+                  className="flex-1"
+                  onClick={() => setLocation('/dashboard')}
+                >
+                  Dashboard
+                </Button>
+              </div>
             </CardContent>
           </Card>
         ) : (

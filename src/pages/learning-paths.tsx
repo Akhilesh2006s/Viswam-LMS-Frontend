@@ -2,7 +2,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Skeleton } from "@/components/ui/skeleton";
 import Navigation from "@/components/navigation";
 import { 
   BookOpen, 
@@ -13,7 +12,6 @@ import {
   CheckCircle,
   ArrowRight,
   Target,
-  Zap,
   Award,
   FileText,
   BarChart3,
@@ -24,36 +22,16 @@ import {
   Atom,
   FlaskConical,
   Microscope,
-  File,
-  Image as ImageIcon,
-  FileText as FileTextIcon,
-  X,
-  Eye,
-  ClipboardList,
-  Headphones,
-  ExternalLink,
-  Video,
   Loader2,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
-import {
-  filterContentsBySchoolProgram,
-  getAllowedContentTypes,
-  resolveIsAsliPrepExclusive,
-  type ContentTypeName,
-} from "@/lib/school-program";
-import { useIsMobile } from "@/hooks/use-mobile";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { LearningRoadmap, StudentBottomNav, SubjectJourneyCard, type RoadmapStage } from "@/components/learning-ecosystem";
 import { API_BASE_URL } from "@/lib/api-config";
-import PdfPreviewPanel from "@/components/shared/PdfPreviewPanel";
-import VidyaAIFloatingAssistant from "@/components/student/VidyaAIFloatingAssistant";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import DriveViewer from "@/components/drive-viewer";
 import { getStudentDisplayName } from "@/lib/auth-utils";
 
 export default function LearningPaths() {
   const [, setLocation] = useLocation();
-  const isMobile = useIsMobile();
   const [user, setUser] = useState<any>(null);
   const [isLoadingUser, setIsLoadingUser] = useState(true);
   const [subjects, setSubjects] = useState<any[]>([]);
@@ -61,65 +39,50 @@ export default function LearningPaths() {
   const [activeTab, setActiveTab] = useState<'subjects' | 'quizzes'>('subjects');
   const [quizzes, setQuizzes] = useState<any[]>([]);
   const [isLoadingQuizzes, setIsLoadingQuizzes] = useState(true);
-  const isAsliPrepExclusive = resolveIsAsliPrepExclusive(user);
-  const allowedBrowseTypes = getAllowedContentTypes(isAsliPrepExclusive);
-  const [contentTypeCounts, setContentTypeCounts] = useState({
-    TextBook: 0,
-    Workbook: 0,
-    Material: 0,
-    Audio: 0,
-    Homework: 0,
-    Video: 0,
-  });
-  const [isLoadingContentCounts, setIsLoadingContentCounts] = useState(true);
-  const [selectedContentType, setSelectedContentType] = useState<ContentTypeName | null>(null);
-  const [filteredContent, setFilteredContent] = useState<any[]>([]);
-  const [isLoadingFilteredContent, setIsLoadingFilteredContent] = useState(false);
-  const [allLibraryContent, setAllLibraryContent] = useState<any[]>([]);
-  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
-  const [previewContent, setPreviewContent] = useState<any | null>(null);
   const [isNavigatingToSubject, setIsNavigatingToSubject] = useState(false);
 
   const prefetchSubjectPage = () => {
     void import("@/pages/subject-content");
   };
 
+  const abacusSubject = useMemo(
+    () => subjects.find((s) => String(s.name || "").toLowerCase().includes("abacus")),
+    [subjects],
+  );
+
+  const abacusRoadmapStages: RoadmapStage[] = useMemo(() => {
+    const overall = Number(user?.overallProgress ?? 0);
+    const stage1 = Math.min(100, overall * 3);
+    const stage2 = overall > 33 ? Math.min(100, (overall - 33) * 3) : 0;
+    const stage3 = overall > 66 ? Math.min(100, (overall - 66) * 3) : 0;
+    return [
+      {
+        id: "abacus-beginner",
+        title: "Abacus Beginner",
+        subtitle: "Bead basics & number sense",
+        progress: stage1,
+        locked: false,
+      },
+      {
+        id: "abacus-intermediate",
+        title: "Abacus Intermediate",
+        subtitle: "Speed drills & mental math",
+        progress: stage2,
+        locked: stage1 < 100,
+      },
+      {
+        id: "abacus-advanced",
+        title: "Abacus Advanced",
+        subtitle: "Competitions & mastery",
+        progress: stage3,
+        locked: stage2 < 100,
+      },
+    ];
+  }, [user?.overallProgress]);
+
   const handleSubjectClick = (subjectId: string) => {
     setIsNavigatingToSubject(true);
     setLocation(`/subject/${subjectId}`);
-  };
-
-  const isYouTubeUrl = (url?: string) => {
-    if (!url) return false;
-    const lower = url.toLowerCase();
-    return lower.includes("youtube.com") || lower.includes("youtu.be");
-  };
-
-  const getNormalizedContentUrl = (url?: string) => {
-    if (!url) return "";
-    if (url.startsWith("http") || url.startsWith("//")) return url;
-    return url.startsWith("/") ? `${API_BASE_URL}${url}` : `${API_BASE_URL}/${url}`;
-  };
-
-  const extractDirectFileUrl = (rawUrl: string) => {
-    try {
-      const parsed = new URL(rawUrl);
-      if (parsed.hostname.includes("docs.google.com") && parsed.pathname.includes("/gview")) {
-        const target = parsed.searchParams.get("url");
-        if (target) return target;
-      }
-    } catch {
-      return rawUrl;
-    }
-    return rawUrl;
-  };
-
-  const getYouTubeEmbedUrl = (url?: string) => {
-    if (!url) return null;
-    const regExp = /^.*(youtu\.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
-    const match = url.match(regExp);
-    if (!match || match[2].length !== 11) return null;
-    return `https://www.youtube.com/embed/${match[2]}`;
   };
 
   // Fetch user data
@@ -516,95 +479,7 @@ export default function LearningPaths() {
     fetchQuizzes();
   }, []);
 
-  // Fetch content type counts
-  useEffect(() => {
-    console.log('Fetching content counts for Digital Library');
-    const fetchContentCounts = async () => {
-      try {
-        setIsLoadingContentCounts(true);
-        const token = localStorage.getItem('authToken');
-        
-        // Fetch all content to count by type
-        const response = await fetch(`${API_BASE_URL}/api/student/asli-prep-content`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          }
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          const rawContent = data.data || data || [];
-          const allContent = filterContentsBySchoolProgram(
-            Array.isArray(rawContent) ? rawContent : [],
-            resolveIsAsliPrepExclusive(user),
-          );
-          setAllLibraryContent(allContent);
-          
-          // Count by type
-          const counts = {
-            TextBook: 0,
-            Workbook: 0,
-            Material: 0,
-            Audio: 0,
-            Homework: 0,
-            Video: 0,
-          };
-          
-          allContent.forEach((content: any) => {
-            const contentType = content.type;
-            if (counts.hasOwnProperty(contentType)) {
-              counts[contentType as keyof typeof counts]++;
-            }
-          });
-          
-          setContentTypeCounts(counts);
-        } else {
-          setAllLibraryContent([]);
-        }
-      } catch (error) {
-        console.error('Failed to fetch content counts:', error);
-        setAllLibraryContent([]);
-      } finally {
-        setIsLoadingContentCounts(false);
-      }
-    };
-
-    fetchContentCounts();
-  }, [user?.isAsliPrepExclusive, user?.assignedAdmin?.isAsliPrepExclusive]);
-
-  // Update filtered content from already-fetched library content
-  useEffect(() => {
-    if (!selectedContentType) {
-      setFilteredContent([]);
-      setIsLoadingFilteredContent(false);
-      return;
-    }
-
-    if (isLoadingContentCounts) {
-      setIsLoadingFilteredContent(true);
-      return;
-    }
-
-    setIsLoadingFilteredContent(true);
-    const filtered = allLibraryContent.filter((content: any) => content.type === selectedContentType);
-    setFilteredContent(filtered);
-    setIsLoadingFilteredContent(false);
-  }, [selectedContentType, allLibraryContent, isLoadingContentCounts]);
-
   const recommendedPaths = [
-    {
-      id: "4",
-      title: "IQ/Rank Boost Practice",
-      description: "Boost your IQ and improve your rank with targeted practice",
-      duration: "2 months",
-      students: 3200,
-      rating: 4.6,
-      subjects: ["Physics", "Chemistry", "Mathematics"],
-      difficulty: "Beginner",
-      color: "bg-orange-100 text-orange-600",
-      icon: Zap
-    },
     {
       id: "5",
       title: "Play Games",
@@ -621,7 +496,7 @@ export default function LearningPaths() {
   ];
 
   return (
-    <>
+    <div className="viswam-student-app">
       <Navigation />
       {isNavigatingToSubject && (
         <div
@@ -634,29 +509,25 @@ export default function LearningPaths() {
           <p className="text-sm text-gray-600 font-medium">Opening subject...</p>
         </div>
       )}
-      <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 sm:pt-24 pb-8 bg-sky-50 min-h-screen relative">
-        
-        {!isMobile && <VidyaAIFloatingAssistant />}
-        
-        {/* Header Section */}
+      <div className="viswam-student-main w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 sm:pt-24 relative">
+        <section className="eco-hero mb-8 p-6 sm:p-8 text-white">
+          <p className="text-xs font-semibold uppercase tracking-widest text-amber-300/90">Learning roadmaps</p>
+          <h1 className="mt-2 text-xl font-bold sm:text-3xl break-words">
+            {isLoadingUser ? "Your journey" : `${getStudentDisplayName(user)}'s learning path`}
+          </h1>
+          <p className="mt-2 max-w-xl text-sm text-white/80">
+            Unlock stages as you complete lessons — each subject is its own premium mini-app.
+          </p>
+        </section>
+
         <div className="mb-8">
-          <div className="gradient-primary rounded-2xl p-5 sm:p-8 text-white relative overflow-hidden">
-            <div className="relative z-10">
-              <h1 className="text-xl sm:text-2xl sm:text-3xl font-bold mb-2 break-words">
-                Learning Paths for {isLoadingUser ? "..." : getStudentDisplayName(user)}
-              </h1>
-              <p className="text-blue-100 mb-6">
-                Choose your learning journey and master your subjects with our structured courses
-              </p>
-            </div>
-            
-            {/* Decorative elements */}
-            <div className="absolute top-0 right-0 w-64 h-64 opacity-10">
-              <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-                <path fill="currentColor" d="M47.1,-78.5C58.9,-69.2,64.3,-50.4,73.2,-32.8C82.1,-15.1,94.5,1.4,94.4,17.9C94.3,34.4,81.7,50.9,66.3,63.2C50.9,75.5,32.7,83.6,13.8,87.1C-5.1,90.6,-24.7,89.5,-41.6,82.1C-58.5,74.7,-72.7,61,-79.8,44.8C-86.9,28.6,-86.9,9.9,-83.2,-6.8C-79.5,-23.5,-72.1,-38.2,-61.3,-49.6C-50.5,-61,-36.3,-69.1,-21.4,-75.8C-6.5,-82.5,9.1,-87.8,25.2,-84.9C41.3,-82,57.9,-70,47.1,-78.5Z" transform="translate(100 100)"/>
-              </svg>
-            </div>
-          </div>
+          <LearningRoadmap
+            title="Abacus mastery roadmap"
+            stages={abacusRoadmapStages}
+            onStageClick={() => {
+              if (abacusSubject) handleSubjectClick(abacusSubject._id || abacusSubject.id);
+            }}
+          />
         </div>
 
         {/* Tabs */}
@@ -688,58 +559,32 @@ export default function LearningPaths() {
         {/* Browse by Subject Tab */}
         {activeTab === 'subjects' && (
         <div className="mb-8">
-          <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-6">Browse by Subject</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 sm:p-4 lg:p-6">
+          <h2 className="text-xl sm:text-2xl font-bold text-slate-900 mb-2">Your subjects</h2>
+          <p className="text-sm text-slate-500 mb-6">Tap a subject to enter your personal learning app</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {isLoadingSubjects ? (
               <div className="col-span-full flex flex-col items-center justify-center py-20">
-                <Loader2 className="w-10 h-10 text-sky-500 animate-spin mb-3" aria-hidden />
-                <p className="text-sm text-gray-600 font-medium">Loading subjects...</p>
+                <Loader2 className="w-10 h-10 text-emerald-600 animate-spin mb-3" aria-hidden />
+                <p className="text-sm text-slate-600 font-medium">Loading subjects...</p>
               </div>
             ) : subjects.length === 0 ? (
               <div className="col-span-full text-center py-12">
-                <BookOpen className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                <h3 className="text-base sm:text-lg font-semibold text-gray-600 mb-2">No Subjects Available</h3>
-                <p className="text-gray-500">Check back later for new learning content.</p>
+                <BookOpen className="w-16 h-16 text-slate-300 mx-auto mb-4" />
+                <h3 className="text-base sm:text-lg font-semibold text-slate-600 mb-2">No Subjects Available</h3>
+                <p className="text-slate-500">Check back later for new learning content.</p>
               </div>
             ) : (
-              subjects.map((subject: any) => {
-                const getSubjectIcon = (subjectName: string) => {
-                  const name = subjectName.toLowerCase();
-                  if (name.includes('math') || name.includes('mathematics')) return Calculator;
-                  if (name.includes('physics')) return Atom;
-                  if (name.includes('chemistry')) return FlaskConical;
-                  if (name.includes('biology')) return Microscope;
-                  if (name.includes('english')) return BookIcon;
-                  if (name.includes('science')) return Zap;
-                  return BookOpen;
-                };
-                
-                const Icon = getSubjectIcon(subject.name);
-                const assignedTeachers = subject.teachers || [];
-                
-                console.log(`Rendering subject "${subject.name}":`, {
-                  hasTeachers: assignedTeachers.length > 0,
-                  teacherCount: assignedTeachers.length,
-                  teachers: assignedTeachers
-                });
-                
-                return (
-                  <Card 
-                    key={subject._id || subject.id} 
-                    className="hover:shadow-lg transition-shadow duration-200 cursor-pointer bg-white border border-gray-200"
-                    onMouseEnter={prefetchSubjectPage}
-                    onFocus={prefetchSubjectPage}
-                    onClick={() => handleSubjectClick(subject._id || subject.id)}
-                  >
-                    <CardContent className="p-3 sm:p-4 lg:p-6 flex flex-col items-center text-center">
-                      <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-md mb-4">
-                        <Icon className="w-10 h-10 text-white" />
-                      </div>
-                      <CardTitle className="text-base sm:text-lg font-semibold text-gray-900">{subject.name}</CardTitle>
-                    </CardContent>
-                  </Card>
-                );
-              })
+              subjects.map((subject: any) => (
+                <SubjectJourneyCard
+                  key={subject._id || subject.id}
+                  subject={{
+                    id: subject._id || subject.id,
+                    name: subject.name,
+                    progress: Number(subject.progress ?? subject.overallProgress ?? 0),
+                  }}
+                  onClick={() => handleSubjectClick(subject._id || subject.id)}
+                />
+              ))
             )}
           </div>
         </div>
@@ -816,7 +661,7 @@ export default function LearningPaths() {
                       </Badge>
                               </div>
 
-                    <Link href={`/student-exams?quiz=${quiz._id}`}>
+                    <Link href={`/quiz/${quiz._id}`}>
                       <Button className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-lg">
                         {quiz.hasAttempted ? 'Retake Quiz' : 'Start Quiz'}
                         <ArrowRight className="w-3 h-3 sm:w-4 sm:h-4 ml-2" />
@@ -829,235 +674,6 @@ export default function LearningPaths() {
           )}
                         </div>
                       )}
-
-        {/* Digital Library - Browse by Type - Always Visible */}
-        {(() => {
-          console.log('Digital Library section rendering - visible on page');
-          return null;
-        })()}
-        <div className="mb-8 max-w-7xl mx-auto px-4 bg-white rounded-2xl p-3 sm:p-4 lg:p-6 shadow-sm border border-gray-200">
-          <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-6">Digital Library</h2>
-          <h3 className="text-lg sm:text-xl font-semibold text-gray-700 mb-4">Browse by Type</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:p-4 lg:p-6 mb-8">
-            {/* TextBook Card */}
-            <Card 
-              className={`hover:shadow-lg transition-shadow duration-200 cursor-pointer bg-white border border-gray-200 ${
-                selectedContentType === 'TextBook' ? 'ring-2 ring-blue-500' : ''
-              }`}
-              onClick={() => setSelectedContentType(selectedContentType === 'TextBook' ? null : 'TextBook')}
-            >
-              <CardContent className="p-3 sm:p-4 lg:p-6 flex flex-col items-center text-center">
-                <div className="w-20 h-20 bg-gradient-to-br from-pink-500 via-purple-500 to-pink-600 rounded-xl flex items-center justify-center shadow-md mb-4">
-                  <BookOpen className="w-10 h-10 text-white" strokeWidth={2.5} fill="none" />
-                </div>
-                <CardTitle className="text-base sm:text-lg font-semibold text-gray-900 mb-1">TextBook</CardTitle>
-                <p className="text-xs sm:text-sm text-gray-500">
-                  {isLoadingContentCounts ? '...' : `${contentTypeCounts.TextBook} files`}
-                </p>
-              </CardContent>
-            </Card>
-
-            {allowedBrowseTypes.includes('Video') && (
-              <Card
-                className={`hover:shadow-lg transition-shadow duration-200 cursor-pointer bg-white border border-gray-200 ${
-                  selectedContentType === 'Video' ? 'ring-2 ring-blue-500' : ''
-                }`}
-                onClick={() => setSelectedContentType(selectedContentType === 'Video' ? null : 'Video')}
-              >
-                <CardContent className="p-3 sm:p-4 lg:p-6 flex flex-col items-center text-center">
-                  <div className="w-20 h-20 bg-gradient-to-br from-pink-500 via-purple-500 to-pink-600 rounded-xl flex items-center justify-center shadow-md mb-4">
-                    <Video className="w-10 h-10 text-white" strokeWidth={2.5} fill="none" />
-                  </div>
-                  <CardTitle className="text-base sm:text-lg font-semibold text-gray-900 mb-1">Video</CardTitle>
-                  <p className="text-xs sm:text-sm text-gray-500">
-                    {isLoadingContentCounts ? '...' : `${contentTypeCounts.Video} files`}
-                  </p>
-                </CardContent>
-              </Card>
-            )}
-
-            {allowedBrowseTypes.includes('Workbook') && (
-              <Card
-                className={`hover:shadow-lg transition-shadow duration-200 cursor-pointer bg-white border border-gray-200 ${
-                  selectedContentType === 'Workbook' ? 'ring-2 ring-blue-500' : ''
-                }`}
-                onClick={() => setSelectedContentType(selectedContentType === 'Workbook' ? null : 'Workbook')}
-              >
-                <CardContent className="p-3 sm:p-4 lg:p-6 flex flex-col items-center text-center">
-                  <div className="w-20 h-20 bg-gradient-to-br from-pink-500 via-purple-500 to-pink-600 rounded-xl flex items-center justify-center shadow-md mb-4">
-                    <FileTextIcon className="w-10 h-10 text-white" strokeWidth={2.5} fill="none" />
-                  </div>
-                  <CardTitle className="text-base sm:text-lg font-semibold text-gray-900 mb-1">Workbook</CardTitle>
-                  <p className="text-xs sm:text-sm text-gray-500">
-                    {isLoadingContentCounts ? '...' : `${contentTypeCounts.Workbook} files`}
-                  </p>
-                </CardContent>
-              </Card>
-            )}
-
-            {allowedBrowseTypes.includes('Material') && (
-              <Card
-                className={`hover:shadow-lg transition-shadow duration-200 cursor-pointer bg-white border border-gray-200 ${
-                  selectedContentType === 'Material' ? 'ring-2 ring-blue-500' : ''
-                }`}
-                onClick={() => setSelectedContentType(selectedContentType === 'Material' ? null : 'Material')}
-              >
-                <CardContent className="p-3 sm:p-4 lg:p-6 flex flex-col items-center text-center">
-                  <div className="w-20 h-20 bg-gradient-to-br from-pink-500 via-purple-500 to-pink-600 rounded-xl flex items-center justify-center shadow-md mb-4">
-                    <File className="w-10 h-10 text-white" strokeWidth={2.5} fill="none" />
-                  </div>
-                  <CardTitle className="text-base sm:text-lg font-semibold text-gray-900 mb-1">Material</CardTitle>
-                  <p className="text-xs sm:text-sm text-gray-500">
-                    {isLoadingContentCounts ? '...' : `${contentTypeCounts.Material} files`}
-                  </p>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Audio Card */}
-            <Card 
-              className={`hover:shadow-lg transition-shadow duration-200 cursor-pointer bg-white border border-gray-200 ${
-                selectedContentType === 'Audio' ? 'ring-2 ring-blue-500' : ''
-              }`}
-              onClick={() => setSelectedContentType(selectedContentType === 'Audio' ? null : 'Audio')}
-            >
-              <CardContent className="p-3 sm:p-4 lg:p-6 flex flex-col items-center text-center">
-                <div className="w-20 h-20 bg-gradient-to-br from-pink-500 via-purple-500 to-pink-600 rounded-xl flex items-center justify-center shadow-md mb-4">
-                  <Headphones className="w-10 h-10 text-white" strokeWidth={2.5} fill="none" />
-                </div>
-                <CardTitle className="text-base sm:text-lg font-semibold text-gray-900 mb-1">Audio</CardTitle>
-                <p className="text-xs sm:text-sm text-gray-500">
-                  {isLoadingContentCounts ? '...' : `${contentTypeCounts.Audio} files`}
-                </p>
-              </CardContent>
-            </Card>
-
-            {/* Homework Card */}
-            <Card 
-              className={`hover:shadow-lg transition-shadow duration-200 cursor-pointer bg-white border border-gray-200 ${
-                selectedContentType === 'Homework' ? 'ring-2 ring-blue-500' : ''
-              }`}
-              onClick={() => setSelectedContentType(selectedContentType === 'Homework' ? null : 'Homework')}
-            >
-              <CardContent className="p-3 sm:p-4 lg:p-6 flex flex-col items-center text-center">
-                <div className="w-20 h-20 bg-gradient-to-br from-pink-500 via-purple-500 to-pink-600 rounded-xl flex items-center justify-center shadow-md mb-4">
-                  <ClipboardList className="w-10 h-10 text-white" strokeWidth={2.5} fill="none" />
-                </div>
-                <CardTitle className="text-base sm:text-lg font-semibold text-gray-900 mb-1">Homework</CardTitle>
-                <p className="text-xs sm:text-sm text-gray-500">
-                  {isLoadingContentCounts ? '...' : `${contentTypeCounts.Homework} files`}
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Filtered Content Display */}
-          {selectedContentType && (
-            <div className="mt-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg sm:text-xl font-semibold text-gray-900">
-                  All {selectedContentType}
-                </h3>
-                <Button
-                  variant="outline"
-                  onClick={() => setSelectedContentType(null)}
-                  className="flex items-center space-x-2"
-                >
-                  <X className="w-3 h-3 sm:w-4 sm:h-4" />
-                  <span>Clear Filter</span>
-                </Button>
-                              </div>
-
-              {isLoadingFilteredContent ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:p-4 lg:p-6">
-                  {Array.from({ length: 6 }).map((_, i) => (
-                    <Skeleton key={i} className="h-48 w-full" />
-                  ))}
-                </div>
-              ) : filteredContent.length === 0 ? (
-                <div className="text-center py-12 bg-white rounded-2xl border border-gray-200">
-                  <FileText className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                  <h3 className="text-base sm:text-lg font-semibold text-gray-600 mb-2">No Content Found</h3>
-                  <p className="text-gray-500">No {selectedContentType} available at the moment.</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:p-4 lg:p-6 items-stretch">
-                  {filteredContent.map((content: any) => (
-                    <Card key={content._id} className="hover:shadow-lg transition-shadow duration-200 h-full flex flex-col">
-                      <CardHeader>
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center shadow-lg">
-                            {selectedContentType === 'TextBook' ? (
-                              <BookOpen className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 text-white" />
-                            ) : selectedContentType === 'Workbook' ? (
-                              <FileTextIcon className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 text-white" />
-                            ) : selectedContentType === 'Material' ? (
-                              <File className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 text-white" />
-                            ) : selectedContentType === 'Audio' ? (
-                              <Headphones className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 text-white" />
-                            ) : selectedContentType === 'Homework' ? (
-                              <ClipboardList className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 text-white" />
-                            ) : (
-                              <FileTextIcon className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 text-white" />
-                            )}
-                          </div>
-                          <Badge variant="outline" className="text-xs">
-                            {content.type}
-                          </Badge>
-                        </div>
-                        <CardTitle className="text-base sm:text-lg">{content.title}</CardTitle>
-                        {content.description && (
-                          <p className="text-gray-600 text-xs sm:text-sm mt-2">{content.description}</p>
-                        )}
-                      </CardHeader>
-                      <CardContent className="space-y-3 flex-1 flex flex-col">
-                        <div className="space-y-3 flex-1">
-                        {content.subject && (
-                          <div className="flex items-center space-x-2">
-                            <BookOpen className="w-3 h-3 sm:w-4 sm:h-4 text-gray-500" />
-                            <span className="text-xs sm:text-sm text-gray-600">
-                              {typeof content.subject === 'object' ? content.subject.name : 'Subject'}
-                            </span>
-                          </div>
-                        )}
-                        </div>
-                        <div className="flex space-x-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="flex-1"
-                            onClick={() => {
-                              if (!content.fileUrl) return;
-                              setPreviewContent(content);
-                              setIsPreviewOpen(true);
-                            }}
-                            disabled={!content.fileUrl}
-                          >
-                            <Eye className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
-                            View
-                        </Button>
-                          {content.fileUrl && isYouTubeUrl(content.fileUrl) && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                  setPreviewContent(content);
-                                  setIsPreviewOpen(true);
-                                }}
-                                title="Preview in this page"
-                              >
-                                <ExternalLink className="w-3 h-3 sm:w-4 sm:h-4" />
-                              </Button>
-                          )}
-                        </div>
-                    </CardContent>
-                  </Card>
-                  ))}
-                </div>
-            )}
-          </div>
-          )}
-        </div>
 
         {/* Recommended Learning Paths */}
         <div className="mb-8">
@@ -1146,106 +762,7 @@ export default function LearningPaths() {
 
       </div>
 
-      <Dialog
-        open={isPreviewOpen}
-        onOpenChange={(open) => {
-          setIsPreviewOpen(open);
-          if (!open) setPreviewContent(null);
-        }}
-      >
-        <DialogContent className="w-[90vw] h-[95vh] max-w-none bg-white rounded-2xl overflow-hidden flex flex-col p-0">
-          <DialogHeader className="px-4 sm:px-6 lg:px-8 pt-5 pb-3 border-b border-gray-200">
-            <DialogTitle className="pl-2 pt-1">{previewContent?.title || "Content Preview"}</DialogTitle>
-          </DialogHeader>
-          <div className="flex-1 min-h-0 overflow-hidden px-4 py-4">
-
-          {(() => {
-            const fileUrl = extractDirectFileUrl(getNormalizedContentUrl(previewContent?.fileUrl));
-            const lower = fileUrl.toLowerCase();
-            const isPdf =
-              lower.endsWith(".pdf") || lower.includes(".pdf") || previewContent?.type === "PDF";
-            const isImage = /\.(jpg|jpeg|png|gif|webp|svg|bmp)$/.test(lower);
-            const isAudio = /\.(mp3|wav|ogg|m4a|aac|flac)$/.test(lower) || previewContent?.type === "Audio";
-            const isVideo = /\.(mp4|webm|ogg|mov|avi|mkv)$/.test(lower) || previewContent?.type === "Video";
-            const isYouTube = isYouTubeUrl(fileUrl);
-            const youtubeEmbedUrl = getYouTubeEmbedUrl(fileUrl);
-            const isGoogleDrive = lower.includes("drive.google.com");
-
-            if (!fileUrl) {
-              return <p className="text-xs sm:text-sm text-gray-500">No preview URL available.</p>;
-            }
-
-            if (isYouTube && youtubeEmbedUrl) {
-              return (
-                <div className="w-full aspect-video rounded-lg overflow-hidden bg-gray-100">
-                  <iframe
-                    className="w-full h-full border-0"
-                    src={youtubeEmbedUrl}
-                    title={previewContent?.title || "YouTube content"}
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    allowFullScreen
-                  />
-                </div>
-              );
-            }
-
-            if (isPdf) {
-              return (
-                <PdfPreviewPanel
-                  fileUrl={previewContent?.fileUrl || fileUrl}
-                  title={previewContent?.title}
-                  className="w-full min-h-[min(50dvh,640px)]"
-                />
-              );
-            }
-
-            if (isImage) {
-              return (
-                <div className="w-full max-h-[70vh] overflow-auto rounded-lg bg-gray-100 p-2">
-                  <img
-                    src={fileUrl}
-                    alt={previewContent?.title || "Preview"}
-                    className="mx-auto max-h-[66vh] object-contain"
-                    draggable={false}
-                  />
-                </div>
-              );
-            }
-
-            if (isAudio) {
-              return (
-                <div className="w-full rounded-lg bg-gray-100 p-4 sm:p-6 lg:p-8">
-                  <audio src={fileUrl} controls className="w-full" />
-                </div>
-              );
-            }
-
-            if (isVideo) {
-              return (
-                <div className="w-full aspect-video rounded-lg overflow-hidden bg-gray-100">
-                  <video src={fileUrl} controls className="w-full h-full" />
-                </div>
-              );
-            }
-
-            if (isGoogleDrive) {
-              return (
-                <DriveViewer
-                  driveUrl={fileUrl}
-                  title={previewContent?.title || "Drive content"}
-                />
-              );
-            }
-
-            return (
-              <div className="text-xs sm:text-sm text-gray-600 bg-gray-50 rounded-lg p-4">
-                Preview is not available for this file type.
-              </div>
-            );
-          })()}
-          </div>
-        </DialogContent>
-      </Dialog>
-    </>
+      <StudentBottomNav />
+    </div>
   );
 }

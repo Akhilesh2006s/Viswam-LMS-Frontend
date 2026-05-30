@@ -64,7 +64,7 @@ interface Exam {
 }
 
 const BOARDS = [
-  { value: 'ASLI_EXCLUSIVE_SCHOOLS', label: 'Asli Prep (exclusive)' },
+  { value: 'ASLI_EXCLUSIVE_SCHOOLS', label: 'VISWAM LMS Prep (exclusive)' },
   { value: 'CBSE', label: 'CBSE' },
   { value: 'SSC', label: 'SSC / State Board' },
   { value: 'STATE', label: 'State Board (generic)' },
@@ -1913,13 +1913,9 @@ export default function ExamManagement() {
   };
 
   return (
-    <div className="p-3 sm:p-6 space-y-3 sm:space-y-4 lg:space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-        <div className="min-w-0">
-          <h2 className="text-xl sm:text-2xl sm:text-3xl font-bold text-gray-900 break-words">Exam Management</h2>
-          <p className="text-gray-600 mt-1">Create and manage exams</p>
-        </div>
-        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+    <div className="sa-premium-inner-page sa-premium-inner space-y-5 sm:space-y-6">
+      <div className="flex flex-col gap-3 rounded-2xl border border-slate-200/80 bg-white/90 p-4 shadow-sm sm:flex-row sm:items-center sm:justify-end">
+        <div className="flex flex-col gap-2 w-full sm:w-auto sm:flex-row">
           <Dialog open={isCsvDialogOpen} onOpenChange={setIsCsvDialogOpen}>
             <DialogTrigger asChild>
               <Button variant="outline" className="border-green-500 text-green-600 hover:bg-green-50 w-full sm:w-auto">
@@ -2019,7 +2015,7 @@ export default function ExamManagement() {
           </Dialog>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <Button onClick={openCreateExamDialog} className="bg-gradient-to-r from-sky-300 to-teal-400 hover:from-sky-400 hover:to-teal-500 text-white w-full sm:w-auto">
+              <Button onClick={openCreateExamDialog} className="w-full rounded-xl bg-[var(--brand-navy)] hover:bg-[var(--brand-navy-hover)] sm:w-auto">
                 <Plus className="mr-2 h-3 w-3 sm:h-4 sm:w-4" />
                 Create Exam
               </Button>
@@ -2114,7 +2110,7 @@ export default function ExamManagement() {
                               className="h-3 w-3 sm:h-4 sm:w-4 rounded border border-gray-400 accent-orange-500"
                             />
                             <Label htmlFor={`school-${school.id}`} className="text-xs sm:text-sm cursor-pointer">
-                              {school.name} (Asli Exclusive Schools)
+                              {school.name} (VISWAM Exclusive Schools)
                             </Label>
                           </div>
                         ))
@@ -2457,7 +2453,7 @@ export default function ExamManagement() {
                                   ) : (
                                     <Badge className="bg-gray-100 text-gray-600 border border-gray-200 text-[11px]">Inactive</Badge>
                                   )}
-                                  <Badge className="bg-gray-100 text-gray-700 border border-gray-200 text-[11px]">Asli Exclusive Schools</Badge>
+                                  <Badge className="bg-gray-100 text-gray-700 border border-gray-200 text-[11px]">VISWAM Exclusive Schools</Badge>
                                 </div>
                               </div>
                             </CardHeader>

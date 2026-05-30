@@ -9,8 +9,16 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { API_BASE_URL } from '@/lib/api-config';
+import { fetchAdminProductWorkspace, fetchClassCapacity, productLabel } from '@/lib/products';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import {
+  AdminPageShell,
+  AdminStatGrid,
+  AdminPanel,
+  adminPrimaryBtn,
+  adminOutlineBtn,
+} from '@/components/admin/admin-ui';
 
 const STUDENT_FORM_FIELD_CLASS =
   'border border-sky-300 bg-sky-50 text-sky-950 shadow-sm placeholder:text-sky-500 focus-visible:border-sky-500 focus-visible:ring-2 focus-visible:ring-sky-400/35';
@@ -35,12 +43,10 @@ import {
   TrendingUp,
   Loader2,
   Edit,
-  Brain,
   AlertTriangle,
   ChevronDown,
   ChevronRight,
 } from 'lucide-react';
-import { StudentRiskAnalysisModal } from './StudentRiskAnalysisModal';
 interface Student {
   id: string;
   name: string;
@@ -80,6 +86,8 @@ const UserManagement = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [schoolProducts, setSchoolProducts] = useState<{ code: string; name: string }[]>([]);
+  const [capacityHint, setCapacityHint] = useState('');
   const [newStudent, setNewStudent] = useState({
     name: '',
     email: '',
@@ -87,6 +95,7 @@ const UserManagement = () => {
     section: 'A',
     phone: '',
     password: '',
+    productCode: '',
   });
   const [showNewStudentPassword, setShowNewStudentPassword] = useState(false);
   const [isAssignClassDialogOpen, setIsAssignClassDialogOpen] = useState(false);
@@ -101,13 +110,74 @@ const UserManagement = () => {
     phone: '',
     isActive: true
   });
-  const [isRiskAnalysisModalOpen, setIsRiskAnalysisModalOpen] = useState(false);
-  const [selectedStudentForAnalysis, setSelectedStudentForAnalysis] = useState<Student | null>(null);
 
   useEffect(() => {
     fetchStudents();
     fetchClasses();
+    fetchAdminProductWorkspace().then((w) => {
+      if (w?.products?.length) {
+        setSchoolProducts(w.products);
+        const code = w.admin.primaryProductCode || w.products[0].code;
+        setNewStudent((s) => ({ ...s, productCode: s.productCode || code }));
+      }
+    });
   }, []);
+
+  useEffect(() => {
+    if (!isAddDialogOpen) {
+      setCapacityHint('');
+      return;
+    }
+    const cn = newStudent.classNumber?.trim();
+    const sec = (newStudent.section || 'A').trim().toUpperCase();
+    const productCode = newStudent.productCode?.trim();
+    if (!cn || !productCode) {
+      setCapacityHint('');
+      return;
+    }
+    const match = availableClasses.find(
+      (c) =>
+        String(c.classNumber) === cn &&
+        String(c.section || 'A').toUpperCase() === sec,
+    );
+    const classId = match?._id || match?.id;
+    if (!classId) {
+      setCapacityHint(
+        'Class will be created on save. Ensure super admin licensed this class range for the selected product.',
+      );
+      return;
+    }
+    let cancelled = false;
+    fetchClassCapacity(String(classId), productCode).then((cap) => {
+      if (cancelled) return;
+      if (!cap) {
+        setCapacityHint('');
+        return;
+      }
+      if (!cap.licensed) {
+        setCapacityHint(
+          'This class is outside the licensed range for the selected book. Contact platform admin.',
+        );
+      } else if (cap.isFull) {
+        setCapacityHint(
+          `Student limit reached for this class (${cap.currentCount}/${cap.maxStrength} students).`,
+        );
+      } else {
+        setCapacityHint(
+          `${cap.remaining} of ${cap.maxStrength} students remaining in this class.`,
+        );
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    isAddDialogOpen,
+    newStudent.classNumber,
+    newStudent.section,
+    newStudent.productCode,
+    availableClasses,
+  ]);
 
   const fetchClasses = async () => {
     try {
@@ -227,6 +297,7 @@ const UserManagement = () => {
           section: newStudent.section.trim(),
           phone: newStudent.phone.trim(),
           password: newStudent.password.trim(),
+          productCode: newStudent.productCode,
         })
       });
 
@@ -242,7 +313,15 @@ const UserManagement = () => {
       
       if (response.ok && (responseData.success === true || responseData.success === undefined)) {
         // Reset form and close dialog
-        setNewStudent({ name: '', email: '', classNumber: '', section: 'A', phone: '', password: '' });
+        setNewStudent({
+          name: '',
+          email: '',
+          classNumber: '',
+          section: 'A',
+          phone: '',
+          password: '',
+          productCode: schoolProducts[0]?.code || '',
+        });
         setShowNewStudentPassword(false);
         setIsAddDialogOpen(false);
         fetchStudents();
@@ -372,7 +451,8 @@ const UserManagement = () => {
         description = `Cannot connect to ${API_BASE_URL}. Please check:\n1. The backend server is running\n2. The API_BASE_URL is correct\n3. CORS is properly configured`;
       } else if (error instanceof Error) {
         errorMessage = error.message;
-        description = 'Please check:\n1. Your admin account has a board assigned\n2. The CSV file format is correct\n3. Your internet connection is stable';
+        description =
+          'Please check:\n1. Book products and class copy counts are set under Products\n2. The CSV file format is correct\n3. Your internet connection is stable';
       }
       
       toast({
@@ -504,38 +584,6 @@ const UserManagement = () => {
       console.error('Failed to delete all students:', error);
       alert('Failed to delete all students. Please try again.');
     }
-  };
-
-  const handleExportStudents = () => {
-    const rows = filteredStudents.map((student) => ({
-      name: student.name || '',
-      email: student.email || '',
-      classNumber: student.classNumber || '',
-      phone: student.phone || '',
-      status: student.status || '',
-      lastLogin: student.lastLogin ? new Date(student.lastLogin).toISOString() : '',
-      createdAt: student.createdAt ? new Date(student.createdAt).toISOString() : '',
-    }));
-
-    const headers = ['name', 'email', 'classNumber', 'phone', 'status', 'lastLogin', 'createdAt'];
-    const csv = [
-      headers.join(','),
-      ...rows.map((row) =>
-        headers
-          .map((h) => `"${String((row as any)[h] ?? '').replace(/"/g, '""')}"`)
-          .join(',')
-      ),
-    ].join('\n');
-
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `students_export_${new Date().toISOString().slice(0, 10)}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
   };
 
   const resetDeleteAllDialog = () => {
@@ -742,18 +790,6 @@ const UserManagement = () => {
           >
             <Trash2 className="w-4 h-4 sm:w-5 sm:h-5" />
           </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-orange-600 hover:text-orange-700 hover:bg-orange-100/50 rounded-lg h-9 w-9 sm:h-10 sm:w-10 p-0"
-            onClick={() => {
-              setSelectedStudentForAnalysis(student);
-              setIsRiskAnalysisModalOpen(true);
-            }}
-            title="AI Risk Analysis"
-          >
-            <Brain className="w-4 h-4 sm:w-5 sm:h-5" />
-          </Button>
         </div>
         <Button
           variant="outline"
@@ -773,142 +809,28 @@ const UserManagement = () => {
   );
 
   return (
-    <div className="min-h-screen overflow-x-hidden bg-gradient-to-br from-orange-50 via-orange-100 to-teal-50">
-      <div className="space-y-3 sm:space-y-4 lg:space-y-6 p-3 sm:p-4 lg:space-y-8 lg:p-6">
-        {/* Hero Section with Vibrant Student Stats */}
-        <div className="relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-r from-blue-600 via-cyan-600 to-teal-500 opacity-20 rounded-3xl"></div>
-          <div className="relative rounded-2xl border border-white/20 bg-white/80 p-4 shadow-2xl backdrop-blur-xl sm:rounded-3xl sm:p-6 lg:p-8">
-            <div className="mb-6 flex items-center justify-between gap-3 sm:mb-8">
-              <div>
-                <h1 className="bg-gradient-to-r from-blue-600 via-cyan-600 to-teal-500 bg-clip-text text-2xl sm:text-3xl font-bold text-transparent sm:text-4xl lg:text-5xl">
-                  Student Management
-                </h1>
-                <p className="mt-2 text-xs sm:text-sm font-medium text-gray-700 sm:mt-3 sm:text-base lg:text-xl">Manage students and their academic progress with style</p>
-              </div>
-              <div className="hidden lg:block">
-                <div className="w-24 h-24 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-full flex items-center justify-center shadow-xl">
-                  <Users className="w-12 h-12 text-white" />
-                </div>
-              </div>
-            </div>
-        
-            {/* Enhanced Stats Grid */}
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 lg:gap-3 sm:p-4 lg:p-6">
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1 }}
-                className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-400 to-blue-500 p-4 shadow-lg transition-all duration-300 hover:shadow-xl sm:p-5 lg:p-6"
-              >
-                <div className="absolute inset-0 bg-white/10 backdrop-blur-sm"></div>
-                <div className="relative z-10">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="p-3 bg-white/20 rounded-xl shadow-lg">
-                      <Users className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 text-white" />
-                    </div>
-                    <div className="text-right">
-                      <p className="text-white/90 text-xs sm:text-sm font-medium">Total Students</p>
-                      <p className="text-2xl sm:text-3xl font-bold text-white">{students.length}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center text-white/80 text-xs sm:text-sm">
-                    <TrendingUp className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
-                    <span>+12% this month</span>
-                  </div>
-                </div>
-              </motion.div>
-              
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2 }}
-                className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-600 to-emerald-700 p-4 shadow-lg transition-all duration-300 hover:shadow-xl sm:p-5 lg:p-6"
-              >
-                <div className="absolute inset-0 bg-white/10 backdrop-blur-sm"></div>
-                <div className="relative z-10">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="p-3 bg-white/20 rounded-xl shadow-lg">
-                      <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 text-white" />
-                    </div>
-                    <div className="text-right">
-                      <p className="text-white/90 text-xs sm:text-sm font-medium">Active Students</p>
-                      <p className="text-2xl sm:text-3xl font-bold text-white">{students.filter(s => s.status === 'active').length}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center text-white/80 text-xs sm:text-sm">
-                    <div className="w-2 h-2 bg-white rounded-full mr-2 animate-pulse"></div>
-                    <span>Online now</span>
-                  </div>
-                </div>
-              </motion.div>
-              
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3 }}
-                className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-orange-600 to-orange-700 p-4 shadow-lg transition-all duration-300 hover:shadow-xl sm:p-5 lg:p-6"
-              >
-                <div className="absolute inset-0 bg-white/10 backdrop-blur-sm"></div>
-                <div className="relative z-10">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="p-3 bg-white/20 rounded-xl shadow-lg">
-                      <GraduationCap className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 text-white" />
-                    </div>
-                    <div className="text-right">
-                      <p className="text-white/90 text-xs sm:text-sm font-medium">Active Classes</p>
-                      <p className="text-2xl sm:text-3xl font-bold text-white">{new Set(students.map(s => s.classNumber)).size}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center text-white/80 text-xs sm:text-sm">
-                    <BookOpen className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
-                    <span>Classes running</span>
-                  </div>
-                </div>
-              </motion.div>
-              
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.4 }}
-                className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-sky-600 to-sky-700 p-4 shadow-lg transition-all duration-300 hover:shadow-xl sm:p-5 lg:p-6"
-              >
-                <div className="absolute inset-0 bg-white/10 backdrop-blur-sm"></div>
-                <div className="relative z-10">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="p-3 bg-white/20 rounded-xl shadow-lg">
-                      <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 text-white" />
-                    </div>
-                    <div className="text-right">
-                      <p className="text-white/90 text-xs sm:text-sm font-medium">New This Month</p>
-                      <p className="text-2xl sm:text-3xl font-bold text-white">12</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center text-white/80 text-xs sm:text-sm">
-                    <span>+25% growth</span>
-                  </div>
-                </div>
-              </motion.div>
-          </div>
-        </div>
-      </div>
+    <AdminPageShell
+      title="Students"
+      description="Add students to licensed classes. Enrollment limits follow your assigned product capacity."
+    >
+      <AdminStatGrid
+        stats={[
+          { label: 'Total', value: students.length, icon: Users },
+          { label: 'Active', value: students.filter((s) => s.status === 'active').length, icon: CheckCircle },
+          { label: 'Classes', value: new Set(students.map((s) => s.classNumber).filter(Boolean)).size, icon: GraduationCap },
+        ]}
+      />
 
-        {/* Enhanced Action Bar */}
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5 }}
-          className="rounded-2xl border border-white/20 bg-white/80 p-4 shadow-xl backdrop-blur-xl sm:rounded-3xl sm:p-6"
-        >
+        <AdminPanel>
           <div className="space-y-4">
             <div className="flex flex-col xl:flex-row xl:items-center gap-4">
               <div className="flex flex-1 flex-wrap items-center gap-3">
                 <Select value={selectedClassFilter} onValueChange={setSelectedClassFilter}>
-                  <SelectTrigger className="w-full sm:w-[220px] bg-white border-sky-200 text-sky-900 rounded-xl">
-                    <SelectValue placeholder="Select Class" />
+                  <SelectTrigger className="w-full sm:w-[200px] h-10 bg-white border-slate-200 rounded-lg">
+                    <SelectValue placeholder="All classes" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Select Class</SelectItem>
+                    <SelectItem value="all">All classes</SelectItem>
                     {allClasses.map((classNum) => (
                       <SelectItem key={classNum} value={classNum}>
                         {classNum}
@@ -922,11 +844,11 @@ const UserManagement = () => {
                   onValueChange={setSelectedSectionFilter}
                   disabled={selectedClassFilter === 'all'}
                 >
-                  <SelectTrigger className="w-full sm:w-[220px] bg-white border-sky-200 text-sky-900 rounded-xl disabled:opacity-60">
-                    <SelectValue placeholder="Select Section" />
+                  <SelectTrigger className="w-full sm:w-[160px] h-10 bg-white border-slate-200 rounded-lg disabled:opacity-60">
+                    <SelectValue placeholder="All sections" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Select Section</SelectItem>
+                    <SelectItem value="all">All sections</SelectItem>
                     {availableSectionsForClass.map((section) => (
                       <SelectItem key={section} value={section}>
                         {section}
@@ -942,56 +864,41 @@ const UserManagement = () => {
                   placeholder="Search students by name, email, or class..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="px-0 pl-12 sm:pl-12 h-12 bg-white/70 border-gray-200 text-gray-900 placeholder-gray-600 focus:border-blue-400 focus:ring-blue-400/20 rounded-xl backdrop-blur-sm"
+                  className="h-10 pl-10 bg-white border-slate-200 rounded-lg"
                 />
               </div>
             </div>
 
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <div className="inline-flex flex-wrap rounded-xl border border-sky-200 bg-white p-1">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={studentViewMode === 'all' ? 'default' : 'ghost'}
-                  className={studentViewMode === 'all' ? 'rounded-lg bg-gradient-to-r from-sky-500 to-cyan-500 text-xs text-white sm:text-sm' : 'rounded-lg text-xs text-sky-700 sm:text-sm'}
-                  onClick={() => setStudentViewMode('all')}
-                >
-                  All Students
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={studentViewMode === 'class-wise' ? 'default' : 'ghost'}
-                  className={studentViewMode === 'class-wise' ? 'rounded-lg bg-gradient-to-r from-sky-500 to-cyan-500 text-xs text-white sm:text-sm' : 'rounded-lg text-xs text-sky-700 sm:text-sm'}
-                  onClick={() => setStudentViewMode('class-wise')}
-                >
-                  Class-wise View
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={studentViewMode === 'section-wise' ? 'default' : 'ghost'}
-                  className={studentViewMode === 'section-wise' ? 'rounded-lg bg-gradient-to-r from-sky-500 to-cyan-500 text-xs text-white sm:text-sm' : 'rounded-lg text-xs text-sky-700 sm:text-sm'}
-                  onClick={() => setStudentViewMode('section-wise')}
-                >
-                  Section-wise View
-                </Button>
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div className="inline-flex flex-wrap rounded-lg border border-slate-200 bg-slate-50 p-1">
+                {(
+                  [
+                    { id: 'all' as const, label: 'All students' },
+                    { id: 'class-wise' as const, label: 'By class' },
+                    { id: 'section-wise' as const, label: 'By section' },
+                  ] as const
+                ).map(({ id, label }) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setStudentViewMode(id)}
+                    className={cn(
+                      'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+                      studentViewMode === id
+                        ? 'bg-white text-slate-900 shadow-sm'
+                        : 'text-slate-600 hover:text-slate-900',
+                    )}
+                  >
+                    {label}
+                  </button>
+                ))}
               </div>
 
-              <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-                <Button
-                  className="rounded-xl bg-gradient-to-r from-orange-500 to-orange-400 px-4 text-white shadow-lg hover:from-orange-600 hover:to-orange-500 sm:px-6"
-                  onClick={handleExportStudents}
-                >
-                  <Download className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
-                  Export
-                </Button>
+              <div className="flex flex-wrap items-center gap-2">
             <Dialog open={isUploadDialogOpen} onOpenChange={setIsUploadDialogOpen}>
               <DialogTrigger asChild>
-                <Button 
-                  className="rounded-xl bg-gradient-to-r from-green-500 to-emerald-500 px-4 text-white shadow-lg hover:from-green-600 hover:to-emerald-600 sm:px-6"
-                >
-                  <Upload className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
+                <Button variant="outline" className={cn(adminOutlineBtn, 'h-10')}>
+                  <Upload className="w-4 h-4 mr-2" />
                   Upload CSV
                 </Button>
               </DialogTrigger>
@@ -1009,9 +916,13 @@ const UserManagement = () => {
                       <p className="text-xs sm:text-sm text-sky-700 mb-4">CSV Format (comma-separated):</p>
                       <div className="bg-white/70 rounded-lg p-4 mb-4 text-left">
                         <p className="text-xs text-sky-600 mb-2 font-medium">Required columns:</p>
-                        <p className="text-xs text-sky-700">name, email, classnumber, section, phone, password</p>
+                        <p className="text-xs text-sky-700">
+                          name, email, classnumber, section, phone, password (optional: productcode)
+                        </p>
                         <p className="text-xs text-sky-600 mt-2 font-medium">Example:</p>
-                        <p className="text-xs text-sky-700">John Doe, john@email.com, 7, A, 9876543210, MyPass123</p>
+                        <p className="text-xs text-sky-700">
+                          John Doe, john@email.com, 7, A, 9876543210, MyPass123, MATH_WORKBOOK_G6
+                        </p>
                         <p className="text-xs text-sky-600 mt-2 font-medium">
                           Section is used for Class-wise and Section-wise views. Passwords are saved per student (not a shared default).
                         </p>
@@ -1098,11 +1009,9 @@ const UserManagement = () => {
           
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogTrigger asChild>
-            <Button 
-              className="rounded-xl bg-gradient-to-r from-orange-500 to-teal-500 px-4 text-white shadow-lg transition-all duration-300 hover:from-orange-600 hover:to-teal-600 hover:shadow-xl sm:px-8"
-            >
-              <UserPlus className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
-              Add New Student
+            <Button className={cn(adminPrimaryBtn, 'h-10')}>
+              <UserPlus className="w-4 h-4 mr-2" />
+              Add student
             </Button>
           </DialogTrigger>
                 <DialogContent className="max-w-lg bg-white/80 border-sky-200 backdrop-blur-xl">
@@ -1174,6 +1083,31 @@ const UserManagement = () => {
                   />
                 </div>
                     </div>
+                    {schoolProducts.length > 0 ? (
+                      <div className="space-y-2">
+                        <Label className="text-xs sm:text-sm font-medium text-sky-800">
+                          Book product <span className="text-red-500">*</span>
+                        </Label>
+                        <Select
+                          value={newStudent.productCode}
+                          onValueChange={(v) => setNewStudent({ ...newStudent, productCode: v })}
+                        >
+                          <SelectTrigger className={cn(STUDENT_FORM_FIELD_CLASS, 'rounded-xl')}>
+                            <SelectValue placeholder="Select product" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {schoolProducts.map((p) => (
+                              <SelectItem key={p.code} value={p.code}>
+                                {p.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {capacityHint ? (
+                          <p className="text-xs text-amber-800">{capacityHint}</p>
+                        ) : null}
+                      </div>
+                    ) : null}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="phone" className="text-xs sm:text-sm font-medium text-sky-800">Phone (Optional)</Label>
@@ -1244,16 +1178,15 @@ const UserManagement = () => {
               </DialogContent>
             </Dialog>
             
-            {/* Delete All Students Button */}
+            {students.length > 0 ? (
             <Dialog open={isDeleteAllDialogOpen} onOpenChange={setIsDeleteAllDialogOpen}>
               <DialogTrigger asChild>
-                <Button 
-                  size="default"
-                  variant="destructive"
-                  className="rounded-xl bg-gradient-to-r from-red-500 to-red-600 px-4 text-white backdrop-blur-sm hover:from-red-600 hover:to-red-700 sm:px-6"
+                <Button
+                  variant="outline"
+                  className="h-10 border-red-200 text-red-700 hover:bg-red-50"
                 >
-                  <Trash2 className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
-                  Delete All Students
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Delete all
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-w-md bg-white/80 border-red-200 backdrop-blur-xl">
@@ -1330,36 +1263,21 @@ const UserManagement = () => {
                 </div>
               </DialogContent>
             </Dialog>
+            ) : null}
 
           </div>
         </div>
           </div>
-        </motion.div>
+        </AdminPanel>
 
-        {/* Modern Students Grid */}
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.6 }}
-          className="overflow-hidden rounded-2xl border border-sky-200 bg-white/60 shadow-lg backdrop-blur-xl"
-        >
-          <div className="p-3 sm:p-4 lg:p-6 border-b border-sky-200">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h3 className="text-xl sm:text-2xl font-bold text-sky-900">Students Directory</h3>
-                <p className="text-sky-700 mt-1">{filteredStudents.length} students found</p>
-              </div>
-              <div className="flex items-center space-x-3">
-                <Button 
-                  className="rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 px-4 text-white backdrop-blur-sm hover:from-sky-600 hover:to-blue-700 sm:px-6"
-                  onClick={handleExportStudents}
-                >
-                <Download className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
-                  Export Data
-              </Button>
-            </div>
+        <AdminPanel className="p-0 overflow-hidden">
+          <div className="px-4 py-4 sm:px-6 border-b border-slate-200 bg-slate-50/80">
+            <h3 className="text-lg font-semibold text-slate-900">Student list</h3>
+            <p className="text-sm text-slate-500 mt-0.5">
+              {filteredStudents.length} {filteredStudents.length === 1 ? 'student' : 'students'}
+              {searchTerm.trim() ? ' matching your search' : ''}
+            </p>
           </div>
-        </div>
         
           {filteredStudents.length > 0 ? (
             <div className="p-3 sm:p-4 lg:p-6 space-y-3 sm:space-y-4 lg:space-y-6">
@@ -1486,8 +1404,7 @@ const UserManagement = () => {
               </Button>
         </div>
           )}
-        </motion.div>
-      </div>
+        </AdminPanel>
 
       {/* Assign Class Dialog */}
       <Dialog open={isAssignClassDialogOpen} onOpenChange={setIsAssignClassDialogOpen}>
@@ -1674,17 +1591,7 @@ const UserManagement = () => {
         </DialogContent>
       </Dialog>
 
-      {/* AI Risk Analysis Modal */}
-      {selectedStudentForAnalysis && (
-        <StudentRiskAnalysisModal
-          open={isRiskAnalysisModalOpen}
-          onOpenChange={setIsRiskAnalysisModalOpen}
-          studentId={selectedStudentForAnalysis.id}
-          studentName={selectedStudentForAnalysis.name}
-          isSuperAdmin={false}
-        />
-      )}
-    </div>
+    </AdminPageShell>
   );
 };
 

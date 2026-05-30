@@ -1,13 +1,17 @@
 import { Link } from "wouter";
+import { usePageTitle } from "@/hooks/use-page-title";
+import { COMPANY_NAME, PRODUCT_NAME } from "@/lib/brand";
 
 export default function Contact() {
+  usePageTitle("Contact");
+
   return (
     <main className="min-h-screen bg-slate-50 text-slate-900">
       <div className="mx-auto max-w-3xl px-3 sm:px-4 lg:px-6 py-12">
         <h1 className="text-2xl sm:text-3xl font-bold">Contact Us</h1>
         <p className="mt-3 text-slate-600">
-          Get in touch with AsliLearn AI for support, partnerships, or general
-          inquiries.
+          Get in touch with {COMPANY_NAME} for support, partnerships, or general
+          inquiries about {PRODUCT_NAME}.
         </p>
 
         <section className="mt-8 space-y-4">
@@ -15,46 +19,20 @@ export default function Contact() {
           <ul className="list-disc space-y-2 pl-5 text-slate-700">
             <li>
               <a
-                href="https://www.instagram.com/aslilearnai"
+                href="mailto:support@viswamedutech.com"
                 className="text-blue-600 hover:text-blue-700"
-                target="_blank"
-                rel="noopener noreferrer"
               >
-                Instagram
-              </a>
-            </li>
-            <li>
-              <a
-                href="https://www.facebook.com/profile.php?id=61573366977048"
-                className="text-blue-600 hover:text-blue-700"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Facebook
-              </a>
-            </li>
-            <li>
-              <a
-                href="https://www.linkedin.com/company/asli-learn"
-                className="text-blue-600 hover:text-blue-700"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                LinkedIn
+                support@viswamedutech.com
               </a>
             </li>
           </ul>
-          <p className="text-slate-700">
-            For account or technical support, please sign in and use in-app help
-            where available, or message us on the channels above.
-          </p>
         </section>
 
-        <div className="mt-10">
+        <p className="mt-10 text-sm text-slate-500">
           <Link href="/" className="text-blue-600 hover:text-blue-700">
-            Back to home
+            ← Back to {PRODUCT_NAME}
           </Link>
-        </div>
+        </p>
       </div>
     </main>
   );

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -32,10 +32,24 @@ import {
   CheckCircle2,
   Loader2,
   Eye,
-  Brain
 } from 'lucide-react';
-import { StudentRiskAnalysisModal } from './StudentRiskAnalysisModal';
-import { motion } from 'framer-motion';
+import {
+  fetchAdminProductWorkspace,
+  productLabel,
+  type Product,
+  type SchoolProductAssignment,
+} from '@/lib/products';
+import {
+  AdminPageShell,
+  AdminStatGrid,
+  AdminPanel,
+  AdminTabsList,
+  AdminTabsTrigger,
+  AdminProductBadge,
+  adminPrimaryBtn,
+  adminDestructiveBtn,
+  resolveProductCodeForClassNumber,
+} from '@/components/admin/admin-ui';
 
 interface Student {
   id: string;
@@ -60,6 +74,7 @@ interface Class {
   description: string;
   classNumber: string;
   section?: string;
+  productCode?: string;
   assignedSubjects?: Array<{
     _id: string;
     id: string;
@@ -115,7 +130,9 @@ const ClassDashboard = () => {
   const [classes, setClasses] = useState<Class[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedSubject, setSelectedSubject] = useState('all');
+  const [selectedProduct, setSelectedProduct] = useState('all');
+  const [products, setProducts] = useState<Product[]>([]);
+  const [assignments, setAssignments] = useState<SchoolProductAssignment[]>([]);
   const [isAddClassDialogOpen, setIsAddClassDialogOpen] = useState(false);
   const [isAddStudentDialogOpen, setIsAddStudentDialogOpen] = useState(false);
   const [isDeleteAllDialogOpen, setIsDeleteAllDialogOpen] = useState(false);
@@ -146,12 +163,16 @@ const ClassDashboard = () => {
   const [isStudentAnalysisDialogOpen, setIsStudentAnalysisDialogOpen] = useState(false);
   const [studentAnalysis, setStudentAnalysis] = useState<any>(null);
   const [isLoadingAnalysis, setIsLoadingAnalysis] = useState(false);
-  const [isAIRiskAnalysisModalOpen, setIsAIRiskAnalysisModalOpen] = useState(false);
-  const [selectedStudentForAIRisk, setSelectedStudentForAIRisk] = useState<Student | null>(null);
   const userEditedAssignRef = useRef(false);
   const assignTargetKeyRef = useRef('');
 
   useEffect(() => {
+    fetchAdminProductWorkspace().then((w) => {
+      if (w) {
+        setProducts(w.products);
+        setAssignments(w.admin.productAssignments || []);
+      }
+    });
     fetchClasses();
     fetchSubjects();
     const onSubjectsUpdated = () => {
@@ -805,197 +826,113 @@ const ClassDashboard = () => {
     });
   };
 
-  const filteredClasses = classes.filter(classItem => {
-    const matchesSearch = classItem.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         classItem.subject.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         classItem.teacher.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesSubject = selectedSubject === 'all' || classItem.subject === selectedSubject;
-    return matchesSearch && matchesSubject;
+  const classProductCode = (c: Class) =>
+    c.productCode ||
+    resolveProductCodeForClassNumber(c.classNumber, assignments) ||
+    '';
+
+  const filteredClasses = classes.filter((classItem) => {
+    const matchesSearch =
+      classItem.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      classItem.subject?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      classItem.teacher?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      productLabel(classProductCode(classItem), products)
+        .toLowerCase()
+        .includes(searchTerm.toLowerCase());
+    const matchesProduct =
+      selectedProduct === 'all' || classProductCode(classItem) === selectedProduct;
+    return matchesSearch && matchesProduct;
   });
 
-  const classSubjects = Array.from(new Set(classes.map(c => c.subject)));
+  const classesByProduct = useMemo(() => {
+    const map = new Map<string, Class[]>();
+    for (const c of filteredClasses) {
+      const code = classProductCode(c) || '_other';
+      if (!map.has(code)) map.set(code, []);
+      map.get(code)!.push(c);
+    }
+    return map;
+  }, [filteredClasses, assignments, products]);
+
+  const productFilterOptions = useMemo(() => {
+    const codes = new Set<string>();
+    for (const a of assignments) codes.add(a.productCode);
+    for (const c of classes) {
+      const code = classProductCode(c);
+      if (code) codes.add(code);
+    }
+    return [...codes];
+  }, [assignments, classes, products]);
+
+  const totalStudents = classes.reduce((total, cls) => total + (cls.studentCount || 0), 0);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50">
-      <div className="space-y-4 sm:space-y-6 lg:space-y-8 p-3 sm:p-4 lg:p-6">
-        {/* Hero Section with Vibrant Class Stats */}
-        <div className="relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-r from-purple-600 via-pink-600 to-red-500 opacity-20 rounded-3xl"></div>
-          <div className="relative bg-white/80 backdrop-blur-xl rounded-3xl p-4 sm:p-6 lg:p-8 shadow-2xl border border-white/20">
-            <div className="flex items-center justify-between mb-8">
-              <div>
-                <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold bg-gradient-to-r from-sky-500 to-sky-600 bg-clip-text text-transparent">
-                  Class Management
-                </h1>
-                <p className="text-gray-700 mt-3 text-lg sm:text-xl font-medium">Organize and manage your classes and students with style</p>
-              </div>
-              <div className="hidden lg:block">
-                <div className="w-24 h-24 bg-gradient-to-r from-sky-400 to-sky-500 rounded-full flex items-center justify-center shadow-xl">
-                  <GraduationCap className="w-12 h-12 text-white" />
-                </div>
-              </div>
-            </div>
-            
-            {/* Stats Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 sm:p-4 lg:p-6">
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1 }}
-                className="group relative overflow-hidden bg-gradient-to-r from-orange-300 to-orange-400 text-white border-0 shadow-lg rounded-2xl p-3 sm:p-4 lg:p-6 hover:shadow-xl transition-all duration-300"
-              >
-                <div className="relative z-10">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="p-3 bg-white/20 rounded-xl shadow-lg">
-                      <GraduationCap className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 text-white" />
-                    </div>
-                    <div className="text-right">
-                      <p className="text-white/90 text-xs sm:text-sm font-medium">Total Classes</p>
-                      <p className="text-2xl sm:text-3xl font-bold text-white">{classes.length}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center text-white/80 text-xs sm:text-sm">
-                    <BookOpen className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
-                    <span>Active classes</span>
-                  </div>
-                </div>
-              </motion.div>
-              
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2 }}
-                className="group relative overflow-hidden bg-gradient-to-br from-sky-300 to-sky-400 text-white border-0 shadow-lg rounded-2xl p-3 sm:p-4 lg:p-6 hover:shadow-xl transition-all duration-300"
-              >
-                <div className="relative z-10">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="p-3 bg-white/20 rounded-xl shadow-lg">
-                      <Users className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 text-white" />
-                    </div>
-                    <div className="text-right">
-                      <p className="text-white/90 text-xs sm:text-sm font-medium">Total Students</p>
-                      <p className="text-2xl sm:text-3xl font-bold text-white">{classes.reduce((total, cls) => total + cls.studentCount, 0)}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center text-white/80 text-xs sm:text-sm">
-                    <Users className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
-                    <span>Enrolled students</span>
-                  </div>
-                </div>
-              </motion.div>
-              
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3 }}
-                className="group relative overflow-hidden bg-gradient-to-br from-teal-400 to-teal-500 text-white border-0 shadow-lg rounded-2xl p-3 sm:p-4 lg:p-6 hover:shadow-xl transition-all duration-300"
-              >
-                <div className="relative z-10">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="p-3 bg-white/20 rounded-xl shadow-lg">
-                      <BarChart3 className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 text-white" />
-                    </div>
-                    <div className="text-right">
-                      <p className="text-white/90 text-xs sm:text-sm font-medium">Avg. Class Size</p>
-                      <p className="text-2xl sm:text-3xl font-bold text-white">
-                        {classes.length > 0 ? Math.round(classes.reduce((total, cls) => total + cls.studentCount, 0) / classes.length) : 0}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center text-white/80 text-xs sm:text-sm">
-                    <TrendingUp className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
-                    <span>Students per class</span>
-                  </div>
-                </div>
-              </motion.div>
-              
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.4 }}
-                className="group relative overflow-hidden bg-gradient-to-r from-orange-300 to-orange-400 text-white border-0 shadow-lg rounded-2xl p-3 sm:p-4 lg:p-6 hover:shadow-xl transition-all duration-300"
-              >
-                <div className="relative z-10">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="p-3 bg-white/20 rounded-xl shadow-lg">
-                      <Target className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 text-white" />
-                    </div>
-                    <div className="text-right">
-                      <p className="text-white/90 text-xs sm:text-sm font-medium">Subjects</p>
-                      <p className="text-2xl sm:text-3xl font-bold text-white">{classSubjects.length}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center text-white/80 text-xs sm:text-sm">
-                    <BookOpen className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
-                    <span>Different subjects</span>
-                  </div>
-                </div>
-              </motion.div>
-            </div>
-          </div>
-        </div>
+    <AdminPageShell
+      title="Classes"
+      description="Classes are created from your licensed products. Add extra sections (B, C) or assign teachers and students."
+    >
+      <AdminStatGrid
+        stats={[
+          { label: 'Classes', value: classes.length, icon: GraduationCap },
+          { label: 'Students', value: totalStudents, icon: Users },
+          {
+            label: 'Avg. size',
+            value: classes.length ? Math.round(totalStudents / classes.length) : 0,
+            icon: BarChart3,
+          },
+          { label: 'Products', value: productFilterOptions.length, icon: BookOpen },
+        ]}
+      />
 
-        {/* Tabs */}
-        <Tabs defaultValue="classes" className="space-y-3 sm:space-y-4 lg:space-y-6">
-          <TabsList className="h-auto min-h-[3.25rem] gap-1.5 bg-white/80 backdrop-blur-xl border border-white/20 rounded-3xl p-2 sm:p-2.5">
-            <TabsTrigger
-              value="classes"
-              className="rounded-2xl px-4 py-2.5 text-sm font-semibold sm:px-6 sm:py-3 sm:text-base data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-500 data-[state=active]:to-pink-500 data-[state=active]:text-white"
-            >
-              <GraduationCap className="mr-2 h-5 w-5 sm:h-6 sm:w-6" />
+        <Tabs defaultValue="classes" className="space-y-4">
+          <AdminTabsList>
+            <AdminTabsTrigger value="classes">
+              <GraduationCap className="mr-2 h-4 w-4 inline" />
               Classes
-            </TabsTrigger>
-            <TabsTrigger
-              value="assign-subjects"
-              className="rounded-2xl px-4 py-2.5 text-sm font-semibold sm:px-6 sm:py-3 sm:text-base data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-500 data-[state=active]:to-pink-500 data-[state=active]:text-white"
-            >
-              <BookOpen className="mr-2 h-5 w-5 sm:h-6 sm:w-6" />
+            </AdminTabsTrigger>
+            <AdminTabsTrigger value="assign-subjects">
+              <BookOpen className="mr-2 h-4 w-4 inline" />
               Assign Subjects
-            </TabsTrigger>
-            <TabsTrigger
-              value="promote-class"
-              className="rounded-2xl px-4 py-2.5 text-sm font-semibold sm:px-6 sm:py-3 sm:text-base data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-500 data-[state=active]:to-pink-500 data-[state=active]:text-white"
-            >
-              <ArrowUp className="mr-2 h-5 w-5 sm:h-6 sm:w-6" />
+            </AdminTabsTrigger>
+            <AdminTabsTrigger value="promote-class">
+              <ArrowUp className="mr-2 h-4 w-4 inline" />
               Promote Class
-            </TabsTrigger>
-          </TabsList>
+            </AdminTabsTrigger>
+          </AdminTabsList>
 
-          <TabsContent value="classes" className="space-y-3 sm:space-y-4 lg:space-y-6">
-            {/* Action Bar */}
-            <div className="bg-white/80 backdrop-blur-xl rounded-3xl p-3 sm:p-4 lg:p-6 shadow-xl border border-white/20">
+          <TabsContent value="classes" className="space-y-4">
+            <AdminPanel>
               <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
-                <div className="flex flex-col md:flex-row gap-4 items-center">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 w-3 h-3 sm:w-4 sm:h-4" />
+                <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center w-full md:w-auto">
+                  <div className="relative flex-1 sm:flex-initial">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 h-4 w-4" />
                     <Input
                       placeholder="Search classes..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      className="px-0 pl-10 sm:pl-11 w-64 rounded-xl bg-white/70 border-gray-200 text-gray-900 backdrop-blur-sm"
+                      className="pl-9 w-full sm:w-64 border-slate-200"
                     />
                   </div>
                   
-                  <Select value={selectedSubject} onValueChange={setSelectedSubject}>
-                    <SelectTrigger className="w-48 rounded-xl bg-white/70 border-gray-200 text-gray-900 backdrop-blur-sm">
-                      <SelectValue placeholder="Filter by subject" />
+                  <Select value={selectedProduct} onValueChange={setSelectedProduct}>
+                    <SelectTrigger className="w-full sm:w-52 border-slate-200">
+                      <SelectValue placeholder="Filter by product" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">All Subjects</SelectItem>
-                      {classSubjects.map(subject => (
-                        <SelectItem key={subject} value={subject}>{subject}</SelectItem>
+                      <SelectItem value="all">All products</SelectItem>
+                      {productFilterOptions.map((code) => (
+                        <SelectItem key={code} value={code}>
+                          {productLabel(code, products)}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="flex gap-3">
+                <div className="flex gap-2 w-full md:w-auto">
                   {classes.length > 0 && (
                     <AlertDialog open={isDeleteAllDialogOpen} onOpenChange={setIsDeleteAllDialogOpen}>
                       <AlertDialogTrigger asChild>
-                        <Button 
-                          variant="destructive"
-                          className="bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white rounded-xl"
-                        >
+                        <Button variant="destructive" className={adminDestructiveBtn}>
                           <Trash2 className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
                           Delete All
                         </Button>
@@ -1025,49 +962,54 @@ const ClassDashboard = () => {
                       </AlertDialogContent>
                     </AlertDialog>
                   )}
-                  <Button 
-                    onClick={() => setIsAddClassDialogOpen(true)}
-                    className="bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white rounded-xl"
-                  >
-                    <Plus className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
-                    Add Class
+                  <Button onClick={() => setIsAddClassDialogOpen(true)} className={adminPrimaryBtn}>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add section
                   </Button>
                 </div>
               </div>
-            </div>
+            </AdminPanel>
 
-            {/* Classes Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 board:grid-cols-4 uhd:grid-cols-5 gap-3 sm:p-4 lg:p-6 [&>*]:min-w-0">
           {filteredClasses.length > 0 ? (
-            filteredClasses.map((classItem, index) => {
+            [...classesByProduct.entries()].map(([productKey, list]) => (
+              <div key={productKey} className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <AdminProductBadge
+                    productCode={productKey === '_other' ? '' : productKey}
+                    products={products}
+                  />
+                  <span className="text-xs text-slate-500">{list.length} class(es)</span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 [&>*]:min-w-0">
+                  {list.map((classItem) => {
               const isExpanded = expandedClassId === classItem.id;
               return (
-              <motion.div
+              <div
                 key={classItem.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 }}
-                className={`group relative min-w-0 overflow-hidden bg-white/80 backdrop-blur-xl rounded-3xl shadow-xl hover:shadow-2xl transition-all duration-300 border ${
-                  isExpanded ? 'border-sky-400 border-2' : 'border-white/20'
+                className={`rounded-xl border bg-white shadow-sm transition-shadow hover:shadow-md ${
+                  isExpanded ? 'border-slate-400 ring-1 ring-slate-200' : 'border-slate-200'
                 }`}
               >
-                <div className="absolute inset-0 bg-gradient-to-br from-sky-400/10 to-blue-500/10 backdrop-blur-sm"></div>
-                <div className="relative z-10 p-3 sm:p-4 lg:p-6 min-w-0">
-                  <div className="flex items-start justify-between gap-2 mb-4 min-w-0">
-                    <div className="flex items-center space-x-3 min-w-0 flex-1">
-                      <div className="p-3 bg-white/40 rounded-xl backdrop-blur-sm shrink-0">
-                        <GraduationCap className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 text-sky-600" />
+                <div className="p-4 min-w-0">
+                  <div className="flex items-start justify-between gap-2 mb-3 min-w-0">
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <div className="h-10 w-10 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
+                        <GraduationCap className="h-5 w-5 text-slate-600" />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <h3 className="font-bold text-sky-900 text-base sm:text-lg truncate">
+                        <h3 className="font-semibold text-slate-900 truncate">
                           {classItem.name || `Class ${classItem.classNumber}${classItem.section || ''}`}
                         </h3>
-                        {classItem.description && (
-                          <p className="text-sky-700 text-xs sm:text-sm mt-1 truncate">{classItem.description}</p>
-                        )}
+                        <AdminProductBadge
+                          productCode={classProductCode(classItem)}
+                          products={products}
+                          className="mt-1"
+                        />
                       </div>
                     </div>
-                    <Badge className="bg-green-100 text-green-800 shrink-0 whitespace-nowrap">Active</Badge>
+                    <Badge variant="outline" className="shrink-0 border-emerald-200 text-emerald-800 bg-emerald-50">
+                      Active
+                    </Badge>
                   </div>
                   
                   <div className="space-y-3 mb-6">
@@ -1189,18 +1131,6 @@ const ClassDashboard = () => {
                             >
                               <Eye className="w-4 h-4 text-sky-600" />
                             </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 sm:h-9 sm:w-9 shrink-0 hover:bg-orange-100"
-                              onClick={() => {
-                                setSelectedStudentForAIRisk(student);
-                                setIsAIRiskAnalysisModalOpen(true);
-                              }}
-                              title="AI Risk Analysis"
-                            >
-                              <Brain className="w-4 h-4 text-orange-600" />
-                            </Button>
                             <Badge
                               variant="outline"
                               className={`text-xs shrink-0 whitespace-nowrap capitalize ${
@@ -1236,17 +1166,21 @@ const ClassDashboard = () => {
                     </Button>
                   </div>
                 </div>
-              </motion.div>
-              );
-            })
-          ) : (
-            <div className="col-span-full text-center py-12">
-              <GraduationCap className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-600 text-base sm:text-lg mb-2">No classes found</p>
-              <p className="text-gray-500 text-xs sm:text-sm">Create your first class by clicking the "Add Class" button above</p>
+              </div>
+                  );
+                  })}
             </div>
-          )}
           </div>
+            ))
+          ) : (
+            <AdminPanel className="text-center py-12">
+              <GraduationCap className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+              <p className="text-slate-600 font-medium">No classes yet</p>
+              <p className="text-slate-500 text-sm mt-1">
+                Licensed classes are created automatically when you open Home or this page. Use Add section for B/C.
+              </p>
+            </AdminPanel>
+          )}
           </TabsContent>
 
           <TabsContent value="assign-subjects" className="space-y-3 sm:space-y-4 lg:space-y-6">
@@ -1743,7 +1677,6 @@ const ClassDashboard = () => {
             </form>
           </DialogContent>
         </Dialog>
-      </div>
 
         {/* Student Analysis Dialog */}
         <Dialog open={isStudentAnalysisDialogOpen} onOpenChange={setIsStudentAnalysisDialogOpen}>
@@ -1842,17 +1775,7 @@ const ClassDashboard = () => {
           </DialogContent>
         </Dialog>
 
-        {/* AI Risk Analysis Modal */}
-        {selectedStudentForAIRisk && (
-          <StudentRiskAnalysisModal
-            open={isAIRiskAnalysisModalOpen}
-            onOpenChange={setIsAIRiskAnalysisModalOpen}
-            studentId={selectedStudentForAIRisk.id}
-            studentName={selectedStudentForAIRisk.name}
-            isSuperAdmin={false}
-          />
-        )}
-    </div>
+    </AdminPageShell>
   );
 };
 

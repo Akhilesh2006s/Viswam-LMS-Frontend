@@ -10,6 +10,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { API_BASE_URL } from '@/lib/api-config';
+import { fetchAdminProductWorkspace } from '@/lib/products';
+import {
+  AdminPageShell,
+  AdminStatGrid,
+  AdminPanel,
+  adminPrimaryBtn,
+} from '@/components/admin/admin-ui';
 import {
   formatSubjectDisplayLabel,
   normalizeSubjectDisplayKey,
@@ -294,6 +301,7 @@ const TeacherManagement = () => {
   });
 
   useEffect(() => {
+    fetchAdminProductWorkspace();
     fetchTeachers();
     fetchSubjects();
     fetchClasses();
@@ -957,102 +965,20 @@ Jane Smith,jane.smith@school.edu,TeacherPass2,1234567891,Science,MSc in Chemistr
   const totalSubjects = teachers.reduce((total, teacher) => total + (teacher.subjects?.length ?? 0), 0);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-orange-100 to-teal-50 overflow-x-hidden">
-      <div className="space-y-3 sm:space-y-4 lg:space-y-6 p-3 sm:space-y-8 sm:p-4 lg:p-6">
-        {/* Hero Section with Vibrant Stats */}
-        <div className="relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-r from-orange-600 via-orange-400 to-teal-500 opacity-20 rounded-3xl"></div>
-          <div className="relative bg-white/80 backdrop-blur-xl rounded-2xl p-4 sm:rounded-3xl sm:p-6 lg:p-8 shadow-2xl border border-white/20">
-            <div className="flex items-center justify-between mb-6 sm:mb-8">
-              <div>
-                <h1 className="text-2xl sm:text-3xl sm:text-4xl lg:text-5xl leading-tight font-bold bg-gradient-to-r from-orange-600 via-orange-400 to-teal-500 bg-clip-text text-transparent break-words">
-                  Teacher Management
-                </h1>
-                <p className="text-gray-700 mt-2 sm:mt-3 text-sm sm:text-base lg:text-xl font-medium">Manage teachers and their subject assignments with style</p>
-              </div>
-              <div className="hidden lg:block">
-                <div className="w-24 h-24 bg-gradient-to-r from-orange-500 to-orange-400 rounded-full flex items-center justify-center shadow-xl">
-                  <Users className="w-12 h-12 text-white" />
-                </div>
-              </div>
-            </div>
+    <AdminPageShell
+      title="Teachers"
+      description="Add teachers and assign them to classes and subjects for your licensed products."
+    >
+      <AdminStatGrid
+        stats={[
+          { label: 'Teachers', value: totalTeachers, icon: Users },
+          { label: 'Active', value: activeTeachers, icon: CheckCircle },
+          { label: 'Subject links', value: totalSubjects, icon: BookOpen },
+        ]}
+      />
 
-            {/* Vibrant Stats Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:p-4 lg:p-6">
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1 }}
-                className="group relative overflow-hidden bg-gradient-to-r from-orange-300 to-orange-400 text-white border-0 shadow-lg rounded-2xl p-3 sm:p-4 lg:p-6 hover:shadow-2xl transition-all duration-300"
-              >
-                <div className="relative z-10">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="p-4 bg-white/20 rounded-2xl backdrop-blur-sm">
-                      <Users className="w-6 h-6 sm:w-7 sm:h-7 lg:w-8 lg:h-8 text-white" />
-                    </div>
-                    <div className="text-right">
-                      <p className="text-white/90 text-xs sm:text-sm font-medium">Total Teachers</p>
-                      <p className="text-2xl sm:text-3xl sm:text-4xl font-bold text-white">{totalTeachers}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center text-white/80 text-xs sm:text-sm">
-                    <GraduationCap className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
-                    <span>Faculty members</span>
-                  </div>
-                </div>
-              </motion.div>
-
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2 }}
-                className="group relative overflow-hidden bg-gradient-to-br from-sky-300 to-sky-400 text-white border-0 shadow-lg rounded-2xl p-3 sm:p-4 lg:p-6 hover:shadow-2xl transition-all duration-300"
-              >
-                <div className="relative z-10">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="p-4 bg-white/20 rounded-2xl backdrop-blur-sm">
-                      <CheckCircle className="w-6 h-6 sm:w-7 sm:h-7 lg:w-8 lg:h-8 text-white" />
-                    </div>
-                    <div className="text-right">
-                      <p className="text-white/90 text-xs sm:text-sm font-medium">Active Teachers</p>
-                      <p className="text-2xl sm:text-3xl sm:text-4xl font-bold text-white">{activeTeachers}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center text-white/80 text-xs sm:text-sm">
-                    <div className="w-3 h-3 bg-white rounded-full mr-2 animate-pulse"></div>
-                    <span>Currently teaching</span>
-                  </div>
-                </div>
-              </motion.div>
-
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3 }}
-                className="group relative overflow-hidden bg-gradient-to-br from-teal-400 to-teal-500 text-white border-0 shadow-lg rounded-2xl p-3 sm:p-4 lg:p-6 hover:shadow-2xl transition-all duration-300"
-              >
-                <div className="relative z-10">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="p-4 bg-white/20 rounded-2xl backdrop-blur-sm">
-                      <BookOpen className="w-6 h-6 sm:w-7 sm:h-7 lg:w-8 lg:h-8 text-white" />
-                    </div>
-                    <div className="text-right">
-                      <p className="text-white/90 text-xs sm:text-sm font-medium">Total Subjects</p>
-                      <p className="text-2xl sm:text-3xl sm:text-4xl font-bold text-white">{totalSubjects}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center text-white/80 text-xs sm:text-sm">
-                    <BookOpen className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
-                    <span>Subject assignments</span>
-                  </div>
-                </div>
-              </motion.div>
-            </div>
-          </div>
-        </div>
-
-        {/* Action Bar */}
-        <div className="flex flex-col sm:flex-row gap-4 items-center justify-between bg-white/70 backdrop-blur-xl rounded-2xl p-4 sm:p-6 shadow-xl border border-white/20">
+        <AdminPanel>
+        <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
           <div className="flex flex-col sm:flex-row gap-4 items-center">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-orange-600 w-4 h-4 sm:w-5 sm:h-5" />
@@ -1390,6 +1316,7 @@ Jane Smith,jane.smith@school.edu,TeacherPass2,1234567891,Science,MSc in Chemistr
           </Dialog>
           </div>
         </div>
+        </AdminPanel>
 
         {/* Teachers Grid — stretch cards so sections align across columns */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:p-4 lg:p-6 items-stretch">
@@ -1696,8 +1623,7 @@ Jane Smith,jane.smith@school.edu,TeacherPass2,1234567891,Science,MSc in Chemistr
               : []
           }
         />
-      </div>
-    </div>
+    </AdminPageShell>
   );
 };
 

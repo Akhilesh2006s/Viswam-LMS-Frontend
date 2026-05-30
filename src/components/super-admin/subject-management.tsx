@@ -23,7 +23,7 @@ interface Subject {
 }
 
 const BOARDS = [
-  { value: 'ASLI_EXCLUSIVE_SCHOOLS', label: 'Asli Exclusive Schools' }
+  { value: 'ASLI_EXCLUSIVE_SCHOOLS', label: 'VISWAM Exclusive Schools' }
 ];
 
 export default function SubjectManagement() {
@@ -269,33 +269,22 @@ export default function SubjectManagement() {
   };
 
   return (
-    <div className="space-y-3 sm:space-y-4 lg:space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">Subject Management</h2>
-          <p className="text-gray-600 mt-1">Create and manage subjects for each board</p>
-        </div>
-        <div className="flex gap-2">
-          <Button
-            onClick={() => setIsAddModalOpen(true)}
-            className="bg-gradient-to-r from-sky-300 to-teal-400 hover:from-sky-400 hover:to-teal-500 text-white"
-          >
-            <Plus className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
-            Add Subject
-          </Button>
-        </div>
+    <div className="sa-premium-inner-page sa-premium-inner space-y-5 sm:space-y-6">
+      <div className="flex flex-col gap-3 rounded-2xl border border-slate-200/80 bg-white/90 p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-sm text-slate-600">Filter subjects by board and class</p>
+        <Button onClick={() => setIsAddModalOpen(true)} className="rounded-xl bg-[var(--brand-navy)] hover:bg-[var(--brand-navy-hover)]">
+          <Plus className="mr-2 h-4 w-4" />
+          Add subject
+        </Button>
       </div>
 
-      {/* Board Selector and Filters */}
-      <Card>
+      <Card className="sa-inner-card">
         <CardContent className="p-4">
           <div className="flex flex-wrap items-center gap-4">
             <Label className="font-semibold">Select Board:</Label>
-            <div className="relative w-48">
-              <div className="absolute -inset-[2px] bg-gradient-to-r from-sky-300 to-teal-400 rounded-md"></div>
+            <div className="w-48">
               <Select value={selectedBoard} onValueChange={setSelectedBoard}>
-                <SelectTrigger className="w-full relative z-10 border-0 bg-white focus:ring-2 focus:ring-blue-700 focus:ring-offset-0">
+                <SelectTrigger className="w-full rounded-xl border-slate-200 bg-slate-50/80">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -310,10 +299,9 @@ export default function SubjectManagement() {
             
             {/* Filter by Subject */}
             <Label className="font-semibold ml-4">Filter by Subject:</Label>
-            <div className="relative w-48">
-              <div className="absolute -inset-[2px] bg-gradient-to-r from-orange-300 to-orange-400 rounded-md"></div>
+            <div className="w-48">
               <Select value={filterBySubject} onValueChange={setFilterBySubject}>
-                <SelectTrigger className="w-full relative z-10 border-0 bg-white focus:ring-2 focus:ring-orange-500 focus:ring-offset-0">
+                <SelectTrigger className="w-full rounded-xl border-slate-200 bg-slate-50/80">
                   <SelectValue placeholder="All Subjects" />
                 </SelectTrigger>
                 <SelectContent>
@@ -329,10 +317,9 @@ export default function SubjectManagement() {
 
             {/* Filter by Class */}
             <Label className="font-semibold ml-4">Filter by Class:</Label>
-            <div className="relative w-48">
-              <div className="absolute -inset-[2px] bg-gradient-to-r from-teal-400 to-teal-500 rounded-md"></div>
+            <div className="w-48">
               <Select value={filterByClass} onValueChange={setFilterByClass}>
-                <SelectTrigger className="w-full relative z-10 border-0 bg-white focus:ring-2 focus:ring-teal-500 focus:ring-offset-0">
+                <SelectTrigger className="w-full rounded-xl border-slate-200 bg-slate-50/80">
                   <SelectValue placeholder="All Classes" />
                 </SelectTrigger>
                 <SelectContent>
@@ -437,7 +424,7 @@ export default function SubjectManagement() {
                   <div className={`flex items-center justify-between text-xs sm:text-sm ${subject.classNumber ? 'mb-2' : ''}`}>
                     <span className={colorScheme.text + '/90'}>Board:</span>
                     <Badge className="bg-orange-600 text-white border-2 border-white/50 shadow-lg font-semibold">
-                      Asli Exclusive Schools
+                      VISWAM Exclusive Schools
                     </Badge>
                   </div>
                   <div className="flex items-center justify-between text-xs sm:text-sm mt-2">

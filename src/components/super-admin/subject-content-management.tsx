@@ -1827,7 +1827,7 @@ export default function SubjectContentManagement() {
       toast({
         title: 'Upload failed',
         description: looksLikeDroppedConnection
-          ? 'The request never got a normal response—usually nginx default 1MB body limit or a short proxy timeout. On the server that serves api.aslilearn.ai: set client_max_body_size 100m; proxy_read_timeout 300s; reload nginx. Redeploy the frontend after git pull if you still see an old message.'
+          ? 'The request never got a normal response—usually nginx default 1MB body limit or a short proxy timeout. On your API server: set client_max_body_size 100m; proxy_read_timeout 300s; reload nginx. Redeploy the frontend after git pull if you still see an old message.'
           : `Upload error: ${msg}. If this only happens in production with large files, raise nginx client_max_body_size (see server docs).`,
         variant: 'destructive',
       });
@@ -1881,26 +1881,15 @@ export default function SubjectContentManagement() {
   };
 
   return (
-    <div className="space-y-3 sm:space-y-4 lg:space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">
-            Subject &amp; Content Management
-          </h2>
-          <p className="text-gray-600 mt-1">
-            Manage subjects and learning content by class in one place.
-          </p>
-        </div>
-      </div>
-
-      <div className="space-y-3 sm:space-y-4 lg:space-y-6">
+    <div className="sa-premium-inner-page sa-premium-inner space-y-5 sm:space-y-6">
+      <div className="space-y-5 sm:space-y-6">
         {/* Row 1: Classes | Subjects */}
         <div className="grid grid-cols-1 lg:grid-cols-[300px,minmax(0,1fr)] gap-5">
           {/* Left: Classes */}
-          <Card>
+          <Card className="sa-inner-card">
           <CardHeader className="flex flex-row items-center justify-between space-y-0">
             <div>
-              <CardTitle className="flex items-center gap-2">
+              <CardTitle className="flex items-center gap-2 text-slate-900">
                 <span>Classes</span>
                 {isLoadingSubjects && <Loader2 className="w-3 h-3 sm:w-4 sm:h-4 animate-spin" />}
               </CardTitle>
@@ -1908,10 +1897,10 @@ export default function SubjectContentManagement() {
             <Button
               size="sm"
               onClick={handleOpenAddClass}
-              className="bg-gradient-to-r from-orange-400 to-sky-400 hover:from-orange-500 hover:to-sky-500 text-white shrink-0"
+              className="shrink-0 rounded-xl bg-[var(--brand-emerald)] hover:opacity-95"
             >
-              <Plus className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
-              Add Class
+              <Plus className="mr-1 h-4 w-4" />
+              Add class
             </Button>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -1931,10 +1920,8 @@ export default function SubjectContentManagement() {
                         setSelectedClassLabel(label);
                         setSelectedSubjectId(null);
                       }}
-                      className={`w-full flex items-center justify-between rounded-md border px-3 py-2 text-left text-xs sm:text-sm transition-colors ${
-                        isActive
-                          ? 'border-sky-400 bg-sky-50'
-                          : 'border-gray-200 hover:bg-gray-50'
+                      className={`sa-class-pill w-full flex items-center justify-between px-3 py-2.5 text-left text-sm ${
+                        isActive ? "sa-class-pill-active" : "hover:bg-slate-50"
                       }`}
                     >
                       <div className="font-medium text-gray-900">{label}</div>
@@ -1948,10 +1935,10 @@ export default function SubjectContentManagement() {
           </Card>
 
           {/* Right: Subjects under Class */}
-          <Card>
+          <Card className="sa-inner-card">
           <CardHeader className="flex flex-row items-center justify-between space-y-0">
             <div>
-              <CardTitle>Subjects under Class</CardTitle>
+              <CardTitle className="text-slate-900">Subjects under class</CardTitle>
               <p className="text-xs sm:text-sm text-gray-500">
                 {selectedClassLabel
                   ? `Showing subjects for ${selectedClassLabel}`
@@ -1962,10 +1949,10 @@ export default function SubjectContentManagement() {
               size="sm"
               onClick={handleOpenAddSubject}
               disabled={!selectedClassNumber}
-              className="bg-gradient-to-r from-orange-400 to-sky-400 hover:from-orange-500 hover:to-sky-500 text-white"
+              className="rounded-xl bg-[var(--brand-navy)] hover:bg-[var(--brand-navy-hover)]"
             >
-              <Plus className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
-              Add Subject
+              <Plus className="mr-1 h-4 w-4" />
+              Add subject
             </Button>
           </CardHeader>
           <CardContent>

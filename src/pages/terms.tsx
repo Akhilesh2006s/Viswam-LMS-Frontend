@@ -1,12 +1,14 @@
 import { Link } from "wouter";
+import { usePageTitle } from "@/hooks/use-page-title";
 
 export default function Terms() {
+  usePageTitle("Terms");
   return (
     <main className="min-h-screen bg-slate-50 text-slate-900">
       <div className="mx-auto max-w-3xl px-3 sm:px-4 lg:px-6 py-12">
         <h1 className="text-2xl sm:text-3xl font-bold">Terms of Service</h1>
         <p className="mt-3 text-slate-600">
-          These terms govern your use of AsliLearn and its educational services.
+          These terms govern your use of VISWAM LMS and its educational services.
         </p>
 
         <section className="mt-8 space-y-4">

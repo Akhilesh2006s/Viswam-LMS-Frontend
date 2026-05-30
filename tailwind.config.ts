@@ -38,6 +38,13 @@ export default {
         sm: "calc(var(--radius) - 4px)",
       },
       colors: {
+        brand: {
+          navy: "#0B1F3A",
+          "navy-hover": "#102B4E",
+          emerald: "#00A86B",
+          "emerald-hover": "#008F5A",
+          gold: "#D4AF37",
+        },
         background: "var(--background)",
         foreground: "var(--foreground)",
         card: {
@@ -79,7 +86,7 @@ export default {
           "5": "var(--chart-5)",
         },
         sidebar: {
-          DEFAULT: "var(--sidebar-background)",
+          DEFAULT: "var(--sidebar-background, var(--brand-navy))",
           foreground: "var(--sidebar-foreground)",
           primary: "var(--sidebar-primary)",
           "primary-foreground": "var(--sidebar-primary-foreground)",

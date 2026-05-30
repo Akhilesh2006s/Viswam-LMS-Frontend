@@ -1,7 +1,10 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { AlertCircle } from "lucide-react";
+import { usePageTitle } from "@/hooks/use-page-title";
+import { PRODUCT_NAME } from "@/lib/brand";
 
 export default function NotFound() {
+  usePageTitle("Not Found");
   return (
     <div className="min-h-screen w-full flex items-center justify-center bg-gray-50">
       <Card className="w-full max-w-md mx-4">
@@ -12,7 +15,7 @@ export default function NotFound() {
           </div>
 
           <p className="mt-4 text-xs sm:text-sm text-gray-600">
-            Did you forget to add the page to the router?
+            This page does not exist on {PRODUCT_NAME}.
           </p>
         </CardContent>
       </Card>

@@ -68,9 +68,9 @@ function invalidTokenMessage(text: string): boolean {
  */
 export function installAuthFetchInterceptor(): void {
   if (typeof window === "undefined") return;
-  const w = window as Window & { __aslilearnAuthFetchPatched?: boolean };
-  if (w.__aslilearnAuthFetchPatched) return;
-  w.__aslilearnAuthFetchPatched = true;
+  const w = window as Window & { __viswamLmsAuthFetchPatched?: boolean };
+  if (w.__viswamLmsAuthFetchPatched) return;
+  w.__viswamLmsAuthFetchPatched = true;
 
   const nativeFetch = window.fetch.bind(window);
 

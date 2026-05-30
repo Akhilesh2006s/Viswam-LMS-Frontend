@@ -11,6 +11,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { API_BASE_URL } from '@/lib/api-config';
+import { fetchAdminProductWorkspace } from '@/lib/products';
+import {
+  AdminPageShell,
+  AdminStatGrid,
+  AdminPanel,
+  adminPrimaryBtn,
+} from '@/components/admin/admin-ui';
 /** Visible fields on white dialogs (default inputs are too faint). */
 const SUBJECT_FORM_FIELD_CLASS =
   'border border-sky-300 bg-sky-50 text-sky-950 shadow-sm placeholder:text-sky-500 focus-visible:border-sky-500 focus-visible:ring-2 focus-visible:ring-sky-400/35';
@@ -75,6 +82,7 @@ const SubjectManagement = () => {
   });
 
   useEffect(() => {
+    fetchAdminProductWorkspace();
     fetchSubjects();
     fetchTeachers();
     fetchClasses();
@@ -348,102 +356,19 @@ const SubjectManagement = () => {
   const assignedSubjects = Array.isArray(subjects) ? subjects.filter(s => s.teacher).length : 0;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-orange-100 to-teal-50 overflow-x-hidden">
-      <div className="space-y-3 sm:space-y-4 lg:space-y-6 p-3 sm:space-y-8 sm:p-4 lg:p-6">
-        {/* Hero Section with Vibrant Subject Stats */}
-        <div className="relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-r from-orange-600 via-orange-400 to-teal-500 opacity-20 rounded-3xl"></div>
-          <div className="relative bg-white/80 backdrop-blur-xl rounded-2xl p-4 sm:rounded-3xl sm:p-6 lg:p-8 shadow-2xl border border-white/20">
-            <div className="flex items-center justify-between mb-6 sm:mb-8">
-              <div>
-                <h1 className="text-2xl sm:text-3xl sm:text-4xl lg:text-5xl leading-tight font-bold bg-gradient-to-r from-orange-600 via-orange-400 to-teal-500 bg-clip-text text-transparent break-words">
-                  Subject Management
-                </h1>
-                <p className="text-gray-700 mt-2 sm:mt-3 text-sm sm:text-base lg:text-xl font-medium">Manage subjects and their assignments with style</p>
-              </div>
-              <div className="hidden lg:block">
-                <div className="w-24 h-24 bg-gradient-to-r from-orange-500 to-orange-400 rounded-full flex items-center justify-center shadow-xl">
-                  <BookOpen className="w-12 h-12 text-white" />
-                </div>
-              </div>
-            </div>
+    <AdminPageShell
+      title="Subjects"
+      description="Manage subjects for your licensed classes and assign teachers."
+    >
+      <AdminStatGrid
+        stats={[
+          { label: 'Subjects', value: totalSubjects, icon: BookOpen },
+          { label: 'Active', value: activeSubjects, icon: CheckCircle },
+          { label: 'With teacher', value: assignedSubjects, icon: Users },
+        ]}
+      />
 
-            {/* Vibrant Subject Stats Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:p-4 lg:p-6">
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1 }}
-                className="group relative overflow-hidden bg-gradient-to-r from-orange-300 to-orange-400 text-white border-0 shadow-lg rounded-2xl p-3 sm:p-4 lg:p-6 hover:shadow-2xl transition-all duration-300"
-              >
-                <div className="relative z-10">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="p-4 bg-white/20 rounded-2xl backdrop-blur-sm">
-                      <BookOpen className="w-6 h-6 sm:w-7 sm:h-7 lg:w-8 lg:h-8 text-white" />
-                    </div>
-                    <div className="text-right">
-                      <p className="text-white/90 text-xs sm:text-sm font-medium">Total Subjects</p>
-                      <p className="text-2xl sm:text-3xl sm:text-4xl font-bold text-white">{totalSubjects}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center text-white/80 text-xs sm:text-sm">
-                    <BookOpen className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
-                    <span>Available courses</span>
-                  </div>
-                </div>
-              </motion.div>
-
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2 }}
-                className="group relative overflow-hidden bg-gradient-to-br from-sky-300 to-sky-400 text-white border-0 shadow-lg rounded-2xl p-3 sm:p-4 lg:p-6 hover:shadow-2xl transition-all duration-300"
-              >
-                <div className="relative z-10">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="p-4 bg-white/20 rounded-2xl backdrop-blur-sm">
-                      <CheckCircle className="w-6 h-6 sm:w-7 sm:h-7 lg:w-8 lg:h-8 text-white" />
-                    </div>
-                    <div className="text-right">
-                      <p className="text-white/90 text-xs sm:text-sm font-medium">Active Subjects</p>
-                      <p className="text-2xl sm:text-3xl sm:text-4xl font-bold text-white">{activeSubjects}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center text-white/80 text-xs sm:text-sm">
-                    <div className="w-3 h-3 bg-white rounded-full mr-2 animate-pulse"></div>
-                    <span>Currently offered</span>
-                  </div>
-                </div>
-              </motion.div>
-
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3 }}
-                className="group relative overflow-hidden bg-gradient-to-br from-teal-400 to-teal-500 text-white border-0 shadow-lg rounded-2xl p-3 sm:p-4 lg:p-6 hover:shadow-2xl transition-all duration-300"
-              >
-                <div className="relative z-10">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="p-4 bg-white/20 rounded-2xl backdrop-blur-sm">
-                      <Users className="w-6 h-6 sm:w-7 sm:h-7 lg:w-8 lg:h-8 text-white" />
-                    </div>
-                    <div className="text-right">
-                      <p className="text-white/90 text-xs sm:text-sm font-medium">Assigned Subjects</p>
-                      <p className="text-2xl sm:text-3xl sm:text-4xl font-bold text-white">{assignedSubjects}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center text-white/80 text-xs sm:text-sm">
-                    <Users className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
-                    <span>With teachers</span>
-                  </div>
-                </div>
-              </motion.div>
-            </div>
-          </div>
-        </div>
-
-        {/* Action Bar with Filters */}
-        <div className="bg-white/40 backdrop-blur-xl rounded-2xl p-3 sm:p-4 lg:p-6 shadow-lg border border-sky-200">
+        <AdminPanel>
           <div className="flex flex-col gap-4">
             <div className="flex justify-end">
               <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
@@ -606,10 +531,9 @@ const SubjectManagement = () => {
               )}
             </div>
           </div>
-        </div>
+        </AdminPanel>
 
-        {/* Subjects Table */}
-        <div className="bg-white/70 backdrop-blur-xl rounded-2xl shadow-lg border border-sky-200 overflow-hidden">
+        <AdminPanel className="p-0 overflow-hidden">
           <div className="overflow-x-auto">
           <Table className="min-w-[640px]">
             <TableHeader>
@@ -681,16 +605,15 @@ const SubjectManagement = () => {
             </TableBody>
           </Table>
           </div>
-        </div>
+        </AdminPanel>
 
         {filteredSubjects.length === 0 && (
-          <div className="text-center py-12">
-            <BookOpen className="w-16 h-16 text-sky-300 mx-auto mb-4" />
-            <h3 className="text-lg sm:text-xl font-semibold text-sky-700 mb-2">No subjects found</h3>
-            <p className="text-sky-600">Try adjusting your search criteria or add a new subject.</p>
-          </div>
+          <AdminPanel className="text-center py-12">
+            <BookOpen className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+            <h3 className="text-base font-semibold text-slate-700">No subjects found</h3>
+            <p className="text-slate-500 text-sm mt-1">Try adjusting filters or add a new subject.</p>
+          </AdminPanel>
         )}
-      </div>
 
       {/* Edit Subject Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
@@ -818,7 +741,7 @@ const SubjectManagement = () => {
           )}
         </DialogContent>
       </Dialog>
-    </div>
+    </AdminPageShell>
   );
 };
 

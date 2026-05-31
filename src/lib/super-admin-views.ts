@@ -13,4 +13,5 @@ export type SuperAdminView =
   | 'courses'
   | 'add-admin'
   | 'calendar'
-  | 'periods';
+  | 'periods'
+  | 'abacus';

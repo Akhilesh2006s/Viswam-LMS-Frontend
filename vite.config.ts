@@ -34,6 +34,8 @@ export default defineConfig({
     },
   },
   server: {
+    host: true,
+    port: 5173,
     fs: {
       strict: true,
       deny: ["**/.*"],
@@ -42,8 +44,8 @@ export default defineConfig({
       '/api': {
         target: process.env.VITE_BACKEND_URL || 'http://localhost:5000',
         changeOrigin: true,
-        secure: false, // Set to false for localhost
-        rewrite: (path) => path, // Don't rewrite the path
+        secure: false,
+        rewrite: (path) => path,
         configure: (proxy, _options) => {
           proxy.on('error', (err, _req, res) => {
             console.log('Proxy error:', err);
@@ -52,6 +54,12 @@ export default defineConfig({
             console.log('Proxying:', req.method, req.url, '->', proxyReq.path);
           });
         },
+      },
+      '/abacus-api': {
+        target: process.env.VITE_ABACUS_BACKEND_URL || 'http://localhost:5001',
+        changeOrigin: true,
+        secure: false,
+        rewrite: (path) => path.replace(/^\/abacus-api/, '/api'),
       },
     },
   },

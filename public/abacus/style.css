@@ -1,0 +1,678 @@
+/* ================= GLOBAL ================= */
+
+*{box-sizing:border-box;}
+
+:root{
+--panel-bg:#ffffff;
+--border:#e2e8f0;
+--wood:#5c3311;
+--dark:#0b1f3a;
+--brand-emerald:#00a86b;
+--brand-navy:#0b1f3a;
+}
+
+body{
+margin:0;
+font-family:'Inter','Segoe UI',Arial,Helvetica,sans-serif;
+background:#f4f7fb;
+color:#0b1f3a;
+min-height:100vh;
+overflow:auto;
+}
+
+/* ================= CONTAINER ================= */
+
+.container{
+width:100%;
+max-width:1400px;
+margin:auto;
+padding:10px 20px;
+}
+
+/* ================= TITLE ================= */
+
+.page-title{
+text-align:center;
+font-size:28px;
+font-weight:bold;
+margin-bottom:10px;
+}
+
+.gradient-text{
+background: linear-gradient(45deg,#ff6a00,#ee0979);
+-webkit-background-clip:text;
+color:transparent;
+}
+
+/* ================= HEADER ================= */
+
+/* Legacy header hidden when portal chrome is used */
+body.viswam-abacus-portal > header:not(.viswam-abacus-topnav) {
+  display: none;
+}
+
+.logo-container {
+height: 100%;
+display: flex;
+align-items: center;
+cursor: pointer;
+}
+
+.main-logo {
+max-height: 50px;
+width: auto;
+display: block;
+object-fit: contain;
+border-radius: 5px;
+}
+
+/* ================= LAYOUT ================= */
+
+.main-grid{
+display:flex;
+justify-content:center;
+padding:10px 8px;
+height:calc(100vh - 120px);
+height:auto;
+width:100%;
+}
+
+.abacus-and-questions-container{
+display:grid;
+grid-template-columns: 2fr 1fr; /* balanced merge */
+gap:10px;
+width:100%;
+align-items:flex-start;
+}
+
+.abacus-section{
+max-width:750px;
+display:flex;
+flex-direction:column;
+}
+
+.questions-section{
+width:100%;
+max-width:400px;
+height:350px;
+overflow-y:auto;
+}
+
+/* ================= BUTTON ================= */
+
+.start-btn{
+display:block;
+border-radius:9999px;
+padding:8px 16px;
+font-size:16px;
+background:linear-gradient(135deg,#00a86b 0%,#008f5a 100%);
+color:white;
+border:none;
+cursor:pointer;
+font-weight:600;
+}
+
+.start-btn:hover{
+background:#0d2c57;
+}
+
+/* ================= HEADINGS ================= */
+
+.title{
+font-size:30px;
+margin-bottom:8px;
+font-weight:bold;
+text-align:left;
+}
+
+.Problems {
+width:100%;
+max-width:380px;
+border-radius:10px;
+background-color:#f9f9f9;
+}
+
+.title2 {
+font-size:18px;
+font-weight:bold;
+margin-bottom:10px;
+}
+
+.question-steps-layout{
+display:grid;
+grid-template-columns: 1.2fr 1fr;  /* 👈 SIDE BY SIDE */
+gap:15px;
+align-items:start;
+}
+
+/* ================= INPUT ================= */
+
+#question_box{
+width:100%;
+height:220px;
+padding:10px;
+font-size:28px;
+border-radius:8px;
+border:1px solid #999;
+text-align:right;
+resize:none;
+}
+
+.technique-box{
+margin-top:10px;
+padding:8px;
+background:#e8f1ff;
+border-radius:8px;
+font-weight:bold;
+}
+
+/* ================= PANELS ================= */
+
+.panel{
+background:var(--panel-bg);
+border-radius:16px;
+padding:12px;
+border:1px solid var(--border);
+display:flex;
+flex-direction:column;
+}
+
+.panel-title{
+font-size:20px;
+margin-bottom:8px;
+font-weight:bold;
+}
+
+/* ================= ABACUS ================= */
+
+.abacus-wrapper{
+display:flex;
+flex-direction:column;
+align-items:center;
+margin:auto;
+width:100%;
+overflow-x:auto; /* ✅ allows horizontal scroll */
+scrollbar-width:thin;
+-webkit-overflow-scrolling: touch;
+}
+
+.abacus-board-wrap{
+background:#8f5d2b;
+border:6px solid #734515;
+width:100%;
+max-width:690px;
+min-width:650px;
+aspect-ratio:690/260;
+border-radius:20px;
+display:flex;
+justify-content:center;
+align-items:center;
+}
+
+.abacus{
+display:grid;
+grid-template-columns:repeat(13,1fr);
+width:100%;
+height:100%;
+max-width:676px;
+}
+
+.rod{
+position:relative;
+padding:5px 0;
+height:100%;
+}
+
+.rod-line{
+position:absolute;
+left:50%;
+transform:translateX(-50%);
+width:5px;
+height:100%;
+background:var(--wood);
+}
+
+.unit-bar{
+position:absolute;
+top:52px;
+width:100%;
+height:6px;
+background:var(--wood);
+z-index:2;
+}
+
+.unit-dot{
+position:absolute;
+top:50px;
+left:50%;
+transform:translateX(-50%);
+width:8px;
+height:8px;
+background:#fff;
+border-radius:50%;
+z-index:3;
+}
+
+.bead{
+width:80%;
+height:23px;
+position:absolute;
+left:50%;
+transform:translateX(-50%);
+border-radius:50px;
+cursor:pointer;
+transition:top 0.15s ease;
+z-index:5;
+}
+
+.upper-bead{background:#ff9966;}
+.earth-bead{background:#4da6ff;}
+
+/* ================= VALUES ================= */
+
+.below-board{
+margin-top:5px;
+display:flex;
+flex-direction:column;
+align-items:center;
+}
+
+#rodValuesRow{
+display:flex;
+justify-content:center;
+gap:10px;
+margin-top:8px;
+}
+
+.rod-value-box{
+text-align:center;
+padding:0 17px;
+font-size:18px;
+font-weight:bold;
+}
+
+.abacus-value-box{
+background:#dbe6f3;
+padding:8px;
+border-radius:10px;
+font-size:20px;
+margin-bottom:6px;
+}
+
+/* ================= ANSWER & STEPS ================= */
+
+.answer-box{
+margin-top:10px;
+padding:10px;
+background:#e8ffe8;
+border-radius:6px;
+font-weight:600;
+}
+
+.question-panel{
+display:flex;
+flex-direction:column;
+}
+
+.steps-panel{
+width:100%;
+height:100%;   /* fill right side */
+min-height:300px;
+overflow-y:auto;
+border:1px solid #ccc;
+padding:10px;
+background:white;
+border-radius:6px;
+}
+
+/* better step UI */
+.step{
+margin-bottom:6px;
+padding:6px 8px;
+background:#f4f7ff;
+border-left:4px solid #0b1f3a;
+border-radius:4px;
+}
+
+/* ================= QUESTIONS ================= */
+
+.questions-section #questions{
+display:grid;
+grid-template-columns:repeat(2,1fr);
+gap:8px;
+margin-top:10px;
+}
+
+.problem{
+border:2px solid #ddd;
+background:#fafafa;
+border-radius:8px;
+padding:8px;
+display:flex;
+flex-direction:column;
+justify-content:space-between;
+min-height:140px;
+}
+
+.q-row{
+display:grid;
+grid-template-columns:60px 1fr;
+}
+
+.q-left{
+font-weight:bold;
+font-size:13px;
+}
+
+.q-right{
+text-align:right;
+font-size:18px;
+line-height:1.3;
+}
+
+.q-right div{
+letter-spacing:2px;
+}
+
+/* ================= INPUT STATES ================= */
+
+input{
+text-align:right;
+}
+
+.your-answer{
+background:#fff4cc;
+padding:4px;
+margin-top:5px;
+border-radius:4px;
+font-weight:bold;
+}
+
+.correct-answer{
+background:#d9f7d9;
+padding:4px;
+margin-top:3px;
+border-radius:4px;
+font-weight:bold;
+}
+
+.correct{color:green;}
+.wrong{color:red;}
+
+/* ================= PHYSICAL PRACTICE GRID ================= */
+
+.physical-questions-grid{
+display:grid;
+grid-template-columns:repeat(5, minmax(0, 1fr));
+gap:14px;
+width:100%;
+margin-top:8px;
+}
+
+.physical-questions-empty{
+grid-column:1 / -1;
+padding:2.5rem 1rem;
+text-align:center;
+color:#94a3b8;
+font-size:0.95rem;
+}
+
+.physical-problem{
+border:2px solid #dbeafe;
+background:linear-gradient(180deg, #f8fbff 0%, #ffffff 100%);
+border-radius:12px;
+padding:12px 10px;
+display:flex;
+flex-direction:column;
+gap:8px;
+min-height:130px;
+box-shadow:0 1px 3px rgba(11,31,58,0.06);
+}
+
+.physical-problem .serial{
+font-size:0.75rem;
+font-weight:700;
+letter-spacing:0.04em;
+text-transform:uppercase;
+color:#059669;
+}
+
+.physical-problem .problem-lines{
+display:flex;
+flex-direction:column;
+align-items:flex-end;
+gap:2px;
+flex:1;
+}
+
+.physical-problem .num{
+width:100%;
+text-align:right;
+font-size:1.125rem;
+line-height:1.35;
+font-variant-numeric:tabular-nums;
+}
+
+.physical-problem .num .digit{
+color:#0b1f3a;
+font-weight:600;
+}
+
+.physical-problem .num .op{
+color:#2563eb;
+font-weight:700;
+margin-right:4px;
+}
+
+.physical-problem .num.expr .op{
+margin-right:3px;
+margin-left:2px;
+}
+
+.physical-problem .answer{
+width:100%;
+margin-top:auto;
+padding:6px 8px;
+border:2px solid #cbd5e1;
+border-radius:8px;
+font-size:1rem;
+font-weight:600;
+color:#0b1f3a;
+background:#fff;
+text-align:right;
+}
+
+.physical-problem .answer:focus{
+outline:none;
+border-color:#059669;
+box-shadow:0 0 0 3px rgba(5,150,105,0.15);
+}
+
+.physical-problem .result{
+min-height:1.25rem;
+font-size:0.875rem;
+font-weight:700;
+text-align:right;
+}
+
+.physical-problem .result.correct{
+color:#059669;
+}
+
+.physical-problem .result.wrong{
+color:#dc2626;
+}
+
+@media (max-width:1280px){
+.physical-questions-grid{
+grid-template-columns:repeat(4, minmax(0, 1fr));
+}
+}
+
+@media (max-width:1024px){
+.physical-questions-grid{
+grid-template-columns:repeat(3, minmax(0, 1fr));
+}
+}
+
+@media (max-width:768px){
+.physical-questions-grid{
+grid-template-columns:repeat(2, minmax(0, 1fr));
+}
+}
+
+@media (max-width:480px){
+.physical-questions-grid{
+grid-template-columns:1fr;
+}
+}
+
+/* ================= CONTROLS ================= */
+
+select,button{
+padding:6px 10px;
+margin:4px;
+font-size:14px;
+}
+
+.top-controls{
+display:flex;
+gap:15px;
+align-items:center;
+justify-content:center;
+background:var(--panel-bg);
+padding:15px;
+border-radius:12px;
+border:1px solid var(--border);
+margin-bottom:15px;
+flex-wrap:wrap;
+}
+
+.home-btn{
+background:#0b1f3a;
+color:white;
+border:none;
+border-radius:9999px;
+padding:8px 16px;
+font-weight:600;
+cursor:pointer;
+}
+
+#timer{
+font-size:20px;
+color:red;
+font-weight:bold;
+text-align:center;
+}
+
+/* ================= SCROLL ================= */
+
+.questions-section::-webkit-scrollbar{
+width:8px;
+}
+
+.questions-section::-webkit-scrollbar-thumb{
+background:#bbb;
+border-radius:6px;
+}
+
+/* ================= RESPONSIVE ================= */
+
+@media (max-width:1100px){
+
+.abacus-and-questions-container{
+grid-template-columns:1fr;
+}
+
+.questions-section{
+max-height:350px;
+height:auto;
+}
+
+}
+
+/* ================= TABLE ================= */
+
+table td{
+text-align:right;
+font-size:16px;
+}
+
+/* ================= MOBILE FIX ================= */
+
+@media (max-width: 768px){
+
+/* MAIN LAYOUT */
+.main-grid{
+    min-height:calc(100vh - 120px);
+    height:auto;
+    padding:5px;
+}
+
+.abacus-and-questions-container{
+    grid-template-columns: 1fr; /* stack */
+}
+
+/* SECTIONS */
+.abacus-section{
+    max-width:100%;
+}
+
+.questions-section{
+    max-width:100%;
+    height:auto;
+}
+
+/* QUESTION GRID */
+.questions-section #questions{
+    grid-template-columns: 1fr; /* single column */
+}
+
+/* QUESTION BOX */
+.problem{
+    min-height:auto;
+}
+
+/* TEXT AREA */
+#question_box{
+    height:150px;
+    font-size:22px;
+}
+
+/* HEADER */
+header{
+    padding:10px;
+    height:auto;
+    flex-direction:column;
+    gap:5px;
+}
+
+/* TITLE */
+.title{
+    font-size:22px;
+    text-align:center;
+}
+
+/* CONTROLS */
+.top-controls{
+    flex-direction:column;
+    gap:8px;
+}
+
+/* ABACUS SCALE */
+.abacus-board-wrap{
+    max-width:100%;
+}
+
+/* ROD VALUES */
+#rodValuesRow{
+    flex-wrap:wrap;
+    gap:5px;
+}
+
+.rod-value-box{
+    padding:0 8px;
+    font-size:14px;
+}
+
+}

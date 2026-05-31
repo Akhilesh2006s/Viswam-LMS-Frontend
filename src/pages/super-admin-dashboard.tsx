@@ -12,6 +12,7 @@ const ProductCurriculumHub = lazy(() => import("@/components/super-admin/Product
 const SuperAdminOttStudio = lazy(() => import("@/components/super-admin/super-admin-ott-studio"));
 const SuperAdminCalendar = lazy(() => import("@/components/super-admin/super-admin-calendar"));
 const SuperAdminProductPeriods = lazy(() => import("@/components/super-admin/SuperAdminProductPeriods"));
+const AbacusManagement = lazy(() => import("@/components/super-admin/AbacusManagement"));
 const SubscriptionManagement = lazy(() => import("@/components/super-admin/subscription-management"));
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -779,6 +780,13 @@ export default function SuperAdminDashboard() {
         break;
       case "admins":
         body = renderAdminsContent();
+        break;
+      case "abacus":
+        body = (
+          <Suspense fallback={lazySectionFallback}>
+            <AbacusManagement />
+          </Suspense>
+        );
         break;
       case "subjects-and-content":
       case "content":

@@ -22,6 +22,7 @@ export const clearAuthData = () => {
   localStorage.removeItem('userRole');
   localStorage.removeItem('userEmail');
   localStorage.removeItem('superAdminUser');
+  localStorage.removeItem('productLine');
 
   try {
     sessionStorage.removeItem("viswam_lms_nav_initials");

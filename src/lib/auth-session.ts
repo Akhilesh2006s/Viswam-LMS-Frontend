@@ -4,6 +4,7 @@
 
 import { API_BASE_URL } from '@/lib/api-config';
 import { getAuthToken, getUser, setUser } from '@/lib/auth-utils';
+import { isAbacusUser, getAbacusUser } from '@/lib/abacus-auth';
 
 const AUTH_CACHE_MS = 90_000;
 
@@ -30,6 +31,15 @@ export async function fetchAuthUser(options: { force?: boolean } = {}): Promise<
   if (!token) {
     invalidateAuthSessionCache();
     return null;
+  }
+
+  if (isAbacusUser()) {
+    const user = getAbacusUser() || peekCachedAuthUser();
+    if (user && typeof user === 'object') {
+      cachedUser = user;
+      cachedAt = Date.now();
+    }
+    return user;
   }
 
   if (!options.force && cachedUser && Date.now() - cachedAt < AUTH_CACHE_MS) {

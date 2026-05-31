@@ -13,6 +13,14 @@ const PROD_URL =
 export const API_BASE_URL =
   import.meta.env.MODE === "production" ? PROD_URL : DEV_URL;
 
+/** Standalone Abacus API (port 5001 locally). Same DB, separate server. */
+export const ABACUS_API_BASE_URL =
+  import.meta.env.VITE_ABACUS_API_URL ||
+  import.meta.env.VITE_ABACUS_API_URL_PROD ||
+  (import.meta.env.MODE === "production"
+    ? import.meta.env.VITE_ABACUS_API_URL_PROD || ""
+    : "http://localhost:5001");
+
 /** PDFs on our hosts can load in an iframe without the student proxy. */
 export function isOurBackendPdfUrl(url: string): boolean {
   if (isCdnHostedUrl(url)) return false;

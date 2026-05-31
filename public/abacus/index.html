@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>VISWAM LMS | Abacus</title>
+  <script>
+    if (localStorage.getItem('authToken') && localStorage.getItem('productLine') === 'ABACUS') {
+      const role = JSON.parse(localStorage.getItem('student') || '{}').role;
+      location.replace(role === 'teacher' ? '/abacus/teacher' : '/abacus/student');
+    } else {
+      location.replace('/auth/login');
+    }
+  </script>
+</head>
+<body></body>
+</html>

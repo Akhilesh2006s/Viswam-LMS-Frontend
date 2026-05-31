@@ -3,6 +3,7 @@ import { BookOpen, User, Menu, LogOut, Video, LayoutDashboard } from "lucide-rea
 import { API_BASE_URL } from '@/lib/api-config';
 import { clearAuthData, getAuthToken, getUser, setUser } from '@/lib/auth-utils';
 import { fetchAuthUser } from '@/lib/auth-session';
+import { isAbacusUser } from '@/lib/abacus-auth';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -67,6 +68,10 @@ export default function Navigation() {
         } catch {
           /* ignore */
         }
+        return;
+      }
+      if (isAbacusUser()) {
+        setUserInitials(readInitialsForNav());
         return;
       }
       try {

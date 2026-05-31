@@ -86,6 +86,12 @@
   padding: 1rem 1rem 2rem;
 }
 
+@media (max-width: 767px) {
+  .viswam-premium-shell:has(.viswam-premium-mobile-bar) .viswam-premium-main {
+    padding-bottom: calc(1.5rem + 5.75rem + env(safe-area-inset-bottom, 0px));
+  }
+}
+
 @media (min-width: 640px) {
   .viswam-premium-main {
     padding: 1.25rem 1.5rem 2.5rem;
@@ -118,14 +124,20 @@
   bottom: 0;
   left: 0;
   right: 0;
-  z-index: 50;
-  display: flex;
+  z-index: 60;
+  display: none;
   justify-content: space-around;
   border-top: 1px solid rgba(15, 23, 42, 0.08);
   background: rgba(255, 255, 255, 0.96);
   backdrop-filter: blur(12px);
   padding: 0.5rem 0.25rem;
   padding-bottom: calc(0.5rem + env(safe-area-inset-bottom, 0px));
+}
+
+@media (max-width: 767px) {
+  .viswam-premium-mobile-bar {
+    display: flex;
+  }
 }
 
 .viswam-premium-mobile-bar-active {

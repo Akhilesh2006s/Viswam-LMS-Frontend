@@ -6,6 +6,8 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Eye, EyeOff, Mail, Lock, Loader2 } from 'lucide-react';
 import { API_BASE_URL } from '@/lib/api-config';
+import { abacusLogin, isAbacusEmail } from '@/lib/abacus-api';
+import { abacusDashboardPath, isAbacusUser } from '@/lib/abacus-auth';
 import { setAuthToken, setUser } from '@/lib/auth-utils';
 import { invalidateAuthSessionCache } from '@/lib/auth-session';
 import { invalidateDashboardBootstrapCache, fetchDashboardBootstrap } from '@/lib/dashboard-bootstrap';
@@ -21,46 +23,81 @@ const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
+  const redirectAfterLogin = (user: { role: string; productLine?: string }, usedAbacusApi = false) => {
+    if (user.role === 'super-admin') {
+      setLocation('/super-admin/dashboard');
+    } else if (user.role === 'admin') {
+      setLocation('/admin/dashboard');
+    } else if (usedAbacusApi || isAbacusUser(user)) {
+      setLocation(abacusDashboardPath(user.role));
+    } else if (user.role === 'teacher') {
+      setLocation('/teacher/dashboard');
+    } else {
+      void fetchDashboardBootstrap({ force: true });
+      setLocation('/dashboard');
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError('');
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(formData),
-      });
+      const useAbacusApi = isAbacusEmail(formData.email);
+      let data: { token?: string; user?: { role: string; email?: string } };
 
-      const data = await response.json();
-
-      if (response.ok) {
-        invalidateAuthSessionCache();
-        invalidateDashboardBootstrapCache();
-
-        if (data.token) setAuthToken(data.token);
-        if (data.user) {
-          setUser(data.user);
-          localStorage.setItem('userRole', data.user.role);
-          localStorage.setItem('userEmail', data.user.email);
-        }
-        if (data.user.role === 'super-admin') {
-          setLocation('/super-admin/dashboard');
-        } else if (data.user.role === 'admin') {
-          setLocation('/admin/dashboard');
-        } else if (data.user.role === 'teacher') {
-          setLocation('/teacher/dashboard');
-        } else {
-          void fetchDashboardBootstrap({ force: true });
-          setLocation('/dashboard');
-        }
+      if (useAbacusApi) {
+        data = await abacusLogin(formData.email, formData.password);
       } else {
-        setError(data.message || 'Login failed');
+        const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify(formData),
+        });
+        data = await response.json();
+        if (!response.ok) {
+          setError(data.message || 'Login failed');
+          return;
+        }
       }
-    } catch {
-      setError('Network error. Please try again.');
+
+      invalidateAuthSessionCache();
+      invalidateDashboardBootstrapCache();
+
+      if (data.token) setAuthToken(data.token);
+      if (!data.user) {
+        setError('Login failed: missing user profile');
+        return;
+      }
+
+      const userRecord = useAbacusApi
+        ? { ...data.user, productLine: 'ABACUS' as const }
+        : data.user;
+      setUser(userRecord);
+      localStorage.setItem('userRole', userRecord.role);
+      if (userRecord.email) localStorage.setItem('userEmail', userRecord.email);
+      if (useAbacusApi) {
+        localStorage.setItem('productLine', 'ABACUS');
+        const u = userRecord as Record<string, string>;
+        localStorage.setItem(
+          'student',
+          JSON.stringify({
+            id: u.id,
+            username: (u.email || '').split('@')[0],
+            name: u.fullName,
+            email: u.email,
+            category: u.category,
+            level: u.level,
+            rank: 1,
+            role: u.role,
+          }),
+        );
+      }
+      redirectAfterLogin(userRecord, useAbacusApi);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Network error. Please try again.');
     } finally {
       setIsLoading(false);
     }

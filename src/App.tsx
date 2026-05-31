@@ -1,5 +1,5 @@
 import { Suspense, lazy } from "react";
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -34,10 +34,29 @@ const Onboarding = lazy(() => import("./pages/onboarding"));
 const Privacy = lazy(() => import("./pages/privacy"));
 const Terms = lazy(() => import("./pages/terms"));
 const Contact = lazy(() => import("./pages/contact"));
+const AbacusTeacherDashboard = lazy(() => import("./pages/abacus/teacher-dashboard"));
+const AbacusStudentDashboard = lazy(() => import("./pages/abacus/student-dashboard"));
+const AbacusHomePage = lazy(() => import("./pages/abacus/home"));
+const AbacusPracticePage = lazy(() => import("./pages/abacus/practice"));
+const AbacusPhysicalPracticePage = lazy(() => import("./pages/abacus/physical-practice"));
+const AbacusAssessmentPage = lazy(() => import("./pages/abacus/assessment"));
+const AbacusAssessmentResultsPage = lazy(() => import("./pages/abacus/assessment-results"));
+const AbacusTeacherToolPage = lazy(() => import("./pages/abacus/teacher-tool"));
+const AbacusPracticeResultsPage = lazy(() => import("./pages/abacus/practice-results"));
+const AbacusResultsHistoryPage = lazy(() => import("./pages/abacus/results-history"));
+const AbacusChangePasswordPage = lazy(() => import("./pages/abacus/change-password"));
+const AbacusAboutPage = lazy(() => import("./pages/abacus/about"));
+
+function RouteFallback() {
+  const [location] = useLocation();
+  const isAbacus = location.startsWith("/abacus");
+  return <StudentPageLoader showNavigation={!isAbacus} message="Loading page..." />;
+}
 
 function Router() {
   return (
-    <Switch>
+    <Suspense fallback={<RouteFallback />}>
+      <Switch>
       <Route path="/" component={Login} />
       <Route path="/dashboard" component={Dashboard} />
       <Route path="/learning-paths" component={LearningPaths} />
@@ -62,6 +81,18 @@ function Router() {
       <Route path="/teacher/dashboard" component={TeacherDashboard} />
       <Route path="/teacher/timetable" component={TeacherTimetablePage} />
       <Route path="/teacher/subject/:id" component={TeacherSubjectContent} />
+      <Route path="/abacus/teacher" component={AbacusTeacherDashboard} />
+      <Route path="/abacus/student" component={AbacusStudentDashboard} />
+      <Route path="/abacus/home" component={AbacusHomePage} />
+      <Route path="/abacus/practice/results" component={AbacusPracticeResultsPage} />
+      <Route path="/abacus/practice" component={AbacusPracticePage} />
+      <Route path="/abacus/physical-practice" component={AbacusPhysicalPracticePage} />
+      <Route path="/abacus/assessment/results" component={AbacusAssessmentResultsPage} />
+      <Route path="/abacus/assessment" component={AbacusAssessmentPage} />
+      <Route path="/abacus/teacher-tool" component={AbacusTeacherToolPage} />
+      <Route path="/abacus/results" component={AbacusResultsHistoryPage} />
+      <Route path="/abacus/change-password" component={AbacusChangePasswordPage} />
+      <Route path="/abacus/about" component={AbacusAboutPage} />
       <Route path="/super-admin/dashboard" component={SuperAdminDashboard} />
       <Route path="/super-admin/schools/:id" component={SuperAdminSchoolWorkspace} />
       <Route path="/onboarding" component={Onboarding} />
@@ -69,7 +100,8 @@ function Router() {
       <Route path="/terms" component={Terms} />
       <Route path="/contact" component={Contact} />
       <Route component={NotFound} />
-    </Switch>
+      </Switch>
+    </Suspense>
   );
 }
 
@@ -78,13 +110,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Toaster />
-        <Suspense
-          fallback={
-            <StudentPageLoader message="Loading page..." />
-          }
-        >
-          <Router />
-        </Suspense>
+        <Router />
       </TooltipProvider>
     </QueryClientProvider>
   );

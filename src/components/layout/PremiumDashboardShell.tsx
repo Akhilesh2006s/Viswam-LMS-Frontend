@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import { LogOut, Menu } from "lucide-react";
+import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { ViswamLogo } from "@/components/brand/ViswamLogo";
@@ -10,6 +11,8 @@ export type PremiumNavItem = {
   id: string;
   label: string;
   icon: LucideIcon;
+  /** Navigate to a route instead of switching tabs */
+  href?: string;
   /** Highlight as streaming / OTT entry */
   ottAccent?: boolean;
 };
@@ -64,6 +67,27 @@ export function PremiumDashboardShell({
   const renderNavPill = (item: PremiumNavItem, onPick?: () => void) => {
     const Icon = item.icon;
     const isActive = activeId === item.id;
+    const className = cn(
+      "viswam-premium-nav-pill",
+      isActive && "viswam-premium-nav-pill-active",
+      isActive && item.ottAccent && "viswam-premium-nav-pill-ott",
+    );
+    const label = (
+      <>
+        <Icon className="h-4 w-4 shrink-0" strokeWidth={2} />
+        <span className="hidden sm:inline">{item.label}</span>
+        <span className="sm:hidden">{item.label.split(" ")[0]}</span>
+      </>
+    );
+
+    if (item.href) {
+      return (
+        <Link key={item.id} href={item.href} onClick={onPick} className={className}>
+          {label}
+        </Link>
+      );
+    }
+
     return (
       <button
         key={item.id}
@@ -72,15 +96,9 @@ export function PremiumDashboardShell({
           onNavChange(item.id);
           onPick?.();
         }}
-        className={cn(
-          "viswam-premium-nav-pill",
-          isActive && "viswam-premium-nav-pill-active",
-          isActive && item.ottAccent && "viswam-premium-nav-pill-ott",
-        )}
+        className={className}
       >
-        <Icon className="h-4 w-4 shrink-0" strokeWidth={2} />
-        <span className="hidden sm:inline">{item.label}</span>
-        <span className="sm:hidden">{item.label.split(" ")[0]}</span>
+        {label}
       </button>
     );
   };
@@ -91,6 +109,21 @@ export function PremiumDashboardShell({
     navItems.map((item) => {
       const Icon = item.icon;
       const isActive = activeId === item.id;
+      const className = cn(
+        "viswam-premium-sidebar-link",
+        isActive && "viswam-premium-sidebar-link-active",
+        isActive && item.ottAccent && "viswam-premium-sidebar-link-ott",
+      );
+
+      if (item.href) {
+        return (
+          <Link key={item.id} href={item.href} onClick={onPick} className={className}>
+            <Icon className="h-4 w-4 shrink-0" strokeWidth={2} />
+            <span>{item.label}</span>
+          </Link>
+        );
+      }
+
       return (
         <button
           key={item.id}
@@ -99,11 +132,7 @@ export function PremiumDashboardShell({
             onNavChange(item.id);
             onPick?.();
           }}
-          className={cn(
-            "viswam-premium-sidebar-link",
-            isActive && "viswam-premium-sidebar-link-active",
-            isActive && item.ottAccent && "viswam-premium-sidebar-link-ott",
-          )}
+          className={className}
         >
           <Icon className="h-4 w-4 shrink-0" strokeWidth={2} />
           <span>{item.label}</span>
@@ -115,7 +144,7 @@ export function PremiumDashboardShell({
     <div
       className={cn(
         "viswam-premium-shell min-h-screen",
-        !hideMobileNav && "pb-20 sm:pb-0",
+        !hideMobileNav && "max-md:pb-[calc(7rem+env(safe-area-inset-bottom,0px))]",
         useRightSidebar && "viswam-premium-shell--sidebar-right",
         className,
       )}
@@ -206,16 +235,12 @@ export function PremiumDashboardShell({
         {bottomItems.map((item) => {
           const Icon = item.icon;
           const isActive = activeId === item.id;
-          return (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => onNavChange(item.id)}
-              className={cn(
-                "flex min-w-0 flex-col items-center gap-0.5 px-2 py-1",
-                isActive ? "viswam-premium-mobile-bar-active" : "text-slate-500",
-              )}
-            >
+          const className = cn(
+            "flex min-w-0 flex-col items-center gap-0.5 px-2 py-1",
+            isActive ? "viswam-premium-mobile-bar-active" : "text-slate-500",
+          );
+          const inner = (
+            <>
               <span
                 className={cn(
                   "flex h-9 w-9 items-center justify-center rounded-xl",
@@ -225,6 +250,20 @@ export function PremiumDashboardShell({
                 <Icon className="h-4 w-4" />
               </span>
               <span className="max-w-[4.5rem] truncate text-[10px] font-medium">{item.label.split(" ")[0]}</span>
+            </>
+          );
+
+          if (item.href) {
+            return (
+              <Link key={item.id} href={item.href} className={className}>
+                {inner}
+              </Link>
+            );
+          }
+
+          return (
+            <button key={item.id} type="button" onClick={() => onNavChange(item.id)} className={className}>
+              {inner}
             </button>
           );
         })}

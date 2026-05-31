@@ -8,6 +8,7 @@ const RESTORABLE_VIEWS: SuperAdminView[] = [
   "subjects-and-content",
   "analytics",
   "dashboard",
+  "abacus",
 ];
 
 export function queueSuperAdminViewRestore(view: SuperAdminView) {

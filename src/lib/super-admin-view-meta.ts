@@ -11,6 +11,7 @@ import {
   SlidersHorizontal,
   GitCompare,
   Play,
+  Calculator,
 } from "lucide-react";
 import type { SuperAdminView } from "@/lib/super-admin-views";
 
@@ -61,6 +62,11 @@ export const SUPER_ADMIN_VIEW_META: Partial<Record<SuperAdminView, SuperAdminVie
     description: "Product-wide period slots and assigned curriculum — shared by all licensed schools.",
     icon: Clock,
   },
+  abacus: {
+    title: "Abacus",
+    description: "Abacus schools, teachers, and students — Super Admin only, no school dashboard.",
+    icon: Calculator,
+  },
   analytics: {
     title: "Analytics",
     description: "Enterprise insights across schools and learners.",
@@ -87,6 +93,7 @@ export const SUPER_ADMIN_NAV_ITEMS: {
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, group: "core" },
   { id: "products", label: "Products", icon: Layers2, group: "core" },
   { id: "admins", label: "School Management", icon: Building2, group: "core" },
+  { id: "abacus", label: "Abacus", icon: Calculator, group: "core" },
   { id: "subjects-and-content", label: "Content studio", icon: LibraryBig, group: "content" },
   { id: "viswam-ott", label: "Viswam OTT", icon: Play, group: "content" },
   { id: "periods", label: "Learning periods", icon: Clock, group: "content" },

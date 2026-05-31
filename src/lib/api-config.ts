@@ -5,6 +5,8 @@
 import { isCdnHostedUrl, resolveMediaUrl } from "./media-url";
 
 const RAILWAY_API_URL = "https://viswam-lms-backend-production.up.railway.app";
+const RAILWAY_ABACUS_API_URL =
+  "https://viswam-abacus-backend-production.up.railway.app";
 
 const DEV_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 const PROD_URL =
@@ -18,7 +20,7 @@ export const ABACUS_API_BASE_URL =
   import.meta.env.VITE_ABACUS_API_URL ||
   import.meta.env.VITE_ABACUS_API_URL_PROD ||
   (import.meta.env.MODE === "production"
-    ? import.meta.env.VITE_ABACUS_API_URL_PROD || ""
+    ? RAILWAY_ABACUS_API_URL
     : "http://localhost:5001");
 
 /** PDFs on our hosts can load in an iframe without the student proxy. */

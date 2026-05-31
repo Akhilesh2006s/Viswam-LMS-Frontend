@@ -18,6 +18,8 @@ import {
   newProductAssignmentRow,
   deriveProductsFromAssignments,
   normalizeAssignmentsFromApi,
+  assignmentToApiPayload,
+  isAssignmentRowValid,
   type ProductAssignmentRow,
 } from "@/components/admin/SchoolProductAssignmentEditor";
 import { cn } from "@/lib/utils";
@@ -71,6 +73,7 @@ interface Admin {
   state?: string;
   place?: string;
   schoolName?: string;
+  schoolCode?: string;
   schoolLogo?: string;
   phone?: string;
   pin?: string;
@@ -123,6 +126,18 @@ const resolveLogoUrl = (logoUrl?: string): string => {
 
 /** Phone fields: digits only, maximum 10 (Indian mobile). */
 const sanitizePhoneInput = (value: string) => value.replace(/\D/g, "").slice(0, 10);
+
+const sanitizeSchoolCodeInput = (value: string) =>
+  value
+    .toUpperCase()
+    .replace(/\s+/g, "_")
+    .replace(/[^A-Z0-9_-]/g, "")
+    .slice(0, 32);
+
+const isValidSchoolCodeInput = (code: string) => {
+  const c = sanitizeSchoolCodeInput(code);
+  return c.length >= 2 && /^[A-Z][A-Z0-9_-]*$/.test(c);
+};
 
 const isValidOptionalPhone = (phone: string) => {
   const digits = sanitizePhoneInput(phone);
@@ -288,6 +303,7 @@ export default function AdminManagement() {
     isAsliPrepExclusive: false,
     state: '',
     schoolName: '',
+    schoolCode: '',
     schoolLogo: '',
     phone: '',
     pin: '',
@@ -324,6 +340,7 @@ export default function AdminManagement() {
     isAsliPrepExclusive: false,
     state: '',
     schoolName: '',
+    schoolCode: '',
     schoolLogo: '',
     phone: '',
     pin: '',
@@ -343,6 +360,7 @@ export default function AdminManagement() {
       admin?.productAssignments,
       admin?.productCodes,
       sd,
+      catalogProducts,
     );
     return {
       ...admin,
@@ -545,12 +563,8 @@ export default function AdminManagement() {
     if (isAddingAdmin) return; // Prevent multiple submissions
     
     const sd = newAdmin.schoolDetails;
-    const validAssignments = newProductAssignments.filter(
-      (r) =>
-        r.productCode?.trim() &&
-        r.classesFrom?.trim() &&
-        r.classesTo?.trim() &&
-        Number(r.maxStrength) > 0,
+    const validAssignments = newProductAssignments.filter((r) =>
+      isAssignmentRowValid(r, catalogProducts),
     );
     if (
       !newAdmin.name ||
@@ -559,13 +573,14 @@ export default function AdminManagement() {
       !validAssignments.length ||
       !newAdmin.state ||
       !newAdmin.schoolName ||
+      !isValidSchoolCodeInput(newAdmin.schoolCode) ||
       !sd.city?.trim() ||
       !sd.district?.trim()
     ) {
       toast({
         title: "Error",
         description:
-          "Please fill in administrator name, email, password, at least one book product with class range and max students, state, school name, city, and district",
+          "Fill administrator details, school name, school code (2+ letters/numbers), state, city, district, and at least one product with max students and subjects per class.",
         variant: "destructive",
       });
       return;
@@ -618,17 +633,13 @@ export default function AdminManagement() {
         password: newAdmin.password,
         primaryProductCode,
         productCodes,
-        productAssignments: validAssignments.map(
-          ({ productCode, classesFrom, classesTo, maxStrength }) => ({
-            productCode,
-            classesFrom,
-            classesTo,
-            maxStrength: Math.floor(Number(maxStrength)),
-          }),
-        ),
+        productAssignments: validAssignments
+          .map(assignmentToApiPayload)
+          .filter((r): r is NonNullable<ReturnType<typeof assignmentToApiPayload>> => !!r),
         isAsliPrepExclusive: newAdmin.isAsliPrepExclusive,
         state: newAdmin.state,
         schoolName: newAdmin.schoolName,
+        schoolCode: sanitizeSchoolCodeInput(newAdmin.schoolCode),
         schoolLogo: newAdmin.schoolLogo,
         contactPerson: newAdmin.contactPerson?.trim() || '',
         phone: sanitizePhoneInput(newAdmin.phone),
@@ -654,7 +665,11 @@ export default function AdminManagement() {
         body: JSON.stringify(payload),
       });
 
+      const createdJson = await response.json().catch(() => ({}));
+
       if (response.ok) {
+        const newSchoolAdminId =
+          createdJson?.data?.id || createdJson?.data?._id || createdJson?.id;
         const fetchResponse = await fetch(`${API_BASE_URL}/api/super-admin/admins`, {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -678,6 +693,7 @@ export default function AdminManagement() {
           isAsliPrepExclusive: false,
           state: '',
           schoolName: '',
+          schoolCode: '',
           schoolLogo: '',
           phone: '',
           pin: '',
@@ -689,7 +705,10 @@ export default function AdminManagement() {
           limitedFeatures: [...SCHOOL_PORTAL_FEATURE_IDS],
         });
         setNewProductAssignments([
-          newProductAssignmentRow(catalogProducts[0]?.code || ""),
+          newProductAssignmentRow(
+            catalogProducts[0]?.code || "",
+            catalogProducts[0],
+          ),
         ]);
         setShowNewAdminPassword(false);
         setIsAddDialogOpen(false);
@@ -697,10 +716,12 @@ export default function AdminManagement() {
           title: "Success",
           description: "School added successfully",
         });
+        if (newSchoolAdminId) {
+          setLocation(`/super-admin/schools/${newSchoolAdminId}`);
+        }
       } else {
-        const errorData = await response.json();
-        console.log('API Error Response:', errorData);
-        throw new Error(errorData.message || 'Failed to add school');
+        console.log('API Error Response:', createdJson);
+        throw new Error(createdJson.message || 'Failed to add school');
       }
     } catch (error) {
       console.error('Error adding admin:', error);
@@ -795,6 +816,7 @@ export default function AdminManagement() {
       admin.productAssignments as ProductAssignmentRow[] | undefined,
       codes,
       sd,
+      catalogProducts,
     );
     setEditProductAssignments(assignmentRows);
     const exclusive =
@@ -809,6 +831,7 @@ export default function AdminManagement() {
       isAsliPrepExclusive: exclusive,
       state: normalizeStateValue(admin.state || admin.place || sd.state),
       schoolName: admin.schoolName || '',
+      schoolCode: admin.schoolCode || '',
       schoolLogo: admin.schoolLogo || '',
       phone: sanitizePhoneInput(admin.phone || ''),
       pin: admin.pin || '',
@@ -838,12 +861,8 @@ export default function AdminManagement() {
     }
 
     const esd = editAdmin.schoolDetails;
-    const validEditAssignments = editProductAssignments.filter(
-      (r) =>
-        r.productCode?.trim() &&
-        r.classesFrom?.trim() &&
-        r.classesTo?.trim() &&
-        Number(r.maxStrength) > 0,
+    const validEditAssignments = editProductAssignments.filter((r) =>
+      isAssignmentRowValid(r, catalogProducts),
     );
     if (
       !editAdmin.name ||
@@ -851,13 +870,14 @@ export default function AdminManagement() {
       !validEditAssignments.length ||
       !editAdmin.state ||
       !editAdmin.schoolName ||
+      !isValidSchoolCodeInput(editAdmin.schoolCode) ||
       !esd.city?.trim() ||
       !esd.district?.trim()
     ) {
       toast({
         title: "Error",
         description:
-          "Please fill in all required fields, at least one book product with class range and max students, city and district",
+          "Fill all required fields including school code, product licenses, city, and district.",
         variant: "destructive",
       });
       return;
@@ -901,17 +921,13 @@ export default function AdminManagement() {
           email: editAdmin.email,
           primaryProductCode: editPrimary,
           productCodes: editCodes,
-          productAssignments: validEditAssignments.map(
-            ({ productCode, classesFrom, classesTo, maxStrength }) => ({
-              productCode,
-              classesFrom,
-              classesTo,
-              maxStrength: Math.floor(Number(maxStrength)),
-            }),
-          ),
+          productAssignments: validEditAssignments
+            .map(assignmentToApiPayload)
+            .filter((r): r is NonNullable<ReturnType<typeof assignmentToApiPayload>> => !!r),
           isAsliPrepExclusive: editAdmin.isAsliPrepExclusive,
           state: editAdmin.state,
           schoolName: editAdmin.schoolName,
+          schoolCode: sanitizeSchoolCodeInput(editAdmin.schoolCode),
           schoolLogo: editAdmin.schoolLogo,
           contactPerson: editAdmin.contactPerson?.trim() || '',
           phone: sanitizePhoneInput(editAdmin.phone),
@@ -960,6 +976,7 @@ export default function AdminManagement() {
           isAsliPrepExclusive: true,
           state: '',
           schoolName: '',
+          schoolCode: '',
           schoolLogo: '',
           phone: '',
           pin: '',
@@ -1243,7 +1260,7 @@ export default function AdminManagement() {
 
               <p className="mb-3 mt-8 text-xs sm:text-sm font-semibold text-gray-900">School Information</p>
               <div className={SCHOOL_FORM_GRID_CLASS}>
-                <div className="space-y-1.5 sm:col-span-2 lg:col-span-3">
+                <div className="space-y-1.5 sm:col-span-2">
                   <Label htmlFor="schoolName">School Name *</Label>
                   <Input
                     id="schoolName"
@@ -1252,6 +1269,25 @@ export default function AdminManagement() {
                     placeholder="School name"
                     className={SCHOOL_FORM_FIELD_CLASS}
                   />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="schoolCode">School Code *</Label>
+                  <Input
+                    id="schoolCode"
+                    value={newAdmin.schoolCode}
+                    onChange={(e) =>
+                      setNewAdmin({
+                        ...newAdmin,
+                        schoolCode: sanitizeSchoolCodeInput(e.target.value),
+                      })
+                    }
+                    placeholder="e.g. ABC_HIGH_SCHOOL"
+                    className={SCHOOL_FORM_FIELD_CLASS}
+                    autoComplete="off"
+                  />
+                  <p className="text-[10px] text-slate-500">
+                    Unique ID — letters, numbers, underscores (min. 2 characters).
+                  </p>
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="doorNo">Door No</Label>
@@ -1364,12 +1400,12 @@ export default function AdminManagement() {
                       const { productCodes, primaryProductCode } =
                         deriveProductsFromAssignments(rows);
                       const p = catalogProducts.find((x) => x.code === primaryProductCode);
-                      setNewAdmin({
-                        ...newAdmin,
+                      setNewAdmin((prev) => ({
+                        ...prev,
                         productCodes,
                         primaryProductCode,
                         isAsliPrepExclusive: !!p?.isPremium,
-                      });
+                      }));
                     }}
                     catalogProducts={catalogProducts}
                     fieldClass={SCHOOL_FORM_FIELD_CLASS}
@@ -1823,7 +1859,7 @@ export default function AdminManagement() {
 
               <p className="mb-3 mt-8 text-xs sm:text-sm font-semibold text-gray-900">School Information</p>
               <div className={SCHOOL_FORM_GRID_CLASS}>
-                <div className="space-y-1.5 sm:col-span-2 lg:col-span-3">
+                <div className="space-y-1.5 sm:col-span-2">
                   <Label htmlFor="edit-schoolName">School Name *</Label>
                   <Input
                     id="edit-schoolName"
@@ -1831,6 +1867,22 @@ export default function AdminManagement() {
                     onChange={(e) => setEditAdmin({ ...editAdmin, schoolName: e.target.value })}
                     placeholder="School name"
                     className={SCHOOL_FORM_FIELD_CLASS}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-schoolCode">School Code *</Label>
+                  <Input
+                    id="edit-schoolCode"
+                    value={editAdmin.schoolCode}
+                    onChange={(e) =>
+                      setEditAdmin({
+                        ...editAdmin,
+                        schoolCode: sanitizeSchoolCodeInput(e.target.value),
+                      })
+                    }
+                    placeholder="e.g. ABC_HIGH_SCHOOL"
+                    className={SCHOOL_FORM_FIELD_CLASS}
+                    autoComplete="off"
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -1938,12 +1990,12 @@ export default function AdminManagement() {
                       const { productCodes, primaryProductCode } =
                         deriveProductsFromAssignments(rows);
                       const p = catalogProducts.find((x) => x.code === primaryProductCode);
-                      setEditAdmin({
-                        ...editAdmin,
+                      setEditAdmin((prev) => ({
+                        ...prev,
                         productCodes,
                         primaryProductCode,
                         isAsliPrepExclusive: !!p?.isPremium,
-                      });
+                      }));
                     }}
                     catalogProducts={catalogProducts}
                     fieldClass={SCHOOL_FORM_FIELD_CLASS}
@@ -2240,6 +2292,7 @@ export default function AdminManagement() {
           const query = searchQuery.toLowerCase();
           const searchBlob = [
             admin.schoolName,
+            admin.schoolCode,
             admin.name,
             admin.email,
             admin.state,
@@ -2286,6 +2339,9 @@ export default function AdminManagement() {
                     {!admin?.schoolName && (
                     <p className="text-xs sm:text-sm text-gray-600 break-all leading-snug">{admin?.email || 'No email'}</p>
                     )}
+                    {admin?.schoolCode ? (
+                      <p className="text-xs font-mono text-slate-500 mt-0.5">{admin.schoolCode}</p>
+                    ) : null}
                     {admin?.schoolName && (
                       <p className="text-xs sm:text-sm text-gray-500 break-all leading-snug">{admin?.email || 'No email'}</p>
                     )}
@@ -2364,10 +2420,11 @@ export default function AdminManagement() {
                       size="sm"
                       variant="outline"
                       onClick={() => admin?.id && setLocation(`/super-admin/schools/${admin.id}`)}
-                      className="hover:bg-orange-50 hover:text-orange-900"
-                      title="View full details"
+                      className="hover:bg-emerald-50 hover:text-emerald-900 border-emerald-200"
+                      title="Manage students, teachers, and classes"
                     >
-                      <EyeIcon className="h-3 w-3 sm:h-4 sm:w-4" />
+                      <UsersIcon className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+                      Manage school
                     </Button>
                     <Button 
                       size="sm" 

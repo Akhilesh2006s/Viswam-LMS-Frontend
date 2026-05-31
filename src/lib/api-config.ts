@@ -4,10 +4,11 @@
 
 import { isCdnHostedUrl, resolveMediaUrl } from "./media-url";
 
+const RAILWAY_API_URL = "https://viswam-lms-backend-production.up.railway.app";
+
 const DEV_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 const PROD_URL =
-  import.meta.env.VITE_API_URL_PROD ||
-  (typeof window !== "undefined" ? window.location.origin : "");
+  import.meta.env.VITE_API_URL_PROD || import.meta.env.VITE_API_URL || RAILWAY_API_URL;
 
 export const API_BASE_URL =
   import.meta.env.MODE === "production" ? PROD_URL : DEV_URL;

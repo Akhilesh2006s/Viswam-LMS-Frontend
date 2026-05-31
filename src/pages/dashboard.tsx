@@ -30,6 +30,7 @@ import {
 } from "@/lib/video-chapter-schedule";
 import { StudentTeacherDiaryFeed } from "@/components/student/StudentTeacherDiaryFeed";
 import StudentTimetableView from "@/components/student/StudentTimetableView";
+import { StudentPeriodsPanel } from "@/components/student/StudentPeriodsPanel";
 import { 
   CheckCircle, 
   TrendingUp, 
@@ -1731,6 +1732,11 @@ export default function Dashboard() {
               </CardContent>
             </Card>
           </div>
+        </div>
+
+        {/* School periods — dedicated content per period (no date/time) */}
+        <div className="mb-6 relative z-10">
+          <StudentPeriodsPanel />
         </div>
 
         {/* Student Calendar + Timetable */}

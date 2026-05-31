@@ -8,9 +8,11 @@ import { useState } from "react";
 type OttHeroBannerProps = {
   featured: OttVideo | null;
   onPlay: (video: OttVideo) => void;
+  /** Hide student watchlist control (e.g. school admin preview) */
+  showWatchlist?: boolean;
 };
 
-export function OttHeroBanner({ featured, onPlay }: OttHeroBannerProps) {
+export function OttHeroBanner({ featured, onPlay, showWatchlist = true }: OttHeroBannerProps) {
   const [saved, setSaved] = useState(() => (featured ? isInWatchlist(featured.id) : false));
 
   if (!featured) {
@@ -56,28 +58,30 @@ export function OttHeroBanner({ featured, onPlay }: OttHeroBannerProps) {
             <Play className="h-5 w-5 fill-current" />
             Play now
           </button>
-          <button
-            type="button"
-            className="ott-btn-ghost"
-            onClick={async () => {
-              const server = await toggleServerWatchlist(featured.id);
-              const next = server ?? toggleWatchlist(featured.id);
-              setSaved(next);
-              if (server !== null) {
-                const list = getWatchlist();
-                const has = list.includes(featured.id);
-                if (next && !has) list.unshift(featured.id);
-                if (!next) {
-                  const i = list.indexOf(featured.id);
-                  if (i >= 0) list.splice(i, 1);
+          {showWatchlist ? (
+            <button
+              type="button"
+              className="ott-btn-ghost"
+              onClick={async () => {
+                const server = await toggleServerWatchlist(featured.id);
+                const next = server ?? toggleWatchlist(featured.id);
+                setSaved(next);
+                if (server !== null) {
+                  const list = getWatchlist();
+                  const has = list.includes(featured.id);
+                  if (next && !has) list.unshift(featured.id);
+                  if (!next) {
+                    const i = list.indexOf(featured.id);
+                    if (i >= 0) list.splice(i, 1);
+                  }
+                  localStorage.setItem("viswam_ott_watchlist", JSON.stringify(list));
                 }
-                localStorage.setItem("viswam_ott_watchlist", JSON.stringify(list));
-              }
-            }}
-          >
-            <Plus className={`h-4 w-4 ${saved ? "rotate-45" : ""}`} />
-            {saved ? "In watchlist" : "My list"}
-          </button>
+              }}
+            >
+              <Plus className={`h-4 w-4 ${saved ? "rotate-45" : ""}`} />
+              {saved ? "In watchlist" : "My list"}
+            </button>
+          ) : null}
         </div>
       </div>
     </section>

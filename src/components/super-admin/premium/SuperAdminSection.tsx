@@ -15,7 +15,7 @@ type SuperAdminSectionProps = {
 export function SuperAdminSection({ view, children, actions, hideHeader, flush }: SuperAdminSectionProps) {
   const meta = SUPER_ADMIN_VIEW_META[view];
   return (
-    <div className="sa-premium-scope mx-auto w-full max-w-[1600px] space-y-5 sm:space-y-6">
+    <div className="sa-premium-scope mx-auto w-full max-w-[1280px] space-y-5 sm:space-y-6">
       {!hideHeader && meta ? (
         <SuperAdminPageHeader
           title={meta.title}

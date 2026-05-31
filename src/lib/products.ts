@@ -1,4 +1,9 @@
 import { API_BASE_URL } from "@/lib/api-config";
+import { schoolAdminApiUrl } from "@/lib/school-admin-api";
+
+export type ProductStructureType = "class_based" | "level_based";
+
+export type SubjectsByClass = Record<string, string[]>;
 
 export type Product = {
   _id?: string;
@@ -7,10 +12,105 @@ export type Product = {
   description?: string;
   isPremium?: boolean;
   allowedContentTypes?: string[];
+  structureType?: ProductStructureType;
+  catalogClassNumbers?: string[];
+  sameSubjectsForAllClasses?: boolean;
   catalogSubjects?: string[];
+  subjectsByClass?: SubjectsByClass;
+  catalogCategories?: string[];
   isActive?: boolean;
   sortOrder?: number;
 };
+
+export function normalizeClassNumber(value: string) {
+  return String(value).replace(/\D/g, "") || String(value).trim();
+}
+
+function sortNumericStrings(nums: string[]) {
+  return [...new Set(nums)].sort((a, b) => Number(a) - Number(b));
+}
+
+export function getProductLevelNumbers(product?: Product | null): string[] {
+  if (!product || !isLevelBasedProduct(product)) return [];
+  const nums = (product.catalogClassNumbers || [])
+    .map(normalizeClassNumber)
+    .filter(Boolean);
+  return sortNumericStrings(nums);
+}
+
+export function getProductClassNumbers(product?: Product | null): string[] {
+  if (!product) return [];
+  const nums = (product.catalogClassNumbers || [])
+    .map(normalizeClassNumber)
+    .filter(Boolean);
+  if (nums.length) return sortNumericStrings(nums);
+  if (product.sameSubjectsForAllClasses === false && product.subjectsByClass) {
+    return Object.keys(product.subjectsByClass)
+      .map(normalizeClassNumber)
+      .filter(Boolean)
+      .sort((a, b) => Number(a) - Number(b));
+  }
+  if (isLevelBasedProduct(product)) {
+    const n = Math.max(1, (product.catalogCategories || []).length);
+    return sortNumericStrings(
+      Array.from({ length: Math.min(n, 12) }, (_, i) => String(i + 1)),
+    );
+  }
+  const hay = `${product.code || ""} ${product.name || ""}`;
+  if (/ABACUS/i.test(hay)) return ["1", "2", "3"];
+  return [];
+}
+
+export function getSubjectsForClass(product?: Product | null, classNumber?: string): string[] {
+  if (!product) return [];
+  if (isLevelBasedProduct(product)) return product.catalogCategories || [];
+  const cn = normalizeClassNumber(classNumber || "");
+  if (product.sameSubjectsForAllClasses === false && cn && product.subjectsByClass?.[cn]?.length) {
+    return product.subjectsByClass[cn];
+  }
+  return product.catalogSubjects || [];
+}
+
+export function isLevelBasedProduct(product?: Product | null) {
+  return product?.structureType === "level_based";
+}
+
+export function getProductCatalogTags(product?: Product | null) {
+  if (isLevelBasedProduct(product)) {
+    return product?.catalogCategories || [];
+  }
+  if (product?.sameSubjectsForAllClasses === false && product.subjectsByClass) {
+    const union = new Set<string>();
+    Object.values(product.subjectsByClass).forEach((list) =>
+      list.forEach((s) => union.add(s)),
+    );
+    if (union.size) return [...union];
+  }
+  return product?.catalogSubjects || [];
+}
+
+export const SUBJECT_PRESETS = [
+  "Mathematics",
+  "Science",
+  "English",
+  "Hindi",
+  "Social Studies",
+  "Abacus",
+  "Physics",
+  "Chemistry",
+  "Biology",
+];
+
+export const CATEGORY_PRESETS = [
+  "Beginner",
+  "Intermediate",
+  "Advanced",
+  "Level 1",
+  "Level 2",
+  "Level 3",
+  "Foundation",
+  "Mastery",
+];
 
 export type CatalogClass = {
   _id: string;
@@ -22,7 +122,13 @@ export type CatalogClass = {
 export type ProductCurriculum = {
   product: Product;
   classes: CatalogClass[];
-  subjects: { _id: string; name: string; classNumber?: string; productCode?: string }[];
+  subjects: {
+    _id: string;
+    name: string;
+    classNumber?: string;
+    productCode?: string;
+    board?: string;
+  }[];
 };
 
 export async function fetchProductCurriculum(
@@ -30,6 +136,18 @@ export async function fetchProductCurriculum(
 ): Promise<ProductCurriculum | null> {
   const res = await fetch(
     `${API_BASE_URL}/api/super-admin/products/${encodeURIComponent(productCode)}/curriculum`,
+    { headers: authHeaders() },
+  );
+  if (!res.ok) return null;
+  const json = await res.json();
+  return json.data || null;
+}
+
+export async function fetchAdminProductCurriculum(
+  productCode: string,
+): Promise<ProductCurriculum | null> {
+  const res = await fetch(
+    `${API_BASE_URL}/api/admin/products/${encodeURIComponent(productCode)}/curriculum`,
     { headers: authHeaders() },
   );
   if (!res.ok) return null;
@@ -125,7 +243,20 @@ export async function deleteProduct(code: string): Promise<{ ok: boolean; messag
 
 export async function updateProduct(
   code: string,
-  payload: Partial<Pick<Product, "name" | "description" | "catalogSubjects" | "isPremium">>,
+  payload: Partial<
+    Pick<
+      Product,
+      | "name"
+      | "description"
+      | "catalogClassNumbers"
+      | "sameSubjectsForAllClasses"
+      | "catalogSubjects"
+      | "subjectsByClass"
+      | "catalogCategories"
+      | "structureType"
+      | "isPremium"
+    >
+  >,
 ): Promise<{ ok: boolean; data?: Product; message?: string }> {
   const res = await fetch(
     `${API_BASE_URL}/api/super-admin/products/${encodeURIComponent(code)}`,
@@ -145,10 +276,17 @@ export async function fetchProducts(): Promise<Product[]> {
   return json.data || [];
 }
 
-export async function fetchAdminProductWorkspace(): Promise<ProductWorkspace | null> {
-  const res = await fetch(`${API_BASE_URL}/api/admin/products/workspace`, {
+export async function fetchAdminProductWorkspace(
+  schoolAdminId?: string | null,
+): Promise<ProductWorkspace | null> {
+  const res = await fetch(
+    schoolAdminId
+      ? schoolAdminApiUrl("/products/workspace", schoolAdminId)
+      : `${API_BASE_URL}/api/admin/products/workspace`,
+    {
     headers: authHeaders(),
-  });
+  },
+  );
   if (!res.ok) return null;
   const json = await res.json();
   return json.data || null;

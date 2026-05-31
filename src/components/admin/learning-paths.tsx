@@ -22,10 +22,7 @@ import {
 } from 'lucide-react';
 import { useLocation } from 'wouter';
 import { API_BASE_URL } from '@/lib/api-config';
-import {
-  filterContentsBySchoolProgram,
-  resolveIsAsliPrepExclusive,
-} from '@/lib/school-program';
+import { resolveIsAsliPrepExclusive } from '@/lib/school-program';
 import {
   extractPlainSubjectName,
   getLearningPathClassLabel,
@@ -44,8 +41,17 @@ function isActiveCatalogSubject(subject: {
 
 function isActiveCatalogContent(item: {
   isActive?: boolean;
+  contentChannel?: string;
   subject?: { name?: string; isActive?: boolean } | string;
 }): boolean {
+  if (
+    item?.contentChannel &&
+    item.contentChannel !== 'learning_path' &&
+    item.contentChannel !== 'curriculum' &&
+    item.contentChannel !== 'ott'
+  ) {
+    return false;
+  }
   if (item?.isActive === false) return false;
   const subj = item.subject;
   if (subj != null && typeof subj === 'object') {
@@ -358,12 +364,11 @@ export default function AdminLearningPaths() {
       setIsLoadingContent(true);
       const token = localStorage.getItem('authToken');
 
-      // One request for all Asli Prep content (same source Super Admin uses), then group by subject.
-      // This avoids missing paths when the catalog has more content than per-subject calls surface.
+      // Assigned learning-path videos only (per class + subject ? same rules as students).
       let allContent: any[] = [];
       try {
         const contentResponse = await fetch(
-          `${API_BASE_URL}/api/admin/asli-prep-content`,
+          `${API_BASE_URL}/api/admin/learning-paths/content`,
           {
             headers: {
               Authorization: `Bearer ${token}`,
@@ -375,10 +380,11 @@ export default function AdminLearningPaths() {
           const contentData = await contentResponse.json();
           allContent = contentData.data || contentData || [];
           if (!Array.isArray(allContent)) allContent = [];
-          allContent = filterContentsBySchoolProgram(allContent, isAsliPrepExclusive);
+        } else {
+          console.error('learning-paths/content failed:', contentResponse.status);
         }
       } catch (e) {
-        console.error('Failed to fetch all asli-prep content:', e);
+        console.error('Failed to fetch assigned learning-path content:', e);
         allContent = [];
       }
 
@@ -486,7 +492,7 @@ export default function AdminLearningPaths() {
           <div className="flex flex-col gap-2">
             <h2 className="text-xl sm:text-2xl sm:text-3xl font-bold text-gray-900">Learning Paths</h2>
             <p className="text-gray-600">
-              Redesigned by class structure: quickly view every class and its subjects.
+              Textbooks and videos from Content Studio for your licensed classes ? open a subject to view all materials.
             </p>
           </div>
 
@@ -575,10 +581,17 @@ export default function AdminLearningPaths() {
         </div>
       ) : subjectsWithContent.length === 0 ? (
         <Card>
-          <CardContent className="p-12 text-center">
+          <CardContent className="p-12 text-center max-w-lg mx-auto">
             <BookOpen className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-base sm:text-lg font-semibold text-gray-600 mb-2">No Subjects Available</h3>
-            <p className="text-gray-500">No subjects have been registered for your board yet.</p>
+            <h3 className="text-base sm:text-lg font-semibold text-gray-600 mb-2">
+              No learning content yet
+            </h3>
+            <p className="text-gray-500 text-sm leading-relaxed">
+              Content appears here when Super Admin uploads textbooks or videos in Content Studio
+              for your licensed product and classes, and your school has those classes enabled on
+              Home. Check <strong>Home ? Your book products</strong> for licensed classes, then
+              refresh this page.
+            </p>
           </CardContent>
         </Card>
       ) : filteredSubjectsWithContent.length === 0 ? (
@@ -657,8 +670,8 @@ export default function AdminLearningPaths() {
                                 }.`}
                             </p>
 
-                            <div className="space-y-1.5 min-h-[52px]">
-                              {subject.asliPrepContent?.slice(0, 2).map((content: any, idx: number) => (
+                            <div className="space-y-1.5 min-h-[52px] max-h-40 overflow-y-auto">
+                              {subject.asliPrepContent?.map((content: any, idx: number) => (
                                 <div
                                   key={content._id || idx}
                                   className="rounded-md bg-gray-50 border border-gray-100 px-2 py-1"
@@ -667,7 +680,14 @@ export default function AdminLearningPaths() {
                                     {content.title || 'Untitled'}
                                   </p>
                                   <p className="text-[11px] text-gray-500 truncate">
-                                    {content.type || 'Content'}
+                                    {content.type === 'TextBook'
+                                      ? 'Textbook'
+                                      : content.contentChannel === 'ott'
+                                        ? 'Viswam OTT'
+                                        : content.contentChannel === 'learning_path' ||
+                                            String(content.type || '').toLowerCase() === 'video'
+                                          ? 'Video'
+                                          : content.type || 'Content'}
                                   </p>
                                 </div>
                               ))}

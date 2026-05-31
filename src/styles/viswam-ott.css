@@ -531,3 +531,812 @@
   align-items: flex-start;
   gap: 0.5rem;
 }
+
+/* Admin dashboard — light mint / emerald theme */
+.viswam-ott-admin {
+  --ott-admin-bg: #f4fbf7;
+  --ott-admin-surface: #ffffff;
+  --ott-admin-mint: #ecfdf5;
+  --ott-admin-mint-deep: #d1fae5;
+  --ott-admin-border: rgba(16, 185, 129, 0.22);
+  --ott-admin-text: #0f3d2e;
+  --ott-admin-muted: #64748b;
+  --ott-admin-gutter: 1.5rem;
+  margin: 0;
+  border-radius: 1.25rem;
+  overflow: hidden;
+  box-shadow: 0 8px 40px rgba(16, 185, 129, 0.12);
+  border: 1px solid var(--ott-admin-border);
+  min-height: min(80vh, 820px);
+  background:
+    radial-gradient(ellipse 90% 60% at 80% 0%, rgba(167, 243, 208, 0.45), transparent 55%),
+    radial-gradient(ellipse 70% 50% at 10% 20%, rgba(209, 250, 229, 0.6), transparent 50%),
+    linear-gradient(180deg, #f8fdf9 0%, var(--ott-admin-bg) 45%, #eef9f3 100%);
+  color: var(--ott-admin-text);
+}
+
+.viswam-ott-admin .ott-section-title {
+  color: var(--ott-admin-text);
+}
+
+.viswam-ott-admin .ott-section-sub {
+  color: var(--ott-admin-muted);
+}
+
+.viswam-ott-admin .ott-poster {
+  background: var(--ott-admin-surface);
+  border: 1px solid var(--ott-admin-border);
+  box-shadow: 0 4px 20px rgba(16, 185, 129, 0.08);
+}
+
+.viswam-ott-admin .ott-poster-title {
+  color: #134e4a;
+}
+
+.viswam-ott-admin .ott-poster-tag {
+  color: #059669;
+}
+
+.viswam-ott-admin .ott-poster-thumb {
+  background: linear-gradient(135deg, #d1fae5, #6ee7b7);
+}
+
+.viswam-ott-admin .ott-count-badge {
+  background: var(--ott-admin-mint-deep);
+  color: #047857;
+  border-color: var(--ott-admin-border);
+}
+
+.viswam-ott-admin .ott-filter-panel {
+  background: var(--ott-admin-surface);
+  border: 1px solid var(--ott-admin-border);
+  box-shadow: 0 2px 12px rgba(16, 185, 129, 0.06);
+}
+
+.viswam-ott-admin .ott-empty {
+  background: var(--ott-admin-surface);
+  border-color: var(--ott-admin-border);
+}
+
+.viswam-ott-admin .ott-empty h2 {
+  color: var(--ott-admin-text);
+}
+
+.viswam-ott-admin .ott-empty-text {
+  color: var(--ott-admin-muted);
+}
+
+@media (min-width: 768px) {
+  .viswam-ott-admin {
+    --ott-admin-gutter: 2rem;
+  }
+}
+
+/* Shared horizontal rhythm — aligned away from sidebar */
+.ott-admin-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.75rem var(--ott-admin-gutter) 1.25rem;
+  max-width: 1400px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.ott-admin-main--live {
+  gap: 1rem;
+}
+
+.ott-admin-feature-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+@media (min-width: 1024px) {
+  .ott-admin-feature-strip {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(240px, 300px);
+    gap: 0.75rem;
+    align-items: stretch;
+  }
+
+  .ott-admin-feature-strip .ott-admin-stats-bar--inline {
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+}
+
+.viswam-ott-admin .ott-section {
+  padding-left: 0;
+  padding-right: 0;
+  margin-bottom: 1.25rem;
+}
+
+.viswam-ott-admin .ott-filters-wrap {
+  margin: 0;
+  max-width: none;
+}
+
+.viswam-ott-admin .ott-empty {
+  margin-left: 0;
+  margin-right: 0;
+}
+
+/* Admin top bar */
+.ott-admin-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem var(--ott-admin-gutter);
+  border-bottom: 1px solid var(--ott-admin-border);
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(12px);
+  position: sticky;
+  top: 0;
+  z-index: 30;
+}
+
+.ott-admin-topbar-brand {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.ott-admin-topbar-logo {
+  font-size: 1.125rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #047857;
+}
+
+.ott-admin-topbar-tag {
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: #10b981;
+}
+
+/* Featured hero — compact, aligned with page gutter */
+.ott-admin-hero {
+  position: relative;
+  margin: 0;
+  min-height: 188px;
+  overflow: hidden;
+  border-radius: 1rem;
+  border: 1px solid var(--ott-admin-border);
+  background: linear-gradient(135deg, #ffffff 0%, #ecfdf5 55%, #d1fae5 100%);
+  box-shadow: 0 12px 40px rgba(16, 185, 129, 0.1);
+}
+
+.ott-admin-hero--empty {
+  min-height: 160px;
+}
+
+.ott-admin-hero-backdrop {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center top;
+  opacity: 0.55;
+  filter: saturate(1.05);
+}
+
+.ott-admin-hero-backdrop--fallback {
+  background:
+    radial-gradient(circle at 85% 20%, rgba(110, 231, 183, 0.5), transparent 45%),
+    linear-gradient(145deg, #ecfdf5 0%, #a7f3d0 100%);
+  opacity: 1;
+}
+
+.ott-admin-hero-vignette {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(0deg, rgba(255, 255, 255, 0.92) 0%, rgba(255, 255, 255, 0.5) 40%, transparent 72%),
+    linear-gradient(90deg, rgba(236, 253, 245, 0.95) 0%, rgba(255, 255, 255, 0.4) 55%, transparent 100%);
+  pointer-events: none;
+}
+
+.ott-admin-hero-inner {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  min-height: inherit;
+  max-width: 640px;
+  padding: 1.1rem 1.25rem 1.15rem;
+}
+
+@media (min-width: 768px) {
+  .ott-admin-hero-inner {
+    padding: 1.25rem 1.5rem 1.2rem;
+  }
+}
+
+.ott-admin-hero-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.85rem;
+  border-radius: 999px;
+  background: var(--ott-admin-mint-deep);
+  border: 1px solid var(--ott-admin-border);
+  color: #047857;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  width: fit-content;
+  margin-bottom: 0.5rem;
+}
+
+.ott-admin-hero-title {
+  color: #064e3b !important;
+  font-size: clamp(1.35rem, 4vw, 1.85rem);
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  margin: 0 0 0.35rem;
+}
+
+.ott-admin-hero-desc {
+  color: #475569 !important;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  max-width: 32rem;
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.ott-admin-hero-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.5rem;
+}
+
+.ott-admin-hero-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.65rem;
+  border-radius: 0.5rem;
+  background: var(--ott-admin-surface);
+  border: 1px solid var(--ott-admin-border);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #047857;
+}
+
+.ott-admin-hero-actions {
+  margin-top: 0.65rem;
+}
+
+.ott-admin-hero-play {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 1.35rem;
+  border-radius: 0.65rem;
+  background: var(--ott-emerald);
+  color: #fff;
+  font-weight: 700;
+  font-size: 1rem;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 12px 40px rgba(0, 168, 107, 0.45);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.ott-admin-hero-play:hover {
+  transform: scale(1.04);
+  box-shadow: 0 16px 48px rgba(0, 168, 107, 0.55);
+}
+
+/* Compact analytics */
+.ott-admin-stats-bar {
+  border-radius: 0.85rem;
+  border: 1px solid var(--ott-admin-border);
+  background: var(--ott-admin-surface);
+  padding: 0.65rem 0.85rem;
+  box-shadow: 0 2px 12px rgba(16, 185, 129, 0.06);
+}
+
+.ott-admin-stats-bar--inline {
+  margin: 0;
+}
+
+.ott-admin-stats-toggle {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0 0 0.35rem;
+  margin-bottom: 0.25rem;
+}
+
+.ott-admin-stats-toggle span {
+  color: #047857;
+}
+
+.ott-admin-stats-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.ott-admin-stats-row--grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.4rem;
+}
+
+.ott-admin-stats-row--grid .ott-admin-stat-pill {
+  min-width: 0;
+  flex: unset;
+  padding: 0.35rem 0.55rem;
+}
+
+.ott-admin-stat-pill {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: 0.5rem;
+  background: var(--ott-admin-mint);
+  border: 1px solid var(--ott-admin-border);
+  flex: 1;
+  min-width: min(100%, 140px);
+}
+
+.ott-admin-stat-pill span:nth-child(2) {
+  color: #064e3b;
+  font-weight: 700;
+}
+
+.ott-admin-stat-pill span:nth-child(3) {
+  color: var(--ott-admin-muted);
+}
+
+.ott-admin-catalog {
+  margin-top: 0;
+  padding-bottom: 0.5rem;
+}
+
+.viswam-ott-admin .ott-filter-panel {
+  padding: 0.75rem;
+}
+
+.ott-admin-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1.25rem;
+  padding: 1.25rem 1rem 0.5rem;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.ott-admin-mode-tabs {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.25rem;
+  border-radius: 0.75rem;
+  background: var(--ott-admin-mint);
+  border: 1px solid var(--ott-admin-border);
+}
+
+.ott-admin-mode-tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #64748b;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+
+.ott-admin-mode-tabs button.active {
+  background: #10b981;
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.35);
+}
+
+.ott-admin-analytics .ott-admin-stat {
+  border-radius: 0.75rem;
+  border: 1px solid var(--ott-admin-border);
+  background: var(--ott-admin-mint);
+  padding: 0.75rem 1rem;
+}
+
+/* Admin player — light theme, aligned gutters */
+.viswam-ott-admin .ott-admin-player {
+  min-height: min(85vh, 900px);
+  padding-bottom: 1.25rem;
+}
+
+.viswam-ott-admin .ott-admin-player-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem var(--ott-admin-gutter, 1.5rem);
+  max-width: 1400px;
+  margin: 0 auto;
+  width: 100%;
+  border-bottom: 1px solid var(--ott-admin-border);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(10px);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+.viswam-ott-admin .ott-admin-player-brand {
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #047857;
+}
+
+.viswam-ott-admin .ott-admin-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #047857;
+  background: var(--ott-admin-mint);
+  border: 1px solid var(--ott-admin-border);
+  border-radius: 0.5rem;
+  padding: 0.4rem 0.85rem;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.viswam-ott-admin .ott-admin-back:hover {
+  background: var(--ott-admin-mint-deep);
+  border-color: rgba(16, 185, 129, 0.45);
+}
+
+.viswam-ott-admin .ott-admin-player-inset {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0.85rem var(--ott-admin-gutter, 1.5rem) 1rem;
+  width: 100%;
+}
+
+.viswam-ott-admin .ott-admin-player-grid {
+  display: grid;
+  gap: 1rem;
+  align-items: start;
+}
+
+@media (min-width: 1024px) {
+  .viswam-ott-admin .ott-admin-player-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(260px, 300px);
+    gap: 1.25rem;
+  }
+}
+
+.viswam-ott-admin .ott-admin-player-main {
+  min-width: 0;
+}
+
+.viswam-ott-admin .ott-admin-player-frame {
+  border-radius: 0.85rem;
+  border: 1px solid var(--ott-admin-border);
+  box-shadow: 0 8px 32px rgba(16, 185, 129, 0.12);
+  overflow: hidden;
+  background: #0f172a;
+  aspect-ratio: 16 / 9;
+}
+
+.viswam-ott-admin .ott-admin-player-unavailable {
+  display: flex;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.875rem;
+  color: #94a3b8;
+}
+
+.viswam-ott-admin .ott-admin-player-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  padding: 0.5rem 0.65rem;
+  border-radius: 0.65rem;
+  background: var(--ott-admin-surface);
+  border: 1px solid var(--ott-admin-border);
+}
+
+.viswam-ott-admin .ott-admin-player-speeds,
+.viswam-ott-admin .ott-admin-player-toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.viswam-ott-admin .ott-admin-control-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.3rem 0.65rem;
+  border-radius: 999px;
+  background: var(--ott-admin-mint);
+  border: 1px solid var(--ott-admin-border);
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #047857;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.viswam-ott-admin .ott-admin-control-chip:hover {
+  background: var(--ott-admin-mint-deep);
+}
+
+.viswam-ott-admin .ott-admin-control-chip.active {
+  background: #10b981;
+  border-color: #059669;
+  color: #fff;
+}
+
+.viswam-ott-admin .ott-admin-control-chip--muted {
+  cursor: default;
+  opacity: 0.9;
+}
+
+.viswam-ott-admin .ott-admin-control-chip--muted:hover {
+  background: var(--ott-admin-mint);
+}
+
+.viswam-ott-admin .ott-admin-player-meta {
+  margin-top: 0.75rem;
+}
+
+.viswam-ott-admin .ott-admin-player-title {
+  font-size: clamp(1.15rem, 3vw, 1.5rem);
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: #064e3b;
+  margin: 0;
+}
+
+.viswam-ott-admin .ott-admin-player-subline {
+  margin: 0.25rem 0 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #059669;
+}
+
+.viswam-ott-admin .ott-admin-player-desc {
+  margin: 0.5rem 0 0;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--ott-admin-muted);
+  max-width: 42rem;
+}
+
+.viswam-ott-admin .ott-admin-player-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+  font-size: 0.75rem;
+  color: var(--ott-admin-muted);
+}
+
+.viswam-ott-admin .ott-admin-player-tags span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.viswam-ott-admin .ott-admin-player-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+@media (min-width: 1024px) {
+  .viswam-ott-admin .ott-admin-player-sidebar {
+    position: sticky;
+    top: 4.5rem;
+  }
+}
+
+.viswam-ott-admin .ott-admin-player-card {
+  border-radius: 0.85rem;
+  border: 1px solid var(--ott-admin-border);
+  background: var(--ott-admin-surface);
+  padding: 1rem;
+  box-shadow: 0 4px 16px rgba(16, 185, 129, 0.08);
+}
+
+.viswam-ott-admin .ott-admin-player-card-title {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #047857;
+  margin: 0 0 0.75rem;
+}
+
+.viswam-ott-admin .ott-admin-player-details {
+  margin: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.viswam-ott-admin .ott-admin-player-details div {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.8125rem;
+}
+
+.viswam-ott-admin .ott-admin-player-details dt {
+  color: var(--ott-admin-muted);
+  font-weight: 500;
+}
+
+.viswam-ott-admin .ott-admin-player-details dd {
+  margin: 0;
+  font-weight: 700;
+  color: #064e3b;
+  text-align: right;
+}
+
+.viswam-ott-admin .ott-admin-player-card-icons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--ott-admin-border);
+}
+
+.viswam-ott-admin .ott-admin-player-card-icons span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #047857;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.4rem;
+  background: var(--ott-admin-mint);
+  border: 1px solid var(--ott-admin-border);
+}
+
+.viswam-ott-admin .ott-admin-player-next {
+  width: 100%;
+  text-align: left;
+  border-radius: 0.85rem;
+  border: 1px solid var(--ott-admin-border);
+  background: linear-gradient(135deg, #ecfdf5 0%, #ffffff 100%);
+  padding: 0.85rem 1rem;
+  cursor: pointer;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.viswam-ott-admin .ott-admin-player-next:hover {
+  border-color: #10b981;
+  box-shadow: 0 6px 20px rgba(16, 185, 129, 0.15);
+}
+
+.viswam-ott-admin .ott-admin-player-next-label {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #059669;
+}
+
+.viswam-ott-admin .ott-admin-player-next-title {
+  margin: 0.35rem 0 0;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #064e3b;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.viswam-ott-admin .ott-admin-player-next-sub {
+  margin: 0.2rem 0 0;
+  font-size: 0.75rem;
+  color: var(--ott-admin-muted);
+}
+
+.viswam-ott-admin .ott-admin-player-next-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.65rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #047857;
+}
+
+.ott-live-badge {
+  font-size: 0.65rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0.2rem 0.5rem;
+  border-radius: 0.35rem;
+}
+
+.ott-live-badge--live {
+  background: #dc2626;
+  color: #fff;
+  animation: ott-live-pulse 1.5s ease-in-out infinite;
+}
+
+.ott-live-badge--scheduled {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.ott-live-badge--ended {
+  background: #e2e8f0;
+  color: #475569;
+}
+
+.ott-live-badge--cancelled {
+  background: #ffedd5;
+  color: #c2410c;
+}
+
+.viswam-ott-admin .ott-live-badge--scheduled {
+  background: #d1fae5;
+  color: #047857;
+}
+
+.viswam-ott-admin .ott-live-badge--ended {
+  background: var(--ott-admin-mint-deep);
+  color: var(--ott-admin-text);
+}
+
+.viswam-ott-admin .ott-live-badge--cancelled {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+@keyframes ott-live-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.75;
+  }
+}

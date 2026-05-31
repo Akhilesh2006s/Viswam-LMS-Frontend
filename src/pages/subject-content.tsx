@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useRoute } from 'wouter';
+import { useRoute, useLocation } from 'wouter';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -25,6 +25,14 @@ import { subjectTheme } from '@/lib/gamification/constants';
 import { ProgressRing } from '@/components/learning-ecosystem/ProgressRing';
 import Navigation from '@/components/navigation';
 import { ChapterJourney, StudentBottomNav, type ChapterQuiz } from '@/components/learning-ecosystem';
+import { LearningPathMaterials } from '@/components/learning-paths/LearningPathMaterials';
+import {
+  contentPlaybackUrl,
+  isVideoContent,
+  mergeLearningPathItems,
+  viswamOttWatchUrl,
+  type LearningPathItem,
+} from '@/lib/learning-path-content';
 import type { ChapterCompletedDates, ChapterQuizPassed } from '@/lib/video-chapter-schedule';
 import { API_BASE_URL } from '@/lib/api-config';
 import StudentPageLoader from '@/components/student/StudentPageLoader';
@@ -84,6 +92,7 @@ interface ContentItem {
 
 export default function SubjectContent() {
   const [, params] = useRoute('/subject/:id');
+  const [, setLocation] = useLocation();
   const [subject, setSubject] = useState<Subject | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedVideo, setSelectedVideo] = useState<Video | null>(null);
@@ -232,7 +241,8 @@ export default function SubjectContent() {
     try {
       const token = localStorage.getItem('authToken');
       const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
-      const [subjectResponse, videosResponse, contentsResponse, quizzesResponse] = await Promise.all([
+      const [subjectResponse, videosResponse, contentsResponse, learningPathResponse, quizzesResponse] =
+        await Promise.all([
         fetch(`${API_BASE_URL}/api/subjects/${subjectId}`, {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
@@ -246,6 +256,10 @@ export default function SubjectContent() {
           }
         }),
         fetch(`${API_BASE_URL}/api/student/asli-prep-content?subject=${encodeURIComponent(subjectId)}`, { headers }),
+        fetch(
+          `${API_BASE_URL}/api/student/asli-prep-content?subject=${encodeURIComponent(subjectId)}&channel=learning_path`,
+          { headers },
+        ),
         fetch(`${API_BASE_URL}/api/student/quizzes`, { headers }),
       ]);
       void loadChapterProgress(subjectId);
@@ -323,21 +337,28 @@ export default function SubjectContent() {
         setSubject(prev => prev ? { ...prev, videos: [] } as any : prev);
       }
 
-      // Fetch content for calendar view
       setLoadingContents(true);
+      const catalogRows: LearningPathItem[] = [];
       if (contentsResponse.ok) {
         const contentType = contentsResponse.headers.get('content-type');
-        if (contentType && contentType.includes('application/json')) {
+        if (contentType?.includes('application/json')) {
           const contentsData = await contentsResponse.json();
-          const contentsList = contentsData.data || contentsData || [];
+          const rows = contentsData.data || contentsData || [];
+          if (Array.isArray(rows)) catalogRows.push(...rows);
+        }
+      }
+      if (learningPathResponse.ok) {
+        const ct = learningPathResponse.headers.get('content-type');
+        if (ct?.includes('application/json')) {
+          const lpData = await learningPathResponse.json();
+          const rows = lpData.data || lpData || [];
+          if (Array.isArray(rows)) catalogRows.push(...rows);
+        }
+      }
+      const contentsList = mergeLearningPathItems(catalogRows);
+      if (contentsList.length) {
           console.log('📚 Contents fetched:', contentsList.length);
-          console.log('📚 Sample content item:', contentsList[0] ? {
-            title: contentsList[0].title,
-            date: contentsList[0].date,
-            createdAt: contentsList[0].createdAt,
-            dateType: typeof contentsList[0].date
-          } : 'No content');
-          setContents(contentsList);
+          setContents(contentsList as ContentItem[]);
           
           // Update progress after loading contents
           // Load completed items and calculate progress
@@ -348,9 +369,7 @@ export default function SubjectContent() {
             setSubject(prev => prev ? { ...prev, progress } : prev);
             setCompletedContentIds(new Set(completedIds));
           }
-        }
       } else {
-        console.warn('⚠️ Contents API failed:', contentsResponse.status);
         setContents([]);
       }
       setLoadingContents(false);
@@ -445,9 +464,16 @@ export default function SubjectContent() {
   const Icon = getIcon(subject.icon);
   const theme = subjectTheme(subject.name);
 
-  const journeyVideos = (contents.length ? contents : subject.videos || []).filter(
-    (c: any) => String(c.type || 'Video').toLowerCase() === 'video',
-  ) as any[];
+  const journeyVideos = [
+    ...contents.filter((c) => isVideoContent(c)),
+    ...(subject.videos || []).filter((v: any) => isVideoContent(v)),
+  ].map((c: any) => ({
+    ...c,
+    _id: c._id || c.id,
+    videoUrl: contentPlaybackUrl(c),
+    youtubeUrl: contentPlaybackUrl(c),
+    isYouTubeVideo: contentPlaybackUrl(c).includes('youtube') || contentPlaybackUrl(c).includes('youtu.be'),
+  }));
 
   return (
     <div className="viswam-student-app">
@@ -524,6 +550,17 @@ export default function SubjectContent() {
         </div>
 
         {viewMode === 'journey' ? (
+          <div className="space-y-6">
+          <div className="rounded-2xl border border-slate-200/90 bg-white p-4 sm:p-6 shadow-sm">
+            <LearningPathMaterials
+              items={contents}
+              onOpenOttVideo={(item) => {
+                const id = String(item._id || '');
+                if (id) setLocation(viswamOttWatchUrl(id));
+              }}
+              emptyMessage="No textbooks or Viswam OTT videos yet for this subject."
+            />
+          </div>
           <div className="rounded-2xl border border-slate-200/90 bg-white p-4 sm:p-6 shadow-sm">
           <ChapterJourney
             subjectId={params?.id || subject._id}
@@ -534,6 +571,7 @@ export default function SubjectContent() {
             chapterQuizPassed={chapterQuizPassed}
             onPlayVideo={(v) => handleVideoClick(v as Video)}
           />
+          </div>
           </div>
         ) : (
         viewMode === 'calendar' ? (

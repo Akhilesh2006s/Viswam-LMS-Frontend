@@ -1,27 +1,14 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
 import Navigation from "@/components/navigation";
 import { 
   BookOpen, 
   Clock, 
-  Users, 
-  Star,
-  Play,
   CheckCircle,
   ArrowRight,
   Target,
-  Award,
   FileText,
-  BarChart3,
-  BookOpen as BookIcon,
-  User,
-  Gamepad2,
-  Calculator,
-  Atom,
-  FlaskConical,
-  Microscope,
   Loader2,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
@@ -29,6 +16,7 @@ import { useState, useEffect, useMemo } from "react";
 import { LearningRoadmap, StudentBottomNav, SubjectJourneyCard, type RoadmapStage } from "@/components/learning-ecosystem";
 import { API_BASE_URL } from "@/lib/api-config";
 import { getStudentDisplayName } from "@/lib/auth-utils";
+import { extractPlainSubjectName } from "@/lib/subject-names";
 
 export default function LearningPaths() {
   const [, setLocation] = useLocation();
@@ -221,23 +209,66 @@ export default function LearningPaths() {
                 try {
                   const subjectId = subject._id || subject.id || subject.name;
                   
-                  // Fetch videos for this subject (from teacher-created content)
-                  let videos = [];
-                  try {
-                    const videosResponse = await fetch(`${API_BASE_URL}/api/student/videos?subject=${encodeURIComponent(subjectId)}`, {
-                      headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
-                        'Content-Type': 'application/json',
+                  let videos: any[] = [];
+                  const authHeaders = {
+                    Authorization: `Bearer ${localStorage.getItem('authToken')}`,
+                    'Content-Type': 'application/json',
+                  };
+
+                  const mergeContent = (rows: any[]) => {
+                    if (!Array.isArray(rows)) return;
+                    const seen = new Set(videos.map((v) => String(v._id || v.id)));
+                    for (const row of rows) {
+                      const key = String(row._id || row.id);
+                      if (key && !seen.has(key)) {
+                        seen.add(key);
+                        videos.push(row);
                       }
-                    });
-                    
+                    }
+                  };
+
+                  // Content Studio uploads (curriculum PDFs / files) for licensed product + class
+                  try {
+                    const curriculumResponse = await fetch(
+                      `${API_BASE_URL}/api/student/asli-prep-content?subject=${encodeURIComponent(subjectId)}`,
+                      { headers: authHeaders },
+                    );
+                    if (curriculumResponse.ok) {
+                      const curriculumData = await curriculumResponse.json();
+                      mergeContent(curriculumData.data || curriculumData);
+                    }
+                  } catch {
+                    /* ignore */
+                  }
+
+                  // Super-admin learning path YouTube videos
+                  try {
+                    const lpResponse = await fetch(
+                      `${API_BASE_URL}/api/student/asli-prep-content?subject=${encodeURIComponent(subjectId)}&type=Video&channel=learning_path`,
+                      { headers: authHeaders },
+                    );
+                    if (lpResponse.ok) {
+                      const lpData = await lpResponse.json();
+                      mergeContent(lpData.data || lpData);
+                    }
+                  } catch {
+                    /* ignore */
+                  }
+
+                  // Teacher-created videos for the same subject
+                  try {
+                    const videosResponse = await fetch(
+                      `${API_BASE_URL}/api/student/videos?subject=${encodeURIComponent(subjectId)}`,
+                      { headers: authHeaders },
+                    );
                     if (videosResponse.ok) {
                       const videosData = await videosResponse.json();
-                      videos = videosData.data || videosData.videos || videosData || [];
-                      if (!Array.isArray(videos)) videos = [];
+                      const teacherRows =
+                        videosData.data || videosData.videos || videosData || [];
+                      if (Array.isArray(teacherRows)) mergeContent(teacherRows);
                     }
-                  } catch (videoError) {
-                    videos = [];
+                  } catch {
+                    /* ignore */
                   }
 
                   // Fetch assessments/quizzes for this subject (from teacher-created content)
@@ -479,22 +510,6 @@ export default function LearningPaths() {
     fetchQuizzes();
   }, []);
 
-  const recommendedPaths = [
-    {
-      id: "5",
-      title: "Play Games",
-      description: "Engage in fun educational games to enhance your learning experience",
-      duration: "Coming Soon",
-      students: 0,
-      rating: 0,
-      subjects: [],
-      difficulty: "Coming Soon",
-      color: "bg-blue-100 text-blue-600",
-      icon: Gamepad2,
-      isComingSoon: true
-    }
-  ];
-
   return (
     <div className="viswam-student-app">
       <Navigation />
@@ -516,7 +531,7 @@ export default function LearningPaths() {
             {isLoadingUser ? "Your journey" : `${getStudentDisplayName(user)}'s learning path`}
           </h1>
           <p className="mt-2 max-w-xl text-sm text-white/80">
-            Unlock stages as you complete lessons — each subject is its own premium mini-app.
+            Open a subject to see textbooks, learning-path videos, and chapter lessons together.
           </p>
         </section>
 
@@ -579,8 +594,9 @@ export default function LearningPaths() {
                   key={subject._id || subject.id}
                   subject={{
                     id: subject._id || subject.id,
-                    name: subject.name,
+                    name: extractPlainSubjectName(subject.name || ''),
                     progress: Number(subject.progress ?? subject.overallProgress ?? 0),
+                    totalContent: Number(subject.totalContent ?? 0),
                   }}
                   onClick={() => handleSubjectClick(subject._id || subject.id)}
                 />
@@ -674,91 +690,6 @@ export default function LearningPaths() {
           )}
                         </div>
                       )}
-
-        {/* Recommended Learning Paths */}
-        <div className="mb-8">
-          <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-6">Recommended for You</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:p-4 lg:p-6">
-            {recommendedPaths.map((path) => {
-              const Icon = path.icon;
-              return (
-                <Card key={path.id} className="hover:shadow-lg transition-shadow duration-200">
-                  <CardHeader>
-                    <div className="flex items-center justify-between mb-2">
-                      <div className={`w-10 h-10 ${path.color} rounded-lg flex items-center justify-center`}>
-                        <Icon className="w-4 h-4 sm:w-5 sm:h-5" />
-                      </div>
-                      {path.isComingSoon ? (
-                        <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-700 border-blue-300">
-                          Coming Soon
-                        </Badge>
-                      ) : (
-                        <Badge variant="secondary" className="text-xs">
-                          {path.difficulty}
-                        </Badge>
-                      )}
-                    </div>
-                    <CardTitle className="text-base sm:text-lg">{path.title}</CardTitle>
-                    <p className="text-gray-600 text-xs sm:text-sm">{path.description}</p>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {/* Subjects - Hide for Coming Soon */}
-                    {!path.isComingSoon && (
-                      <div>
-                        <p className="text-xs sm:text-sm font-medium text-gray-700 mb-2">Subjects</p>
-                        <div className="flex flex-wrap gap-1">
-                          {path.subjects.map((subject, index) => (
-                            <Badge key={index} variant="outline" className="text-xs">
-                              {subject}
-                            </Badge>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Stats - Show Coming Soon message or stats */}
-                    {path.isComingSoon ? (
-                      <div className="text-center py-4">
-                        <p className="text-xs sm:text-sm text-gray-500 italic">
-                          Exciting educational games are on the way! Stay tuned for updates.
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="flex items-center justify-between text-xs sm:text-sm text-gray-600">
-                        <div className="flex items-center space-x-1">
-                          <Clock className="w-3 h-3 sm:w-4 sm:h-4" />
-                          <span>{path.duration}</span>
-                        </div>
-                        <div className="flex items-center space-x-1">
-                          <Users className="w-3 h-3 sm:w-4 sm:h-4" />
-                          <span>{path.students.toLocaleString()}</span>
-                        </div>
-                        <div className="flex items-center space-x-1">
-                          <Star className="w-3 h-3 sm:w-4 sm:h-4 text-yellow-500" />
-                          <span>{path.rating}</span>
-                        </div>
-                      </div>
-                    )}
-
-                    {path.isComingSoon ? (
-                      <Button variant="outline" className="w-full" disabled>
-                        Coming Soon
-                        <ArrowRight className="w-3 h-3 sm:w-4 sm:h-4 ml-2 opacity-50" />
-                      </Button>
-                    ) : (
-                      <Link href={`/subject/${path.id}`}>
-                        <Button variant="outline" className="w-full">
-                          Start Learning
-                          <ArrowRight className="w-3 h-3 sm:w-4 sm:h-4 ml-2" />
-                        </Button>
-                      </Link>
-                    )}
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-        </div>
 
       </div>
 

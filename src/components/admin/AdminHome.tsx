@@ -19,6 +19,7 @@ import {
   type ProductWorkspace,
 } from "@/lib/products";
 import { cn } from "@/lib/utils";
+import { formatClassLabel } from "@/lib/class-display";
 
 type Props = {
   schoolName?: string;
@@ -124,20 +125,14 @@ export default function AdminHome({ schoolName, onNavigate }: Props) {
             {schoolName || "Your school"}
           </h1>
           <p className="text-sm text-slate-500 mt-1">
-            Licensed products and per-class capacity set by platform admin. Add teachers and
-            students to the classes below (each class has its own student limit).
+            View your licensed classes, period plans, and assigned teachers and students.
+            To add or change anything, contact your platform administrator.
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" size="sm" onClick={() => onNavigate("teachers")}>
-            <UserPlus className="mr-2 h-4 w-4" />
-            Teachers
-          </Button>
-          <Button size="sm" onClick={() => onNavigate("students")}>
-            <Users className="mr-2 h-4 w-4" />
-            Students
-          </Button>
-        </div>
+        <Button size="sm" onClick={() => onNavigate("classes")}>
+          <GraduationCap className="mr-2 h-4 w-4" />
+          View classes
+        </Button>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-3">
@@ -258,8 +253,7 @@ export default function AdminHome({ schoolName, onNavigate }: Props) {
                           >
                             <div className="flex items-center justify-between gap-2">
                               <span className="font-medium text-slate-800">
-                                Class {c.classNumber}
-                                {c.section ? `-${c.section}` : ""}
+                                {formatClassLabel(c.classNumber)}
                               </span>
                               <span
                                 className={cn(
@@ -294,7 +288,7 @@ export default function AdminHome({ schoolName, onNavigate }: Props) {
       </div>
 
       <p className="text-xs text-slate-400">
-        Learning Paths and EduOTT are available from the sidebar. Timetable and Calendar are under
+        Learning Paths and Viswam OTT are available from the sidebar. Timetable and Calendar are under
         their menu items.
       </p>
     </div>

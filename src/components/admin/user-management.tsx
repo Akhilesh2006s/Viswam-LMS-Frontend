@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { API_BASE_URL } from '@/lib/api-config';
+import { schoolAdminApiUrl } from '@/lib/school-admin-api';
 import { fetchAdminProductWorkspace, fetchClassCapacity, productLabel } from '@/lib/products';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -16,12 +17,20 @@ import {
   AdminPageShell,
   AdminStatGrid,
   AdminPanel,
-  adminPrimaryBtn,
-  adminOutlineBtn,
+  adminPremiumAccentBtn,
+  adminPremiumOutlineBtn,
 } from '@/components/admin/admin-ui';
+import {
+  SWS_FIELD,
+  SWS_STUDENT_CARD,
+  SWS_AVATAR,
+  SWS_DIALOG,
+  SWS_SEGMENT_ACTIVE,
+  SWS_SEGMENT_IDLE,
+} from '@/components/admin/school-workspace-styles';
+import { SuperAdminEmptyState } from '@/components/super-admin/premium';
 
-const STUDENT_FORM_FIELD_CLASS =
-  'border border-sky-300 bg-sky-50 text-sky-950 shadow-sm placeholder:text-sky-500 focus-visible:border-sky-500 focus-visible:ring-2 focus-visible:ring-sky-400/35';
+const STUDENT_FORM_FIELD_CLASS = SWS_FIELD;
 import { 
   Users, 
   Plus, 
@@ -70,7 +79,12 @@ const normalizeClassNumberForDisplay = (value: unknown): string => {
     .replace(/^-([0-9]+)([A-Za-z]?)$/, '$1$2');
 };
 
-const UserManagement = () => {
+type UserManagementProps = {
+  schoolAdminId?: string;
+};
+
+const UserManagement = ({ schoolAdminId }: UserManagementProps = {}) => {
+  const adminApi = (path: string) => schoolAdminApiUrl(path, schoolAdminId);
   const { toast } = useToast();
   const [students, setStudents] = useState<Student[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -79,7 +93,7 @@ const UserManagement = () => {
   const [isDeleteAllDialogOpen, setIsDeleteAllDialogOpen] = useState(false);
   const [selectedClassFilter, setSelectedClassFilter] = useState<string>('all');
   const [selectedSectionFilter, setSelectedSectionFilter] = useState<string>('all');
-  const [studentViewMode, setStudentViewMode] = useState<'all' | 'class-wise' | 'section-wise'>('class-wise');
+  const [studentViewMode, setStudentViewMode] = useState<'all' | 'class-wise'>('class-wise');
   const [collapsedClasses, setCollapsedClasses] = useState<Record<string, boolean>>({});
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
   const [deleteAllConfirmStep, setDeleteAllConfirmStep] = useState(1);
@@ -114,14 +128,14 @@ const UserManagement = () => {
   useEffect(() => {
     fetchStudents();
     fetchClasses();
-    fetchAdminProductWorkspace().then((w) => {
+    fetchAdminProductWorkspace(schoolAdminId).then((w) => {
       if (w?.products?.length) {
         setSchoolProducts(w.products);
         const code = w.admin.primaryProductCode || w.products[0].code;
         setNewStudent((s) => ({ ...s, productCode: s.productCode || code }));
       }
     });
-  }, []);
+  }, [schoolAdminId]);
 
   useEffect(() => {
     if (!isAddDialogOpen) {
@@ -129,17 +143,12 @@ const UserManagement = () => {
       return;
     }
     const cn = newStudent.classNumber?.trim();
-    const sec = (newStudent.section || 'A').trim().toUpperCase();
     const productCode = newStudent.productCode?.trim();
     if (!cn || !productCode) {
       setCapacityHint('');
       return;
     }
-    const match = availableClasses.find(
-      (c) =>
-        String(c.classNumber) === cn &&
-        String(c.section || 'A').toUpperCase() === sec,
-    );
+    const match = availableClasses.find((c) => String(c.classNumber) === cn);
     const classId = match?._id || match?.id;
     if (!classId) {
       setCapacityHint(
@@ -174,7 +183,6 @@ const UserManagement = () => {
   }, [
     isAddDialogOpen,
     newStudent.classNumber,
-    newStudent.section,
     newStudent.productCode,
     availableClasses,
   ]);
@@ -182,7 +190,7 @@ const UserManagement = () => {
   const fetchClasses = async () => {
     try {
       const token = localStorage.getItem('authToken');
-      const response = await fetch(`${API_BASE_URL}/api/admin/classes`, {
+      const response = await fetch(`${adminApi('')}/classes`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -201,7 +209,7 @@ const UserManagement = () => {
   const fetchStudents = async () => {
     try {
       const token = localStorage.getItem('authToken');
-      const response = await fetch(`${API_BASE_URL}/api/admin/students`, {
+      const response = await fetch(`${adminApi('')}/students`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -273,7 +281,7 @@ const UserManagement = () => {
     e.preventDefault();
     
     // Validate required fields
-    if (!newStudent.name || !newStudent.email || !newStudent.classNumber || !newStudent.section) {
+    if (!newStudent.name || !newStudent.email || !newStudent.classNumber) {
       alert('Please fill in Full Name, Email, Class Number, and Section.');
       return;
     }
@@ -284,7 +292,7 @@ const UserManagement = () => {
 
     try {
         const token = localStorage.getItem('authToken');
-        const response = await fetch(`${API_BASE_URL}/api/admin/students`, {
+        const response = await fetch(`${adminApi('')}/students`, {
           method: 'POST',
           headers: { 
             'Authorization': `Bearer ${token}`,
@@ -294,7 +302,7 @@ const UserManagement = () => {
           fullName: newStudent.name.trim(),
           email: newStudent.email.trim(),
           classNumber: newStudent.classNumber.trim(),
-          section: newStudent.section.trim(),
+          section: 'A',
           phone: newStudent.phone.trim(),
           password: newStudent.password.trim(),
           productCode: newStudent.productCode,
@@ -348,7 +356,7 @@ const UserManagement = () => {
     
     console.log('Uploading file:', file.name, file.size, 'bytes');
       console.log('API Base URL:', API_BASE_URL);
-      console.log('Upload endpoint:', `${API_BASE_URL}/api/admin/students/upload`);
+      console.log('Upload endpoint:', `${adminApi('')}/students/upload`);
     
     try {
       const token = localStorage.getItem('authToken');
@@ -372,9 +380,9 @@ const UserManagement = () => {
       }
 
       // Check if API_BASE_URL is accessible
-      console.log('Making request to:', `${API_BASE_URL}/api/admin/students/upload`);
+      console.log('Making request to:', `${adminApi('')}/students/upload`);
       
-      const response = await fetch(`${API_BASE_URL}/api/admin/students/upload`, {
+      const response = await fetch(`${adminApi('')}/students/upload`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -468,7 +476,7 @@ const UserManagement = () => {
   const handleDeleteStudent = async (studentId: string, studentName: string) => {
     if (window.confirm(`Are you sure you want to delete ${studentName}? This action cannot be undone.`)) {
       try {
-        const response = await fetch(`${API_BASE_URL}/api/admin/users/${studentId}`, {
+        const response = await fetch(`${adminApi('')}/students/${studentId}`, {
           method: 'DELETE',
           headers: { 
             'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
@@ -518,7 +526,7 @@ const UserManagement = () => {
     
     try {
       const token = localStorage.getItem('authToken');
-      const response = await fetch(`${API_BASE_URL}/api/admin/students/${selectedStudentForEdit.id}`, {
+      const response = await fetch(`${adminApi('')}/students/${selectedStudentForEdit.id}`, {
         method: 'PUT',
         headers: { 
           'Authorization': `Bearer ${token}`,
@@ -563,7 +571,10 @@ const UserManagement = () => {
   const handleDeleteAllStudents = async () => {
     try {
       const token = localStorage.getItem('authToken');
-      const response = await fetch(`${API_BASE_URL}/api/admin/users/delete-all`, {
+      const deleteAllUrl = schoolAdminId
+        ? adminApi('/students/delete-all')
+        : `${API_BASE_URL}/api/admin/users/delete-all`;
+      const response = await fetch(deleteAllUrl, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -693,14 +704,8 @@ const UserManagement = () => {
     // Class filter
     const { classKey, sectionKey } = getClassSectionMeta(student);
     const matchesClass = selectedClassFilter === 'all' || classKey === selectedClassFilter;
-    const matchesSection = selectedSectionFilter === 'all' || sectionKey === selectedSectionFilter;
-    
-    return matchesSearch && matchesClass && matchesSection;
+    return matchesSearch && matchesClass;
   });
-
-  useEffect(() => {
-    setSelectedSectionFilter('all');
-  }, [selectedClassFilter]);
 
   const classSectionGroups = filteredStudents.reduce<Record<string, Record<string, Student[]>>>((acc, student) => {
     const { classKey, sectionKey } = getClassSectionMeta(student);
@@ -732,12 +737,12 @@ const UserManagement = () => {
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: typeof indexKey === 'number' ? 0.03 * indexKey : 0 }}
-      className="group relative min-w-0 overflow-hidden bg-white/80 backdrop-blur-xl rounded-xl p-4 border border-sky-200 hover:border-sky-400 hover:shadow-lg transition-all duration-200"
+      className={SWS_STUDENT_CARD}
     >
       <div className="flex items-start justify-between gap-2 mb-3 min-w-0">
         <div className="flex items-center space-x-3 min-w-0 flex-1">
           <div className="relative">
-            <div className="w-11 h-11 bg-gradient-to-br from-sky-500 to-blue-600 rounded-xl flex items-center justify-center text-white font-bold text-xs sm:text-sm shadow-md">
+            <div className={cn(SWS_AVATAR, 'text-xs sm:text-sm')}>
               {(student.name || 'U').charAt(0).toUpperCase()}
             </div>
             <div className={`absolute -bottom-1 -right-1 w-3 h-3 sm:w-4 sm:h-4 rounded-full border-2 border-white ${
@@ -745,37 +750,37 @@ const UserManagement = () => {
             }`} />
           </div>
           <div className="min-w-0">
-            <h4 className="font-semibold text-sky-900 text-xs sm:text-sm leading-tight truncate">
+            <h4 className="font-semibold text-[var(--brand-navy)] text-xs sm:text-sm leading-tight truncate">
               {student.name || 'Unknown Student'}
             </h4>
-            <p className="text-sky-700 text-xs truncate">{student.email || 'No email'}</p>
+            <p className="text-slate-600 text-xs truncate">{student.email || 'No email'}</p>
           </div>
         </div>
-        <Badge className="bg-sky-100 text-sky-700 border border-sky-200 text-[10px] shrink-0 whitespace-nowrap">
+        <Badge className="bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] shrink-0 whitespace-nowrap">
           {student.classNumber || 'N/A'}
         </Badge>
       </div>
 
       <div className="space-y-1.5 mb-3">
         {student.phone && (
-          <div className="flex items-center text-xs text-sky-700">
-            <Phone className="w-3.5 h-3.5 mr-2 text-sky-600" />
+          <div className="flex items-center text-xs text-slate-600">
+            <Phone className="w-3.5 h-3.5 mr-2 text-emerald-600" />
             <span className="truncate">{student.phone}</span>
           </div>
         )}
-        <div className="flex items-center text-xs text-sky-700">
-          <Calendar className="w-3.5 h-3.5 mr-2 text-sky-600" />
+        <div className="flex items-center text-xs text-slate-600">
+          <Calendar className="w-3.5 h-3.5 mr-2 text-emerald-600" />
           <span className="truncate">Last login: {student.lastLogin ? new Date(student.lastLogin).toLocaleDateString() : 'Never'}</span>
         </div>
       </div>
 
-      <div className="pt-3 border-t border-sky-200 w-full min-w-0 overflow-hidden">
+      <div className="pt-3 border-t border-emerald-100 w-full min-w-0 overflow-hidden">
         <div className="flex flex-col gap-2 min-w-0 sm:flex-row sm:items-center sm:justify-between board:flex-row board:items-center board:justify-start board:gap-2 board:flex-wrap uhd:flex-nowrap uhd:max-w-full">
         <div className="flex items-center gap-1.5 shrink-0">
           <Button
             variant="ghost"
             size="sm"
-            className="text-sky-600 hover:text-blue-700 hover:bg-blue-100/50 rounded-lg h-9 w-9 sm:h-10 sm:w-10 p-0"
+            className="text-emerald-700 hover:text-[var(--brand-navy)] hover:bg-emerald-50 rounded-lg h-9 w-9 sm:h-10 sm:w-10 p-0"
             onClick={() => handleEditStudent(student)}
             title="Edit Details"
           >
@@ -784,7 +789,7 @@ const UserManagement = () => {
           <Button
             variant="ghost"
             size="sm"
-            className="text-sky-600 hover:text-red-700 hover:bg-red-100/50 rounded-lg h-9 w-9 sm:h-10 sm:w-10 p-0"
+            className="text-emerald-700 hover:text-red-700 hover:bg-red-50 rounded-lg h-9 w-9 sm:h-10 sm:w-10 p-0"
             onClick={() => handleDeleteStudent(student.id, student.name || 'Unknown Student')}
             title="Delete"
           >
@@ -794,7 +799,7 @@ const UserManagement = () => {
         <Button
           variant="outline"
           size="sm"
-          className="w-full sm:w-auto shrink-0 text-sky-600 hover:text-sky-800 border-sky-200 hover:bg-sky-50 rounded-lg h-9 text-xs sm:text-sm whitespace-nowrap board:w-auto"
+          className="w-full sm:w-auto shrink-0 text-emerald-800 hover:text-[var(--brand-navy)] border-emerald-200 hover:bg-emerald-50 rounded-xl h-9 text-xs sm:text-sm whitespace-nowrap board:w-auto"
           onClick={() => {
             setSelectedStudentForClass(student);
             setIsAssignClassDialogOpen(true);
@@ -810,10 +815,12 @@ const UserManagement = () => {
 
   return (
     <AdminPageShell
+      variant="premium"
       title="Students"
       description="Add students to licensed classes. Enrollment limits follow your assigned product capacity."
     >
       <AdminStatGrid
+        variant="premium"
         stats={[
           { label: 'Total', value: students.length, icon: Users },
           { label: 'Active', value: students.filter((s) => s.status === 'active').length, icon: CheckCircle },
@@ -821,12 +828,12 @@ const UserManagement = () => {
         ]}
       />
 
-        <AdminPanel>
+        <AdminPanel variant="premium">
           <div className="space-y-4">
             <div className="flex flex-col xl:flex-row xl:items-center gap-4">
               <div className="flex flex-1 flex-wrap items-center gap-3">
                 <Select value={selectedClassFilter} onValueChange={setSelectedClassFilter}>
-                  <SelectTrigger className="w-full sm:w-[200px] h-10 bg-white border-slate-200 rounded-lg">
+                  <SelectTrigger className={cn('w-full sm:w-[200px] h-10', SWS_FIELD)}>
                     <SelectValue placeholder="All classes" />
                   </SelectTrigger>
                   <SelectContent>
@@ -839,23 +846,6 @@ const UserManagement = () => {
                   </SelectContent>
                 </Select>
 
-                <Select
-                  value={selectedSectionFilter}
-                  onValueChange={setSelectedSectionFilter}
-                  disabled={selectedClassFilter === 'all'}
-                >
-                  <SelectTrigger className="w-full sm:w-[160px] h-10 bg-white border-slate-200 rounded-lg disabled:opacity-60">
-                    <SelectValue placeholder="All sections" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All sections</SelectItem>
-                    {availableSectionsForClass.map((section) => (
-                      <SelectItem key={section} value={section}>
-                        {section}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
               </div>
 
               <div className="relative w-full xl:w-[360px] xl:ml-auto">
@@ -864,18 +854,17 @@ const UserManagement = () => {
                   placeholder="Search students by name, email, or class..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="h-10 pl-10 bg-white border-slate-200 rounded-lg"
+                  className={cn('h-10 pl-10', SWS_FIELD)}
                 />
               </div>
             </div>
 
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-              <div className="inline-flex flex-wrap rounded-lg border border-slate-200 bg-slate-50 p-1">
+              <div className="sws-segment inline-flex flex-wrap p-1">
                 {(
                   [
                     { id: 'all' as const, label: 'All students' },
                     { id: 'class-wise' as const, label: 'By class' },
-                    { id: 'section-wise' as const, label: 'By section' },
                   ] as const
                 ).map(({ id, label }) => (
                   <button
@@ -883,10 +872,8 @@ const UserManagement = () => {
                     type="button"
                     onClick={() => setStudentViewMode(id)}
                     className={cn(
-                      'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
-                      studentViewMode === id
-                        ? 'bg-white text-slate-900 shadow-sm'
-                        : 'text-slate-600 hover:text-slate-900',
+                      'px-3 py-1.5 text-sm font-semibold transition-all',
+                      studentViewMode === id ? SWS_SEGMENT_ACTIVE : SWS_SEGMENT_IDLE,
                     )}
                   >
                     {label}
@@ -897,33 +884,33 @@ const UserManagement = () => {
               <div className="flex flex-wrap items-center gap-2">
             <Dialog open={isUploadDialogOpen} onOpenChange={setIsUploadDialogOpen}>
               <DialogTrigger asChild>
-                <Button variant="outline" className={cn(adminOutlineBtn, 'h-10')}>
+                <Button variant="outline" className={cn(adminPremiumOutlineBtn, 'h-10')}>
                   <Upload className="w-4 h-4 mr-2" />
                   Upload CSV
                 </Button>
               </DialogTrigger>
-                <DialogContent className="max-w-md bg-white/80 border-sky-200 backdrop-blur-xl">
+                <DialogContent className={cn(SWS_DIALOG, 'max-w-md')}>
                   <DialogHeader>
-                    <DialogTitle className="text-lg sm:text-xl font-semibold text-sky-900">Upload Students CSV</DialogTitle>
-                    <DialogDescription className="text-sky-700">
+                    <DialogTitle className="text-lg sm:text-xl font-semibold text-[var(--brand-navy)]">Upload Students CSV</DialogTitle>
+                    <DialogDescription className="text-slate-600">
                       Upload a CSV with student details. Each row must include its own password (min 6 characters) and section.
                     </DialogDescription>
                   </DialogHeader>
                   <div className="space-y-3 sm:space-y-4 lg:space-y-6">
-                    <div className="border-2 border-dashed border-sky-300 rounded-xl p-4 sm:p-6 lg:p-8 text-center hover:border-sky-400 transition-colors bg-sky-50 backdrop-blur-sm">
-                      <FileSpreadsheet className="w-16 h-16 text-sky-600 mx-auto mb-4" />
-                      <p className="text-sky-800 mb-2 font-medium">Drop your CSV file here</p>
-                      <p className="text-xs sm:text-sm text-sky-700 mb-4">CSV Format (comma-separated):</p>
+                    <div className="border-2 border-dashed border-emerald-300 rounded-xl p-4 sm:p-6 lg:p-8 text-center hover:border-emerald-400 transition-colors bg-emerald-50/80 backdrop-blur-sm">
+                      <FileSpreadsheet className="w-16 h-16 text-emerald-700 mx-auto mb-4" />
+                      <p className="text-slate-800 mb-2 font-medium">Drop your CSV file here</p>
+                      <p className="text-xs sm:text-sm text-slate-600 mb-4">CSV Format (comma-separated):</p>
                       <div className="bg-white/70 rounded-lg p-4 mb-4 text-left">
-                        <p className="text-xs text-sky-600 mb-2 font-medium">Required columns:</p>
-                        <p className="text-xs text-sky-700">
+                        <p className="text-xs text-emerald-700 mb-2 font-medium">Required columns:</p>
+                        <p className="text-xs text-slate-600">
                           name, email, classnumber, section, phone, password (optional: productcode)
                         </p>
-                        <p className="text-xs text-sky-600 mt-2 font-medium">Example:</p>
-                        <p className="text-xs text-sky-700">
+                        <p className="text-xs text-emerald-700 mt-2 font-medium">Example:</p>
+                        <p className="text-xs text-slate-600">
                           John Doe, john@email.com, 7, A, 9876543210, MyPass123, MATH_WORKBOOK_G6
                         </p>
-                        <p className="text-xs text-sky-600 mt-2 font-medium">
+                        <p className="text-xs text-emerald-700 mt-2 font-medium">
                           Section is used for Class-wise and Section-wise views. Passwords are saved per student (not a shared default).
                         </p>
                         <div className="mt-3">
@@ -931,7 +918,7 @@ const UserManagement = () => {
                             type="button"
                             variant="outline"
                             size="sm"
-                            className="text-xs border-sky-200 text-sky-700 hover:bg-sky-50"
+                            className="text-xs border-emerald-200 text-slate-600 hover:bg-emerald-50/80"
                             onClick={() => {
                               const link = document.createElement('a');
                               link.href = '/student_template.csv';
@@ -958,9 +945,9 @@ const UserManagement = () => {
                   />
                   
                   {selectedFile && (
-                    <div className="mt-4 p-3 bg-sky-50 rounded-lg border border-sky-200">
-                      <p className="text-xs sm:text-sm text-sky-700 mb-2">Selected file:</p>
-                      <p className="text-xs sm:text-sm font-medium text-sky-900">{selectedFile.name}</p>
+                    <div className="mt-4 p-3 bg-emerald-50/80 rounded-lg border border-emerald-200">
+                      <p className="text-xs sm:text-sm text-slate-600 mb-2">Selected file:</p>
+                      <p className="text-xs sm:text-sm font-medium text-[var(--brand-navy)]">{selectedFile.name}</p>
                     </div>
                   )}
                   
@@ -975,7 +962,7 @@ const UserManagement = () => {
                           fileInputRef.current.value = '';
                         }
                       }}
-                      className="border-sky-200 text-sky-700 hover:bg-sky-50"
+                      className="border-emerald-200 text-slate-600 hover:bg-emerald-50/80"
                     >
                       Cancel
                     </Button>
@@ -987,7 +974,7 @@ const UserManagement = () => {
                         }
                       }}
                       disabled={!selectedFile || isUploading}
-                      className="bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white disabled:opacity-50"
+                      className="bg-gradient-to-r from-emerald-500 to-[var(--brand-emerald)] hover:opacity-95 text-white disabled:opacity-50"
                     >
                       {isUploading ? (
                         <>
@@ -1009,22 +996,22 @@ const UserManagement = () => {
           
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogTrigger asChild>
-            <Button className={cn(adminPrimaryBtn, 'h-10')}>
+            <Button className={cn(adminPremiumAccentBtn, 'h-10')}>
               <UserPlus className="w-4 h-4 mr-2" />
               Add student
             </Button>
           </DialogTrigger>
-                <DialogContent className="max-w-lg bg-white/80 border-sky-200 backdrop-blur-xl">
+                <DialogContent className={cn(SWS_DIALOG, 'max-w-lg')}>
                   <DialogHeader>
-                    <DialogTitle className="text-lg sm:text-xl font-semibold text-sky-900">Add New Student</DialogTitle>
-                    <DialogDescription className="text-sky-700">
-                      Add a student with class, section, and their own login password (min 6 characters).
+                    <DialogTitle className="text-lg sm:text-xl font-semibold text-[var(--brand-navy)]">Add New Student</DialogTitle>
+                    <DialogDescription className="text-slate-600">
+                      Add a student with class and their own login password (min 6 characters).
                     </DialogDescription>
                   </DialogHeader>
                   <form onSubmit={handleAddStudent} className="space-y-3 sm:space-y-4 lg:space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="name" className="text-xs sm:text-sm font-medium text-sky-800">
+                        <Label htmlFor="name" className="text-xs sm:text-sm font-medium text-slate-800">
                           Full Name <span className="text-red-500">*</span>
                         </Label>
                   <Input
@@ -1036,7 +1023,7 @@ const UserManagement = () => {
                   />
                 </div>
                       <div className="space-y-2">
-                        <Label htmlFor="email" className="text-xs sm:text-sm font-medium text-sky-800">
+                        <Label htmlFor="email" className="text-xs sm:text-sm font-medium text-slate-800">
                           Email <span className="text-red-500">*</span>
                         </Label>
                   <Input
@@ -1051,7 +1038,7 @@ const UserManagement = () => {
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="classNumber" className="text-xs sm:text-sm font-medium text-sky-800">
+                        <Label htmlFor="classNumber" className="text-xs sm:text-sm font-medium text-slate-800">
                           Class Number <span className="text-red-500">*</span>
                         </Label>
                   <Input
@@ -1063,29 +1050,10 @@ const UserManagement = () => {
                     placeholder="e.g. 7, 8, 10"
                   />
                 </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="section" className="text-xs sm:text-sm font-medium text-sky-800">
-                          Section <span className="text-red-500">*</span>
-                        </Label>
-                  <Input
-                    id="section"
-                    value={newStudent.section}
-                    onChange={(e) =>
-                      setNewStudent({
-                        ...newStudent,
-                        section: e.target.value.toUpperCase().slice(0, 1),
-                      })
-                    }
-                    className={cn(STUDENT_FORM_FIELD_CLASS, 'rounded-xl')}
-                    required
-                    placeholder="A, B, or C"
-                    maxLength={1}
-                  />
-                </div>
                     </div>
                     {schoolProducts.length > 0 ? (
                       <div className="space-y-2">
-                        <Label className="text-xs sm:text-sm font-medium text-sky-800">
+                        <Label className="text-xs sm:text-sm font-medium text-slate-800">
                           Book product <span className="text-red-500">*</span>
                         </Label>
                         <Select
@@ -1110,7 +1078,7 @@ const UserManagement = () => {
                     ) : null}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="phone" className="text-xs sm:text-sm font-medium text-sky-800">Phone (Optional)</Label>
+                        <Label htmlFor="phone" className="text-xs sm:text-sm font-medium text-slate-800">Phone (Optional)</Label>
                   <Input
                     id="phone"
                     type="tel"
@@ -1128,7 +1096,7 @@ const UserManagement = () => {
                   />
                 </div>
                       <div className="space-y-2">
-                        <Label htmlFor="password" className="text-xs sm:text-sm font-medium text-sky-800">
+                        <Label htmlFor="password" className="text-xs sm:text-sm font-medium text-slate-800">
                           Password <span className="text-red-500">*</span>
                         </Label>
                         <div className="relative">
@@ -1146,7 +1114,7 @@ const UserManagement = () => {
                           <button
                             type="button"
                             onClick={() => setShowNewStudentPassword((p) => !p)}
-                            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-sky-600 hover:text-sky-900"
+                            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-emerald-700 hover:text-[var(--brand-navy)]"
                             aria-label={showNewStudentPassword ? 'Hide password' : 'Show password'}
                           >
                             {showNewStudentPassword ? (
@@ -1163,13 +1131,13 @@ const UserManagement = () => {
                         type="button" 
                         variant="outline" 
                         onClick={() => setIsAddDialogOpen(false)}
-                        className="rounded-xl border-sky-200 text-sky-800 hover:bg-sky-50 backdrop-blur-sm"
+                        className="rounded-xl border-emerald-200 text-slate-800 hover:bg-emerald-50/80 backdrop-blur-sm"
                       >
                     Cancel
                   </Button>
                       <Button 
                         type="submit"
-                        className="bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 rounded-xl backdrop-blur-sm"
+                        className="bg-gradient-to-r from-emerald-500 to-[var(--brand-emerald)] hover:opacity-95 rounded-xl backdrop-blur-sm"
                       >
                   Add Student
                 </Button>
@@ -1270,10 +1238,10 @@ const UserManagement = () => {
           </div>
         </AdminPanel>
 
-        <AdminPanel className="p-0 overflow-hidden">
-          <div className="px-4 py-4 sm:px-6 border-b border-slate-200 bg-slate-50/80">
-            <h3 className="text-lg font-semibold text-slate-900">Student list</h3>
-            <p className="text-sm text-slate-500 mt-0.5">
+        <AdminPanel variant="premium" className="p-0 overflow-hidden">
+          <div className="sws-panel-header px-4 py-4 sm:px-6">
+            <h3 className="text-lg font-bold text-[var(--brand-navy)]">Student list</h3>
+            <p className="text-sm text-slate-600 mt-0.5">
               {filteredStudents.length} {filteredStudents.length === 1 ? 'student' : 'students'}
               {searchTerm.trim() ? ' matching your search' : ''}
             </p>
@@ -1292,49 +1260,28 @@ const UserManagement = () => {
                   {Object.keys(classSectionGroups).sort(sortByClassLabel).map((classKey) => {
                     const isClassCollapsed = collapsedClasses[classKey] ?? true;
                     return (
-                      <div key={classKey} className="rounded-xl border border-sky-200 bg-white/70 shadow-sm">
+                      <div key={classKey} className="rounded-xl border border-emerald-200 bg-white/70 shadow-sm">
                         <button
                           type="button"
                           onClick={() => toggleClassCollapse(classKey)}
-                          className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-sky-50/70 rounded-xl"
+                          className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-emerald-50/80/70 rounded-xl"
                         >
                           <div className="flex items-center gap-2">
-                            {isClassCollapsed ? <ChevronRight className="w-3 h-3 sm:w-4 sm:h-4 text-sky-700" /> : <ChevronDown className="w-3 h-3 sm:w-4 sm:h-4 text-sky-700" />}
-                            <span className="font-semibold text-sky-900">{classKey}</span>
+                            {isClassCollapsed ? <ChevronRight className="w-3 h-3 sm:w-4 sm:h-4 text-slate-600" /> : <ChevronDown className="w-3 h-3 sm:w-4 sm:h-4 text-slate-600" />}
+                            <span className="font-semibold text-[var(--brand-navy)]">{classKey}</span>
                           </div>
-                          <Badge className="bg-sky-100 text-sky-700 border border-sky-200">
+                          <Badge className="bg-emerald-50 text-slate-600 border border-emerald-200">
                             {Object.values(classSectionGroups[classKey]).flat().length} students
                           </Badge>
                         </button>
 
                         {!isClassCollapsed && (
-                          <div className="px-4 pb-4 space-y-3">
-                            {Object.keys(classSectionGroups[classKey]).sort().map((sectionKey) => {
-                              const sectionScopeKey = `${classKey}::${sectionKey}`;
-                              const isSectionCollapsed = collapsedSections[sectionScopeKey] ?? true;
-                              return (
-                                <div key={sectionScopeKey} className="rounded-lg border border-sky-100 bg-white p-3">
-                                  <button
-                                    type="button"
-                                    onClick={() => toggleSectionCollapse(sectionScopeKey)}
-                                    className="w-full flex items-center justify-between text-left"
-                                  >
-                                    <div className="flex items-center gap-2">
-                                      {isSectionCollapsed ? <ChevronRight className="w-3 h-3 sm:w-4 sm:h-4 text-teal-700" /> : <ChevronDown className="w-3 h-3 sm:w-4 sm:h-4 text-teal-700" />}
-                                      <span className="font-medium text-sky-900">{sectionKey}</span>
-                                    </div>
-                                    <Badge className="bg-teal-100 text-teal-700 border border-teal-200">
-                                      {classSectionGroups[classKey][sectionKey].length}
-                                    </Badge>
-                                  </button>
-                                  {!isSectionCollapsed && (
-                                    <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 board:grid-cols-4 uhd:grid-cols-5 gap-4 mt-3 [&>*]:min-w-0">
-                                      {classSectionGroups[classKey][sectionKey].map((student, idx) => renderStudentCard(student, `${sectionScopeKey}-${idx}`))}
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })}
+                          <div className="px-4 pb-4">
+                            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 board:grid-cols-4 uhd:grid-cols-5 gap-4 [&>*]:min-w-0">
+                              {Object.values(classSectionGroups[classKey])
+                                .flat()
+                                .map((student, idx) => renderStudentCard(student, `${classKey}-${idx}`))}
+                            </div>
                           </div>
                         )}
                       </div>
@@ -1343,75 +1290,28 @@ const UserManagement = () => {
                 </div>
               )}
 
-              {studentViewMode === 'section-wise' && (
-                <div className="space-y-4">
-                  {Object.keys(sectionClassGroups).sort().map((sectionKey) => {
-                    const isSectionCollapsed = collapsedSections[sectionKey] ?? true;
-                    return (
-                      <div key={sectionKey} className="rounded-xl border border-teal-200 bg-white/70 shadow-sm">
-                        <button
-                          type="button"
-                          onClick={() => toggleSectionCollapse(sectionKey)}
-                          className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-teal-50/70 rounded-xl"
-                        >
-                          <div className="flex items-center gap-2">
-                            {isSectionCollapsed ? <ChevronRight className="w-3 h-3 sm:w-4 sm:h-4 text-teal-700" /> : <ChevronDown className="w-3 h-3 sm:w-4 sm:h-4 text-teal-700" />}
-                            <span className="font-semibold text-teal-900">{sectionKey}</span>
-                          </div>
-                          <Badge className="bg-teal-100 text-teal-700 border border-teal-200">
-                            {Object.values(sectionClassGroups[sectionKey]).flat().length} students
-                          </Badge>
-                        </button>
-
-                        {!isSectionCollapsed && (
-                          <div className="px-4 pb-4 space-y-3">
-                            {Object.keys(sectionClassGroups[sectionKey]).sort(sortByClassLabel).map((classKey) => (
-                              <div key={`${sectionKey}::${classKey}`} className="rounded-lg border border-sky-100 bg-white p-3">
-                                <div className="flex items-center justify-between mb-3">
-                                  <span className="font-medium text-sky-900">{classKey}</span>
-                                  <Badge className="bg-sky-100 text-sky-700 border border-sky-200">
-                                    {sectionClassGroups[sectionKey][classKey].length}
-                                  </Badge>
-                                </div>
-                                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 board:grid-cols-4 uhd:grid-cols-5 gap-4 [&>*]:min-w-0">
-                                  {sectionClassGroups[sectionKey][classKey].map((student, idx) =>
-                                    renderStudentCard(student, `${sectionKey}-${classKey}-${idx}`)
-                                  )}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
             </div>
           ) : (
-            <div className="p-12 text-center">
-              <div className="w-24 h-24 bg-sky-100 rounded-full flex items-center justify-center mx-auto mb-6 backdrop-blur-sm">
-                <Users className="w-12 h-12 text-sky-600" />
-              </div>
-              <h3 className="text-lg sm:text-xl font-semibold text-sky-900 mb-2">No students found</h3>
-              <p className="text-sky-700 mb-6">Try adjusting your search criteria or add new students</p>
-              <Button 
-                onClick={() => setIsAddDialogOpen(true)}
-                className="bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white rounded-xl px-3 sm:px-4 lg:px-6 backdrop-blur-sm"
-              >
-                <UserPlus className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
-                Add First Student
-              </Button>
-        </div>
+            <SuperAdminEmptyState
+              icon={Users}
+              title="No students yet"
+              description="Try adjusting your search or add the first student for this school."
+              action={
+                <Button onClick={() => setIsAddDialogOpen(true)} className={adminPremiumAccentBtn}>
+                  <UserPlus className="w-4 h-4 mr-2" />
+                  Add first student
+                </Button>
+              }
+            />
           )}
         </AdminPanel>
 
       {/* Assign Class Dialog */}
       <Dialog open={isAssignClassDialogOpen} onOpenChange={setIsAssignClassDialogOpen}>
-        <DialogContent className="max-w-md bg-white/80 border-sky-200 backdrop-blur-xl">
+        <DialogContent className={cn(SWS_DIALOG, 'max-w-md')}>
           <DialogHeader>
-            <DialogTitle className="text-lg sm:text-xl font-semibold text-sky-900">Assign Class to Student</DialogTitle>
-            <DialogDescription className="text-sky-700">
+            <DialogTitle className="text-lg sm:text-xl font-semibold text-[var(--brand-navy)]">Assign Class to Student</DialogTitle>
+            <DialogDescription className="text-slate-600">
               {selectedStudentForClass && `Assign a class to ${selectedStudentForClass.name}`}
             </DialogDescription>
           </DialogHeader>
@@ -1428,14 +1328,14 @@ const UserManagement = () => {
                     key={classItem.id}
                     className={`p-3 rounded-lg border cursor-pointer transition-all ${
                       selectedStudentForClass?.assignedClass === classItem.id
-                        ? 'bg-sky-100 border-sky-400 border-2'
-                        : 'bg-white border-sky-200 hover:border-sky-300 hover:bg-sky-50'
+                        ? 'bg-emerald-50 border-emerald-400 border-2'
+                        : 'bg-white border-emerald-200 hover:border-emerald-300 hover:bg-emerald-50/80'
                     }`}
                     onClick={async () => {
                       if (selectedStudentForClass) {
                         try {
                           const token = localStorage.getItem('authToken');
-                          const response = await fetch(`${API_BASE_URL}/api/admin/students/${selectedStudentForClass.id}/assign-class`, {
+                          const response = await fetch(`${adminApi('')}/students/${selectedStudentForClass.id}/assign-class`, {
                             method: 'POST',
                             headers: {
                               'Authorization': `Bearer ${token}`,
@@ -1463,30 +1363,30 @@ const UserManagement = () => {
                   >
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="font-semibold text-sky-900">{classItem.name}</p>
+                        <p className="font-semibold text-[var(--brand-navy)]">{classItem.name}</p>
                         {classItem.description && (
-                          <p className="text-xs sm:text-sm text-sky-600">{classItem.description}</p>
+                          <p className="text-xs sm:text-sm text-emerald-700">{classItem.description}</p>
                         )}
-                        <p className="text-xs text-sky-500 mt-1">
+                        <p className="text-xs text-slate-500 mt-1">
                           {classItem.studentCount || 0} students
                         </p>
                       </div>
                       {selectedStudentForClass?.assignedClass === classItem.id && (
-                        <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 text-sky-600" />
+                        <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-700" />
                       )}
                     </div>
                   </div>
                 ))}
               </div>
             )}
-            <div className="flex justify-end pt-4 border-t border-sky-200">
+            <div className="flex justify-end pt-4 border-t border-emerald-200">
               <Button
                 variant="outline"
                 onClick={() => {
                   setIsAssignClassDialogOpen(false);
                   setSelectedStudentForClass(null);
                 }}
-                className="border-sky-200 text-sky-700 hover:bg-sky-50"
+                className="border-emerald-200 text-slate-600 hover:bg-emerald-50/80"
               >
                 Cancel
               </Button>
@@ -1497,28 +1397,28 @@ const UserManagement = () => {
 
       {/* Edit Student Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-md bg-white/80 border-sky-200 backdrop-blur-xl">
+        <DialogContent className={cn(SWS_DIALOG, 'max-w-md')}>
           <DialogHeader>
-            <DialogTitle className="text-lg sm:text-xl font-semibold text-sky-900">Edit Student Details</DialogTitle>
-            <DialogDescription className="text-sky-700">
+            <DialogTitle className="text-lg sm:text-xl font-semibold text-[var(--brand-navy)]">Edit Student Details</DialogTitle>
+            <DialogDescription className="text-slate-600">
               {selectedStudentForEdit && `Update information for ${selectedStudentForEdit.name}`}
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleUpdateStudent} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="edit-name" className="text-sky-900">Full Name *</Label>
+              <Label htmlFor="edit-name" className="text-[var(--brand-navy)]">Full Name *</Label>
               <Input
                 id="edit-name"
                 value={editStudent.name}
                 onChange={(e) => setEditStudent({ ...editStudent, name: e.target.value })}
                 placeholder="Enter full name"
                 required
-                className="border-sky-200 focus:border-sky-400"
+                className="border-emerald-200 focus:border-emerald-400"
               />
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="edit-email" className="text-sky-900">Email *</Label>
+              <Label htmlFor="edit-email" className="text-[var(--brand-navy)]">Email *</Label>
               <Input
                 id="edit-email"
                 type="email"
@@ -1527,31 +1427,31 @@ const UserManagement = () => {
                 placeholder="Enter email"
                 required
                 disabled
-                className="border-sky-200 bg-gray-100"
+                className="border-emerald-200 bg-gray-100"
               />
-              <p className="text-xs text-sky-600">Email cannot be changed</p>
+              <p className="text-xs text-emerald-700">Email cannot be changed</p>
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="edit-classNumber" className="text-sky-900">Class Number</Label>
+              <Label htmlFor="edit-classNumber" className="text-[var(--brand-navy)]">Class Number</Label>
               <Input
                 id="edit-classNumber"
                 value={editStudent.classNumber}
                 onChange={(e) => setEditStudent({ ...editStudent, classNumber: e.target.value })}
                 placeholder="Enter class number (e.g., 10, 11, 12)"
-                className="border-sky-200 focus:border-sky-400"
+                className="border-emerald-200 focus:border-emerald-400"
               />
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="edit-phone" className="text-sky-900">Phone Number</Label>
+              <Label htmlFor="edit-phone" className="text-[var(--brand-navy)]">Phone Number</Label>
               <Input
                 id="edit-phone"
                 type="tel"
                 value={editStudent.phone}
                 onChange={(e) => setEditStudent({ ...editStudent, phone: e.target.value })}
                 placeholder="Enter phone number"
-                className="border-sky-200 focus:border-sky-400"
+                className="border-emerald-200 focus:border-emerald-400"
               />
             </div>
             
@@ -1561,14 +1461,14 @@ const UserManagement = () => {
                 id="edit-isActive"
                 checked={editStudent.isActive}
                 onChange={(e) => setEditStudent({ ...editStudent, isActive: e.target.checked })}
-                className="rounded border-sky-200"
+                className="rounded border-emerald-200"
               />
-              <Label htmlFor="edit-isActive" className="text-sky-900 cursor-pointer">
+              <Label htmlFor="edit-isActive" className="text-[var(--brand-navy)] cursor-pointer">
                 Active Account
               </Label>
             </div>
             
-            <div className="flex justify-end space-x-2 pt-4 border-t border-sky-200">
+            <div className="flex justify-end space-x-2 pt-4 border-t border-emerald-200">
               <Button
                 type="button"
                 variant="outline"
@@ -1576,13 +1476,13 @@ const UserManagement = () => {
                   setIsEditDialogOpen(false);
                   setSelectedStudentForEdit(null);
                 }}
-                className="border-sky-200 text-sky-700 hover:bg-sky-50"
+                className="border-emerald-200 text-slate-600 hover:bg-emerald-50/80"
               >
                 Cancel
               </Button>
               <Button
                 type="submit"
-                className="bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white"
+                className="bg-gradient-to-r from-emerald-500 to-[var(--brand-emerald)] hover:opacity-95 text-white"
               >
                 Update Student
               </Button>

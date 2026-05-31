@@ -28,20 +28,26 @@ import {
   LayoutList,
   Film,
   HardDrive,
+  CheckCircle2,
 } from "lucide-react";
 import { formatFileSize } from "@/lib/format-bytes";
 import { API_BASE_URL } from "@/lib/api-config";
 import { resolveMediaUrl } from "@/lib/media-url";
 import { EduOTTVideoPlayerDialog } from "@/components/eduott/EduOTTVideoPlayerDialog";
 import type { EduOTTVideoCardItem } from "@/components/eduott/EduOTTVideoCard";
-import { fetchProducts, type Product } from "@/lib/products";
+import { fetchProducts, productLabel, type Product } from "@/lib/products";
 import { extractPlainSubjectName } from "@/lib/subject-names";
 import { useToast } from "@/hooks/use-toast";
 import ProductSubjectPicker, {
   type ProductSubjectSelection,
 } from "@/components/super-admin/ProductSubjectPicker";
+import { OttSchoolAccessEditor } from "@/components/super-admin/OttSchoolAccessEditor";
+import {
+  ensureRestrictionsShape,
+  type OttRestrictionsPayload,
+} from "@/lib/ott-restrictions";
 
-type SchoolRow = { _id: string; name: string; adminEmail?: string; restrictions: OttRestrictions };
+type SchoolRow = { _id: string; name: string; adminEmail?: string; restrictions: OttRestrictionsPayload };
 type OttRow = {
   _id: string;
   title: string;
@@ -55,13 +61,7 @@ type OttRow = {
   createdAt?: string;
 };
 
-type OttRestrictions = {
-  plan: string;
-  status: string;
-  limits?: { maxVideos?: number; monthlyBandwidthGB?: number; maxDevicesPerUser?: number };
-  features?: { downloads?: boolean; hdStreaming?: boolean; analytics?: boolean };
-  streaming?: { maxQuality?: string };
-};
+type OttRestrictions = OttRestrictionsPayload;
 
 const PLANS = ["basic", "standard", "premium", "enterprise"];
 const STATUSES = [
@@ -83,7 +83,16 @@ export default function SuperAdminOttStudio() {
   const [file, setFile] = useState<File | null>(null);
   const [catalogClassFilter, setCatalogClassFilter] = useState("all");
   const [catalogProductFilter, setCatalogProductFilter] = useState("all");
+  const [catalogSubjectFilter, setCatalogSubjectFilter] = useState("all");
   const [catalogView, setCatalogView] = useState<"grid" | "list">("grid");
+  const [studioTab, setStudioTab] = useState<"upload" | "restrictions" | "catalog">("upload");
+  const [lastAddedMessage, setLastAddedMessage] = useState<{
+    title: string;
+    productName: string;
+    subject: string;
+    classNumber: string;
+    sizeLabel: string;
+  } | null>(null);
   const [previewVideo, setPreviewVideo] = useState<EduOTTVideoCardItem | null>(null);
   const [contentTarget, setContentTarget] = useState<Partial<ProductSubjectSelection>>({});
   const [form, setForm] = useState({
@@ -161,7 +170,7 @@ export default function SuperAdminOttStudio() {
       headers: jsonHeaders(),
     })
       .then((r) => r.json())
-      .then((j) => setRestrictions(j.data || null));
+      .then((j) => setRestrictions(ensureRestrictionsShape(j.data || null)));
   }, [schoolId]);
 
   const filteredVideos = useMemo(() => {
@@ -170,14 +179,18 @@ export default function SuperAdminOttStudio() {
         return false;
       }
       if (catalogProductFilter !== "all") {
+        const code = String(v.productCode || "").trim();
+        if (code !== catalogProductFilter) return false;
+      }
+      if (catalogSubjectFilter !== "all") {
         const name = extractPlainSubjectName(v.subject?.name || "").toLowerCase();
-        if (name !== catalogProductFilter.toLowerCase()) return false;
+        if (name !== catalogSubjectFilter.toLowerCase()) return false;
       }
       return true;
     });
-  }, [videos, catalogClassFilter, catalogProductFilter]);
+  }, [videos, catalogClassFilter, catalogProductFilter, catalogSubjectFilter]);
 
-  const catalogProductNames = useMemo(() => {
+  const catalogSubjectNames = useMemo(() => {
     const names = new Set<string>();
     videos.forEach((v) => {
       const n = extractPlainSubjectName(v.subject?.name || "");
@@ -185,6 +198,17 @@ export default function SuperAdminOttStudio() {
     });
     return [...names].sort();
   }, [videos]);
+
+  const catalogProductOptions = useMemo(() => {
+    const codes = new Set<string>();
+    videos.forEach((v) => {
+      const code = String(v.productCode || "").trim();
+      if (code) codes.add(code);
+    });
+    return [...codes]
+      .sort()
+      .map((code) => ({ code, label: productLabel(code, products) || code }));
+  }, [videos, products]);
 
   const ottRowToPlayer = (v: OttRow): EduOTTVideoCardItem => ({
     _id: v._id,
@@ -279,9 +303,36 @@ export default function SuperAdminOttStudio() {
     setSaving(false);
     const json = await res.json().catch(() => ({}));
     if (res.ok) {
-      toast({ title: "OTT video added" });
+      const addedTitle = form.title.trim() || "Untitled";
+      const productName =
+        products.find((p) => p.code === contentTarget.productCode)?.name ||
+        contentTarget.productCode ||
+        "Product";
+      const subjectLabel = contentTarget.catalogSubject || "Subject";
+      const classLabel = contentTarget.classNumber || "";
+      const sizeLabel = formatFileSize(form.fileSizeBytes);
+
+      setLastAddedMessage({
+        title: addedTitle,
+        productName,
+        subject: subjectLabel,
+        classNumber: classLabel,
+        sizeLabel,
+      });
+
+      toast({
+        title: "Added to OTT catalog",
+        description: `${addedTitle} · Class ${classLabel} · ${subjectLabel}`,
+      });
+
       setForm((f) => ({ ...f, title: "", fileUrl: "", fileSizeBytes: 0 }));
       setFile(null);
+      setContentTarget((prev) => ({
+        ...prev,
+        catalogSubject: "",
+        classNumber: "",
+        subjectId: "",
+      }));
       loadVideosAndSchools();
     } else {
       toast({ title: "Failed", description: json.message, variant: "destructive" });
@@ -306,45 +357,83 @@ export default function SuperAdminOttStudio() {
   const statusMeta = STATUSES.find((s) => s.value === restrictions?.status);
 
   return (
-    <div className="space-y-4">
-      <div className="rounded-xl border-2 border-[var(--brand-gold)]/30 bg-amber-50/90 px-4 py-3 flex gap-3">
-        <Lock className="h-5 w-5 text-[var(--brand-navy)] shrink-0 mt-0.5" />
-        <div className="text-sm text-[var(--brand-navy)] space-y-1">
-          <p className="font-semibold">Strict student visibility</p>
-          <ul className="list-disc pl-4 text-[var(--text-secondary)] space-y-0.5">
+    <div className="viswam-ott-admin-cinema viswam-ott-admin-cinema-light">
+      <section className="viswam-ott-admin-hero">
+        <div className="viswam-ott-admin-hero-inner">
+          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-400/90 mb-2">
+            Premium streaming
+          </p>
+          <h1 className="viswam-ott-admin-hero-title">Viswam OTT Studio</h1>
+          <p className="viswam-ott-admin-hero-sub">
+            Upload cinematic lessons, configure school access, and curate your platform catalog — like a
+            premium OTT control room.
+          </p>
+        </div>
+      </section>
+
+      <div className="viswam-ott-admin-tabs" role="tablist">
+        {(
+          [
+            { id: "upload" as const, label: "Upload" },
+            { id: "restrictions" as const, label: "School access" },
+            { id: "catalog" as const, label: "Catalog" },
+          ] as const
+        ).map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            role="tab"
+            aria-selected={studioTab === t.id}
+            className={cn("viswam-ott-admin-tab", studioTab === t.id && "viswam-ott-admin-tab-active")}
+            onClick={() => {
+              setStudioTab(t.id);
+              if (t.id !== "upload") setLastAddedMessage(null);
+            }}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="viswam-ott-admin-notice px-4 sm:px-6">
+        <Lock className="h-5 w-5 text-[var(--brand-gold)] shrink-0 mt-0.5" />
+        <div className="space-y-1 text-left">
+          <p className="font-semibold text-white">Strict student visibility</p>
+          <ul className="list-disc pl-4 text-slate-400 space-y-0.5 text-sm">
             <li>
-              Only students in the <strong>same class</strong> as the video see it in EduOTT.
+              Only students in the <strong className="text-slate-200">same class</strong> see videos in EduOTT.
             </li>
             <li>
-              The student must have that <strong>product</strong> in their class library and school license.
+              Product must be in the class library with a valid school license.
             </li>
-            <li>
-              School OTT plan limits (suspend, class/subject allowlists) apply on the server — not only in the UI.
-            </li>
+            <li>Server-side OTT plan limits always apply.</li>
           </ul>
         </div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card className="border-2 border-[var(--brand-navy)]/10 shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2 text-[var(--brand-navy)]">
-              <Play className="h-5 w-5 text-[var(--brand-emerald)]" />
+      <div className="viswam-ott-admin-body space-y-6">
+      {studioTab === "upload" && (
+        <div className="viswam-ott-admin-panel max-w-2xl mx-auto">
+        <Card className="border-0 bg-transparent shadow-none">
+          <CardHeader className="px-0 pt-0 pb-4">
+            <CardTitle className="viswam-ott-upload-title text-lg flex items-center justify-center gap-2 text-emerald-800">
+              <Play className="h-5 w-5 text-emerald-600" />
               Upload OTT video
             </CardTitle>
-            <p className="text-sm text-[var(--text-secondary)] font-normal">
+            <p className="viswam-ott-upload-sub text-sm font-normal text-center">
               Choose product, subject, and class in order — then upload your video file.
             </p>
           </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSaveVideo} className="space-y-3">
+          <CardContent className="px-0 pb-0">
+            <form onSubmit={handleSaveVideo} className="viswam-ott-upload-form space-y-4">
               <ProductSubjectPicker
                 products={products}
                 value={contentTarget}
                 onChange={setContentTarget}
+                className="ott-picker-mint"
               />
 
-              <div className="space-y-1">
+              <div className="viswam-ott-mint-field space-y-1">
                 <Label>Video title</Label>
                 <Input
                   value={form.title}
@@ -352,7 +441,7 @@ export default function SuperAdminOttStudio() {
                   placeholder="e.g. Chapter 1 — Introduction"
                 />
               </div>
-              <div className="space-y-1">
+              <div className="viswam-ott-mint-field space-y-2">
                 <Label>Video file</Label>
                 <Input
                   type="file"
@@ -377,6 +466,7 @@ export default function SuperAdminOttStudio() {
                   size="sm"
                   disabled={!file || uploading}
                   onClick={handleUploadFile}
+                  className="viswam-ott-btn-upload-outline"
                 >
                   {uploading ? (
                     <Loader2 className="h-4 w-4 animate-spin mr-2" />
@@ -388,13 +478,13 @@ export default function SuperAdminOttStudio() {
                 {form.fileUrl ? (
                   <p className="text-xs text-emerald-700 flex flex-wrap items-center gap-2">
                     <span className="truncate">Ready to publish</span>
-                    <Badge variant="secondary" className="shrink-0">
+                    <Badge variant="secondary" className="shrink-0 bg-emerald-100 text-emerald-900">
                       {formatFileSize(form.fileSizeBytes)}
                     </Badge>
                   </p>
                 ) : null}
               </div>
-              <div className="space-y-1">
+              <div className="viswam-ott-mint-field space-y-1">
                 <Label>Max quality</Label>
                 <Select
                   value={form.maxStreamQuality}
@@ -410,10 +500,57 @@ export default function SuperAdminOttStudio() {
                   </SelectContent>
                 </Select>
               </div>
+              {lastAddedMessage ? (
+                <div
+                  className="viswam-ott-added-banner rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-4 flex gap-3"
+                  role="status"
+                >
+                  <CheckCircle2 className="h-6 w-6 shrink-0 text-emerald-600 mt-0.5" />
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <p className="font-semibold text-emerald-900">Video added to OTT catalog</p>
+                    <p className="text-sm text-emerald-800">
+                      <strong>{lastAddedMessage.title}</strong> is live for students in{" "}
+                      <strong>Class {lastAddedMessage.classNumber}</strong>.
+                    </p>
+                    <p className="text-xs text-emerald-700/90 flex flex-wrap gap-1 items-center">
+                      <span>{lastAddedMessage.productName}</span>
+                      <span>·</span>
+                      <span>{lastAddedMessage.subject}</span>
+                      {lastAddedMessage.sizeLabel ? (
+                        <>
+                          <span>·</span>
+                          <span>{lastAddedMessage.sizeLabel}</span>
+                        </>
+                      ) : null}
+                    </p>
+                    <div className="flex flex-wrap gap-2 pt-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="border-emerald-400 text-emerald-800 hover:bg-emerald-100"
+                        onClick={() => setStudioTab("catalog")}
+                      >
+                        View in catalog
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="text-emerald-700"
+                        onClick={() => setLastAddedMessage(null)}
+                      >
+                        Dismiss
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
               <Button
                 type="submit"
                 disabled={saving}
-                className="bg-[var(--brand-emerald)] hover:bg-[var(--brand-emerald-hover)] w-full sm:w-auto"
+                className="viswam-ott-btn-primary"
               >
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4 mr-2" />}
                 Add to OTT catalog
@@ -421,11 +558,15 @@ export default function SuperAdminOttStudio() {
             </form>
           </CardContent>
         </Card>
+        </div>
+      )}
 
-        <Card className="border-2 border-[var(--brand-navy)]/10 shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2 text-[var(--brand-navy)]">
-              <Shield className="h-5 w-5 text-[var(--brand-gold)]" />
+      {studioTab === "restrictions" && (
+        <div className="viswam-ott-admin-panel viswam-ott-restrictions-panel max-w-3xl mx-auto">
+        <Card className="border-0 bg-transparent shadow-none">
+          <CardHeader className="px-0 pt-0">
+            <CardTitle className="text-lg flex items-center justify-center gap-2 text-emerald-950">
+              <Shield className="h-5 w-5 text-emerald-600" />
               School OTT restrictions
             </CardTitle>
           </CardHeader>
@@ -512,10 +653,16 @@ export default function SuperAdminOttStudio() {
                     }
                   />
                 </div>
+                <OttSchoolAccessEditor
+                  restrictions={restrictions}
+                  videos={videos}
+                  onChange={setRestrictions}
+                />
+
                 <Button
                   type="button"
                   onClick={saveRestrictions}
-                  className="w-full bg-[var(--brand-navy)] hover:bg-[var(--brand-navy-hover)]"
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
                 >
                   Save restrictions
                 </Button>
@@ -525,12 +672,14 @@ export default function SuperAdminOttStudio() {
             )}
           </CardContent>
         </Card>
-      </div>
+        </div>
+      )}
 
-      <Card className="border-2 border-[var(--brand-navy)]/10 shadow-md overflow-hidden">
+      {studioTab === "catalog" && (
+      <div className="viswam-ott-admin-catalog">
         <div className="h-1 bg-gradient-to-r from-[var(--brand-navy)] via-[var(--brand-emerald)] to-[var(--brand-gold)]" />
-        <CardHeader className="space-y-3 bg-slate-50/80">
-          <CardTitle className="text-base font-bold text-[var(--brand-navy)] flex items-center gap-2">
+        <CardHeader className="viswam-ott-admin-catalog-header space-y-3">
+          <CardTitle className="text-base font-bold flex items-center justify-center gap-2">
             OTT catalog ({filteredVideos.length}
             {filteredVideos.length !== videos.length ? ` of ${videos.length}` : ""})
           </CardTitle>
@@ -586,11 +735,24 @@ export default function SuperAdminOttStudio() {
               </Select>
               <Select value={catalogProductFilter} onValueChange={setCatalogProductFilter}>
                 <SelectTrigger className="w-[160px] h-9">
-                  <SelectValue />
+                  <SelectValue placeholder="Product" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All products</SelectItem>
-                  {catalogProductNames.map((n) => (
+                  {catalogProductOptions.map((p) => (
+                    <SelectItem key={p.code} value={p.code}>
+                      {p.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={catalogSubjectFilter} onValueChange={setCatalogSubjectFilter}>
+                <SelectTrigger className="w-[140px] h-9">
+                  <SelectValue placeholder="Subject" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All subjects</SelectItem>
+                  {catalogSubjectNames.map((n) => (
                     <SelectItem key={n} value={n}>
                       {n}
                     </SelectItem>
@@ -710,7 +872,9 @@ export default function SuperAdminOttStudio() {
             </ul>
           )}
         </CardContent>
-      </Card>
+      </div>
+      )}
+      </div>
 
       <EduOTTVideoPlayerDialog
         video={previewVideo}

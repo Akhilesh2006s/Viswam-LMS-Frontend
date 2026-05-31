@@ -8,6 +8,7 @@ export type SubjectJourneyItem = {
   name: string;
   progress: number;
   lessonsCompleted?: number;
+  totalContent?: number;
   xpEarned?: number;
 };
 
@@ -30,7 +31,12 @@ export function SubjectJourneyCard({ subject, onClick }: SubjectJourneyCardProps
               <BookOpen className="h-5 w-5" />
             </div>
             <h3 className="mt-3 text-lg font-bold capitalize">{subject.name}</h3>
-            <p className="text-xs text-white/75">{subject.lessonsCompleted ?? 0} lessons · {xp} XP</p>
+            <p className="text-xs text-white/75">
+              {(subject.totalContent ?? 0) > 0
+                ? `${subject.totalContent} item${subject.totalContent !== 1 ? 's' : ''} · `
+                : ''}
+              {subject.lessonsCompleted ?? 0} lessons · {xp} XP
+            </p>
           </div>
           <ProgressRing percent={subject.progress} color={theme.accent} />
         </div>

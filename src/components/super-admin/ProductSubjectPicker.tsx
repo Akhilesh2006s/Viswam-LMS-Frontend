@@ -22,6 +22,8 @@ import {
   fetchProductCurriculum,
   type Product,
   type ProductCurriculum,
+  isLevelBasedProduct,
+  getProductCatalogTags,
 } from "@/lib/products";
 import { extractPlainSubjectName } from "@/lib/subject-names";
 
@@ -134,8 +136,12 @@ export default function ProductSubjectPicker({ products, value, onChange, classN
   const sortedProducts = useMemo(() => sortProducts(products), [products]);
   const selectedProduct = products.find((p) => p.code === productCode);
 
+  const levelBased = isLevelBasedProduct(selectedProduct);
+  const tagLabel = levelBased ? "Category" : "Subject";
+  const classStepLabel = levelBased ? "Level" : "Class";
+
   const catalogSubjects = useMemo(() => {
-    const fromProduct = selectedProduct?.catalogSubjects || [];
+    const fromProduct = getProductCatalogTags(selectedProduct);
     if (fromProduct.length) return fromProduct;
     const fromCurriculum = new Set<string>();
     curriculum?.subjects.forEach((s) => {
@@ -206,7 +212,7 @@ export default function ProductSubjectPicker({ products, value, onChange, classN
         className,
       )}
     >
-      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+      <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700/90 ott-picker-heading">
         Where should this video appear?
       </p>
 
@@ -234,9 +240,9 @@ export default function ProductSubjectPicker({ products, value, onChange, classN
         </Select>
         {selectedProduct ? (
           <p className="mt-1.5 text-xs text-slate-500">
-            {(selectedProduct.catalogSubjects || []).length > 0
-              ? `Subjects on catalog: ${(selectedProduct.catalogSubjects || []).join(", ")}`
-              : "Add subjects in Products, then provision curriculum in Content studio."}
+            {getProductCatalogTags(selectedProduct).length > 0
+              ? `${levelBased ? "Categories" : "Subjects"} on catalog: ${getProductCatalogTags(selectedProduct).join(", ")}`
+              : `Add ${levelBased ? "categories" : "subjects"} in Products, then provision curriculum in Content studio.`}
           </p>
         ) : null}
       </StepRow>
@@ -244,7 +250,7 @@ export default function ProductSubjectPicker({ products, value, onChange, classN
       {productCode ? (
         <StepRow
           step={2}
-          label="Subject"
+          label={tagLabel}
           icon={BookOpen}
           active={stepProductDone && !stepSubjectDone}
           done={stepSubjectDone}
@@ -252,7 +258,7 @@ export default function ProductSubjectPicker({ products, value, onChange, classN
           {loading ? (
             <div className="flex items-center gap-2 py-2 text-sm text-slate-500">
               <Loader2 className="h-4 w-4 animate-spin text-[var(--brand-emerald)]" />
-              Loading subjects…
+              Loading {tagLabel.toLowerCase()}s…
             </div>
           ) : catalogSubjects.length === 0 ? (
             <p className="text-sm text-amber-900 bg-amber-50 border border-amber-100 rounded-lg p-3">
@@ -265,11 +271,11 @@ export default function ProductSubjectPicker({ products, value, onChange, classN
               onValueChange={(v) => pickSubject(v === "_" ? "" : v)}
             >
               <SelectTrigger className="h-11 bg-white border-slate-200 shadow-sm">
-                <SelectValue placeholder="Choose subject…" />
+                <SelectValue placeholder={`Choose ${tagLabel.toLowerCase()}…`} />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="_" disabled>
-                  Choose subject…
+                  {`Choose ${tagLabel.toLowerCase()}…`}
                 </SelectItem>
                 {catalogSubjects.map((name) => (
                   <SelectItem key={name} value={name}>
@@ -285,7 +291,7 @@ export default function ProductSubjectPicker({ products, value, onChange, classN
       {productCode && catalogSubject ? (
         <StepRow
           step={3}
-          label="Class"
+          label={classStepLabel}
           icon={GraduationCap}
           active={stepSubjectDone && !stepClassDone}
           done={stepClassDone}
@@ -298,17 +304,23 @@ export default function ProductSubjectPicker({ products, value, onChange, classN
             <SelectTrigger className="h-11 bg-white border-slate-200 shadow-sm">
               <SelectValue
                 placeholder={
-                  classes.length ? "Which class can watch this?" : "Create classes first"
+                  classes.length
+                    ? levelBased
+                      ? "Which level can watch this?"
+                      : "Which class can watch this?"
+                    : levelBased
+                      ? "Create levels first"
+                      : "Create classes first"
                 }
               />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="_" disabled>
-                Select class…
+                {levelBased ? "Select level…" : "Select class…"}
               </SelectItem>
               {classes.map((c) => (
                 <SelectItem key={c.classNumber} value={c.classNumber}>
-                  {c.label || `Class ${c.classNumber}`}
+                  {c.label || (levelBased ? `Level ${c.classNumber}` : `Class ${c.classNumber}`)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -334,7 +346,7 @@ export default function ProductSubjectPicker({ products, value, onChange, classN
             {subjectReady ? (
               <>
                 <p className="font-semibold text-[var(--brand-navy)]">Ready to publish</p>
-                <p className="mt-1 flex flex-wrap items-center gap-1 text-slate-700">
+                <div className="mt-1 flex flex-wrap items-center gap-1 text-slate-700">
                   <Badge className="bg-[var(--brand-navy)] text-white">{selectedProduct?.name}</Badge>
                   <ChevronRight className="h-3 w-3 text-slate-400" />
                   <Badge variant="outline" className="border-emerald-300 text-emerald-800">
@@ -344,7 +356,7 @@ export default function ProductSubjectPicker({ products, value, onChange, classN
                   <Badge className="bg-[var(--brand-gold)]/90 text-[var(--brand-navy)]">
                     Class {classNumber}
                   </Badge>
-                </p>
+                </div>
               </>
             ) : (
               <>

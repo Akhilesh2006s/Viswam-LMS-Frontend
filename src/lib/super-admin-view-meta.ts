@@ -5,6 +5,7 @@ import {
   Building2,
   LibraryBig,
   CalendarDays,
+  Clock,
   LineChart,
   CreditCard,
   SlidersHorizontal,
@@ -55,6 +56,11 @@ export const SUPER_ADMIN_VIEW_META: Partial<Record<SuperAdminView, SuperAdminVie
     description: "Academic events, milestones, and school schedules.",
     icon: CalendarDays,
   },
+  periods: {
+    title: "Learning periods",
+    description: "Product-wide period slots and assigned curriculum — shared by all licensed schools.",
+    icon: Clock,
+  },
   analytics: {
     title: "Analytics",
     description: "Enterprise insights across schools and learners.",
@@ -83,6 +89,7 @@ export const SUPER_ADMIN_NAV_ITEMS: {
   { id: "admins", label: "School Management", icon: Building2, group: "core" },
   { id: "subjects-and-content", label: "Content studio", icon: LibraryBig, group: "content" },
   { id: "viswam-ott", label: "Viswam OTT", icon: Play, group: "content" },
+  { id: "periods", label: "Learning periods", icon: Clock, group: "content" },
   { id: "calendar", label: "School Calendar", icon: CalendarDays, group: "content" },
   { id: "analytics", label: "Analytics", icon: LineChart, group: "insights" },
   { id: "subscriptions", label: "Subscriptions", icon: CreditCard, group: "insights" },

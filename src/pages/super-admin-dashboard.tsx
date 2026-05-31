@@ -2,6 +2,7 @@ import { Suspense, lazy, useState, useEffect } from "react";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { motion } from "framer-motion";
 import SuperAdminSidebar from "@/components/dashboard/SuperAdminSidebar";
+import { SuperAdminTopBar } from "@/components/super-admin/premium/SuperAdminTopBar";
 import type { SuperAdminView } from "@/lib/super-admin-views";
 const AdminManagement = lazy(() => import("@/components/admin/AdminManagement"));
 const CombinedSuperAdminAnalytics = lazy(() => import("./combined-super-admin-analytics"));
@@ -10,6 +11,7 @@ const SubjectManagement = lazy(() => import("@/components/super-admin/subject-ma
 const ProductCurriculumHub = lazy(() => import("@/components/super-admin/ProductCurriculumHub"));
 const SuperAdminOttStudio = lazy(() => import("@/components/super-admin/super-admin-ott-studio"));
 const SuperAdminCalendar = lazy(() => import("@/components/super-admin/super-admin-calendar"));
+const SuperAdminProductPeriods = lazy(() => import("@/components/super-admin/SuperAdminProductPeriods"));
 const SubscriptionManagement = lazy(() => import("@/components/super-admin/subscription-management"));
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -36,11 +38,11 @@ import { useToast } from "@/hooks/use-toast";
 import { API_BASE_URL } from "@/lib/api-config";
 import { cn } from "@/lib/utils";
 import { useSuperAdminDrawerNav } from "@/hooks/use-mobile";
+import { ArrowLeft, Play } from "lucide-react";
 import { SuperAdminPageHeader } from "@/components/super-admin/premium/SuperAdminPageHeader";
 import { SuperAdminStatCard } from "@/components/super-admin/premium/SuperAdminStatCard";
 import { SuperAdminActionTile } from "@/components/super-admin/premium/SuperAdminActionTile";
 import { SuperAdminSection } from "@/components/super-admin/premium/SuperAdminSection";
-import { SuperAdminTopBar } from "@/components/super-admin/premium/SuperAdminTopBar";
 import {
   GraduationCap,
   School,
@@ -745,7 +747,15 @@ export default function SuperAdminDashboard() {
   );
 
   const wrapWithSection = (view: SuperAdminView, node: React.ReactNode) => {
-    if (view === "dashboard" || view === "products") return node;
+    if (
+      view === "dashboard" ||
+      view === "products" ||
+      view === "subjects-and-content" ||
+      view === "content" ||
+      view === "viswam-ott"
+    ) {
+      return node;
+    }
     return (
       <SuperAdminSection view={view} flush>
         {node}
@@ -792,6 +802,14 @@ export default function SuperAdminDashboard() {
           </Suspense>
         );
         break;
+      case "periods":
+        return (
+          <SuperAdminSection view="periods" flush>
+            <Suspense fallback={lazySectionFallback}>
+              <SuperAdminProductPeriods />
+            </Suspense>
+          </SuperAdminSection>
+        );
       case "calendar":
         body = (
           <Suspense fallback={lazySectionFallback}>
@@ -820,6 +838,127 @@ export default function SuperAdminDashboard() {
     window.location.href = '/auth/login';
   };
 
+  const isOttView = currentView === "viswam-ott";
+
+  const systemSettingsDialog = (
+    <Dialog open={systemSettingsOpen} onOpenChange={setSystemSettingsOpen}>
+      <DialogContent className="rounded-2xl border-slate-200 sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>System settings</DialogTitle>
+          <DialogDescription>
+            Shortcuts to main modules. Secrets and database URLs are set on the server, not here.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-1">
+          <div className="space-y-2">
+            <p className="text-xs sm:text-sm font-medium text-foreground">Quick links</p>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="justify-start"
+                onClick={() => {
+                  setSystemSettingsOpen(false);
+                  setCurrentView("calendar");
+                }}
+              >
+                School Calendar
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="justify-start"
+                onClick={() => {
+                  setSystemSettingsOpen(false);
+                  setCurrentView("admins");
+                }}
+              >
+                School Management
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="justify-start"
+                onClick={() => {
+                  setSystemSettingsOpen(false);
+                  setCurrentView("subjects-and-content");
+                }}
+              >
+                Subject &amp; Content
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="justify-start"
+                onClick={() => {
+                  setSystemSettingsOpen(false);
+                  setCurrentView("analytics");
+                }}
+              >
+                Analytics
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="justify-start"
+                onClick={() => {
+                  setSystemSettingsOpen(false);
+                  setCurrentView("subscriptions");
+                }}
+              >
+                Subscriptions
+              </Button>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            To change JWT secrets or database URLs, update the backend{" "}
+            <code className="rounded bg-muted px-1">.env</code> and redeploy.
+          </p>
+        </div>
+        <DialogFooter>
+          <Button type="button" onClick={() => setSystemSettingsOpen(false)}>
+            Close
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+
+  if (isOttView) {
+    return (
+      <div className="min-h-screen bg-[#f0fdf4]">
+        <header className="sticky top-0 z-50 border-b border-emerald-200/60 bg-white/90 backdrop-blur-md">
+          <div className="mx-auto flex max-w-[1400px] items-center justify-between gap-3 px-4 py-3 sm:px-6">
+            <Button
+              type="button"
+              variant="ghost"
+              className="text-emerald-900 hover:bg-emerald-50"
+              onClick={() => handleViewChange("dashboard")}
+            >
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back to dashboard
+            </Button>
+            <div className="flex items-center gap-2 text-emerald-950">
+              <Play className="h-5 w-5 text-emerald-600" />
+              <span className="text-sm font-semibold sm:text-base">Viswam OTT Studio</span>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="border-emerald-300 text-emerald-800 hover:bg-emerald-50"
+              onClick={handleLogout}
+            >
+              Sign out
+            </Button>
+          </div>
+        </header>
+        <main className="w-full">{renderContent()}</main>
+        {systemSettingsDialog}
+      </div>
+    );
+  }
+
   return (
     <div className="sa-premium-shell min-h-screen">
       <SuperAdminSidebar
@@ -835,93 +974,18 @@ export default function SuperAdminDashboard() {
           superAdminDrawerNav ? "ml-0 pt-14 pb-20 sm:pb-0" : "sm:ml-[68px] lg:ml-[17.5rem]",
         )}
       >
-        <main className={cn("mx-auto w-full max-w-[1600px] flex-1", superAdminDrawerNav ? "px-3 py-4 sm:px-4" : "px-3 py-4 sm:px-5 lg:px-8 lg:py-6")}>
+        <main
+          className={cn(
+            "mx-auto w-full max-w-[1600px] flex-1",
+            superAdminDrawerNav ? "px-3 py-4 sm:px-4" : "px-3 py-4 sm:px-5 lg:px-8 lg:py-6",
+          )}
+        >
           <SuperAdminTopBar currentView={currentView} userName={user.fullName} />
           {renderContent()}
         </main>
       </div>
 
-      <Dialog open={systemSettingsOpen} onOpenChange={setSystemSettingsOpen}>
-        <DialogContent className="rounded-2xl border-slate-200 sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>System settings</DialogTitle>
-            <DialogDescription>
-              Shortcuts to main modules. Secrets and database URLs are set on the server, not here.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-1">
-            <div className="space-y-2">
-              <p className="text-xs sm:text-sm font-medium text-foreground">Quick links</p>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="justify-start"
-                  onClick={() => {
-                    setSystemSettingsOpen(false);
-                    setCurrentView("calendar");
-                  }}
-                >
-                  School Calendar
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="justify-start"
-                  onClick={() => {
-                    setSystemSettingsOpen(false);
-                    setCurrentView("admins");
-                  }}
-                >
-                  School Management
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="justify-start"
-                  onClick={() => {
-                    setSystemSettingsOpen(false);
-                    setCurrentView("subjects-and-content");
-                  }}
-                >
-                  Subject &amp; Content
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="justify-start"
-                  onClick={() => {
-                    setSystemSettingsOpen(false);
-                    setCurrentView("analytics");
-                  }}
-                >
-                  Analytics
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="justify-start"
-                  onClick={() => {
-                    setSystemSettingsOpen(false);
-                    setCurrentView("subscriptions");
-                  }}
-                >
-                  Subscriptions
-                </Button>
-              </div>
-            </div>
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              To change JWT secrets or database URLs, update the backend <code className="rounded bg-muted px-1">.env</code> and
-              redeploy.
-            </p>
-          </div>
-          <DialogFooter>
-            <Button type="button" onClick={() => setSystemSettingsOpen(false)}>
-              Close
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {systemSettingsDialog}
     </div>
   );
 }

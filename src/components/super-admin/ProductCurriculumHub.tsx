@@ -8,37 +8,39 @@ export default function ProductCurriculumHub() {
   const [tab, setTab] = useState("curriculum");
 
   return (
-    <div className="space-y-6 w-full max-w-[1800px]">
-      <div>
-        <h1 className="text-2xl font-semibold text-[var(--brand-navy)] tracking-tight">Content studio</h1>
-        <p className="text-sm text-[var(--text-secondary)] mt-1 max-w-3xl">
-          Build curriculum from your book products (classes, subjects, uploads). Add YouTube learning
-          paths here. Uploaded streaming videos live under <strong>Viswam OTT</strong> in the sidebar.
-        </p>
-      </div>
+    <div className="sa-premium-scope w-full max-w-[1920px] mx-auto pb-12">
+      <Tabs value={tab} onValueChange={setTab} className="space-y-8">
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-widest text-[var(--brand-emerald)] mb-1">
+              Content studio
+            </p>
+            <h1 className="text-2xl font-semibold text-[var(--brand-navy)] tracking-tight">
+              {tab === "curriculum" ? "Curriculum & uploads" : "Learning paths"}
+            </h1>
+          </div>
+          <TabsList className="h-11 shrink-0 inline-flex bg-slate-100/90 p-1 rounded-xl">
+            <TabsTrigger
+              value="curriculum"
+              className="rounded-lg gap-2 px-5 data-[state=active]:bg-white data-[state=active]:shadow-sm"
+            >
+              <BookOpen className="h-4 w-4" />
+              Curriculum
+            </TabsTrigger>
+            <TabsTrigger
+              value="learning-paths"
+              className="rounded-lg gap-2 px-5 data-[state=active]:bg-[var(--brand-emerald)] data-[state=active]:text-white"
+            >
+              <Youtube className="h-4 w-4" />
+              Learning paths
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
-      <Tabs value={tab} onValueChange={setTab} className="space-y-6">
-        <TabsList className="h-auto flex flex-wrap gap-1 bg-[var(--brand-navy)]/5 border border-[var(--brand-navy)]/10 p-1 rounded-xl">
-          <TabsTrigger
-            value="curriculum"
-            className="rounded-lg gap-2 data-[state=active]:bg-white data-[state=active]:text-[var(--brand-navy)] data-[state=active]:shadow-sm text-[var(--brand-navy)]/70"
-          >
-            <BookOpen className="h-4 w-4" />
-            Curriculum
-          </TabsTrigger>
-          <TabsTrigger
-            value="learning-paths"
-            className="rounded-lg gap-2 data-[state=active]:bg-[var(--brand-emerald)] data-[state=active]:text-white data-[state=active]:shadow-md text-[var(--brand-navy)]/70"
-          >
-            <Youtube className="h-4 w-4" />
-            Learning paths
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="curriculum" className="mt-0">
+        <TabsContent value="curriculum" className="mt-0 focus-visible:outline-none">
           <ProductCurriculumPanel />
         </TabsContent>
-        <TabsContent value="learning-paths" className="mt-0 -mx-1">
+        <TabsContent value="learning-paths" className="mt-0 focus-visible:outline-none">
           <SuperAdminLearningPaths />
         </TabsContent>
       </Tabs>

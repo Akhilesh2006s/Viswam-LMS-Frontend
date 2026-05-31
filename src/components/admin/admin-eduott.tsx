@@ -1,9 +1,6 @@
-import { useState, useEffect, useMemo } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useSearch } from 'wouter';
 import { Input } from '@/components/ui/input';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Select,
   SelectContent,
@@ -11,289 +8,233 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { 
-  Play, 
+import {
+  Play,
   Search,
-  Filter,
   Video as VideoIcon,
-  BookOpen,
   Radio,
   Eye,
   Users,
-  Calendar
+  Calendar,
+  Loader2,
 } from 'lucide-react';
 import { API_BASE_URL } from '@/lib/api-config';
-import { EduOTTVideoCard, EduOTTSubjectBadges } from '@/components/eduott/EduOTTVideoCard';
-import { EduOTTVideoPlayerDialog } from '@/components/eduott/EduOTTVideoPlayerDialog';
-import type { EduOTTVideoCardItem } from '@/components/eduott/EduOTTVideoCard';
 import { resolveContentDurationSeconds } from '@/lib/eduott-video-utils';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Label } from '@/components/ui/label';
-import {
-  extractPlainSubjectName,
-  getSubjectClassLabel,
-} from '@/lib/subject-names';
 import { AdminOttAnalyticsPanel } from '@/components/admin/AdminOttAnalyticsPanel';
-
-interface Video {
-  _id: string;
-  title: string;
-  description?: string;
-  duration: number;
-  videoUrl?: string;
-  youtubeUrl?: string;
-  isYouTubeVideo?: boolean;
-  thumbnailUrl?: string;
-  views: number;
-  createdAt: string;
-  subjectId?: string;
-  subjectName?: string;
-  classNumber?: string;
-}
+import { AdminOttPremiumPlayer } from '@/components/admin/AdminOttPremiumPlayer';
+import { mapAdminRowToOttVideo, type AdminOttSourceRow } from '@/lib/ott/admin-map';
+import type { OttVideo } from '@/lib/ott/types';
+import { AdminOttFeaturedHero } from '@/components/admin/AdminOttFeaturedHero';
+import { OttContentRow } from '@/components/viswam-ott/OttContentRow';
+import { OttEmptyState } from '@/components/viswam-ott/OttEmptyState';
 
 interface LiveSession {
   _id: string;
   title: string;
   description?: string;
-  streamer: {
-    _id: string;
-    fullName: string;
-    email: string;
-  };
+  streamer: { _id: string; fullName: string; email: string };
   status: 'scheduled' | 'live' | 'ended' | 'cancelled';
-  streamUrl?: string;
   hlsUrl?: string;
   scheduledTime?: string;
   scheduledStartTime?: string;
-  subject?: {
-    _id: string;
-    name: string;
-  };
-  board?: string;
+  subject?: { _id: string; name: string };
   classNumber?: string;
   viewerCount: number;
-  createdAt: string;
+}
+
+function mapOttRowToVideo(content: Record<string, unknown>): AdminOttSourceRow | null {
+  const rawFileUrl = String(content.fileUrl || '');
+  if (
+    rawFileUrl.includes('youtube.com') ||
+    rawFileUrl.includes('youtu.be') ||
+    content.contentChannel !== 'ott'
+  ) {
+    return null;
+  }
+
+  const subjectName = (content.subject as { name?: string })?.name || 'Unknown Subject';
+  const subjectId =
+    (content.subject as { _id?: string })?._id || (content.subject as string) || '';
+  const classNum =
+    content.classNumber != null && String(content.classNumber).trim() !== ''
+      ? String(content.classNumber).trim()
+      : (content.subject as { classNumber?: string })?.classNumber != null
+        ? String((content.subject as { classNumber?: string }).classNumber).trim()
+        : undefined;
+
+  const durationInSeconds = resolveContentDurationSeconds({
+    duration: content.duration as number,
+    durationSeconds: content.durationSeconds as number,
+  });
+
+  let videoFileUrl = rawFileUrl;
+  if (videoFileUrl && !videoFileUrl.startsWith('http') && !videoFileUrl.startsWith('//')) {
+    videoFileUrl = videoFileUrl.startsWith('/')
+      ? `${API_BASE_URL}${videoFileUrl}`
+      : `${API_BASE_URL}/${videoFileUrl}`;
+  }
+
+  return {
+    _id: String(content._id || ''),
+    title: String(content.title || 'Untitled Video'),
+    description: String(content.description || ''),
+    durationSeconds: durationInSeconds,
+    videoUrl: videoFileUrl,
+    fileUrl: videoFileUrl,
+    thumbnailUrl: String(content.thumbnailUrl || ''),
+    views: Number(content.views) || 0,
+    createdAt: String(content.createdAt || content.date || new Date().toISOString()),
+    subjectId: String(subjectId),
+    subjectName,
+    classNumber: classNum,
+  };
 }
 
 export default function AdminEduOTT() {
-  const [activeTab, setActiveTab] = useState('videos');
-  const [videos, setVideos] = useState<Video[]>([]);
+  const search = useSearch();
+  const [mode, setMode] = useState<'videos' | 'live'>('videos');
+  const [rawVideos, setRawVideos] = useState<AdminOttSourceRow[]>([]);
   const [liveSessions, setLiveSessions] = useState<LiveSession[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadingSessions, setLoadingSessions] = useState(true);
+  const [loadingSessions, setLoadingSessions] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [videoClassFilter, setVideoClassFilter] = useState('all');
+  const [videoSubjectFilter, setVideoSubjectFilter] = useState('all');
   const [sessionSearchTerm, setSessionSearchTerm] = useState('');
-  const [videoClassFilter, setVideoClassFilter] = useState<string>('all');
-  const [videoSubjectFilter, setVideoSubjectFilter] = useState<string>('all');
-  const [sessionClassFilter, setSessionClassFilter] = useState<string>('all');
-  const [sessionSubjectFilter, setSessionSubjectFilter] = useState<string>('all');
-  const [selectedVideo, setSelectedVideo] = useState<EduOTTVideoCardItem | null>(null);
-  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [playing, setPlaying] = useState<OttVideo | null>(null);
+
+  const ottVideos = useMemo(() => rawVideos.map(mapAdminRowToOttVideo), [rawVideos]);
 
   useEffect(() => {
     setVideoSubjectFilter('all');
   }, [videoClassFilter]);
 
   useEffect(() => {
-    setSessionSubjectFilter('all');
-  }, [sessionClassFilter]);
-
-  // Fetch videos
-  useEffect(() => {
-    const fetchVideos = async () => {
+    let cancelled = false;
+    (async () => {
       try {
         setLoading(true);
         const token = localStorage.getItem('authToken');
-        if (!token) {
-          setLoading(false);
-          return;
-        }
-
-        const response = await fetch(`${API_BASE_URL}/api/admin/asli-prep-content?type=Video`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          }
-        });
-
-        if (response.ok) {
+        if (!token) return;
+        const response = await fetch(
+          `${API_BASE_URL}/api/admin/curriculum/channel-content?channel=ott`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+          },
+        );
+        if (!cancelled && response.ok) {
           const data = await response.json();
-          const videosList = data.data || data || [];
-          
-          const videosWithSubjects = videosList.map((content: any) => {
-            const subjectName = content.subject?.name || content.subject || 'Unknown Subject';
-            const subjectId = content.subject?._id || content.subject;
-            const classNum =
-              content.classNumber != null && String(content.classNumber).trim() !== ''
-                ? String(content.classNumber).trim()
-                : content.subject?.classNumber != null &&
-                    String(content.subject.classNumber).trim() !== ''
-                  ? String(content.subject.classNumber).trim()
-                  : undefined;
-            
-            const durationInSeconds = resolveContentDurationSeconds({
-              duration: content.duration,
-              durationSeconds: content.durationSeconds,
-            });
-            const durationInMinutes =
-              durationInSeconds > 0 ? Math.max(1, Math.round(durationInSeconds / 60)) : 0;
-            
-            let videoFileUrl = content.fileUrl;
-            if (videoFileUrl && !videoFileUrl.startsWith('http') && !videoFileUrl.startsWith('//')) {
-              if (videoFileUrl.startsWith('/')) {
-                videoFileUrl = `${API_BASE_URL}${videoFileUrl}`;
-              } else {
-                videoFileUrl = `${API_BASE_URL}/${videoFileUrl}`;
-              }
-            }
-            
-            const rawFileUrl = content.fileUrl || '';
-            const isYouTube =
-              !!(
-                content.youtubeUrl ||
-                rawFileUrl.includes('youtube.com') ||
-                rawFileUrl.includes('youtu.be')
-              );
-            const youtubeUrl = content.youtubeUrl || (isYouTube ? videoFileUrl || rawFileUrl : '');
-
-            return {
-              _id: content._id,
-              title: content.title || 'Untitled Video',
-              description: content.description || '',
-              duration: durationInMinutes,
-              durationSeconds: durationInSeconds,
-              videoUrl: videoFileUrl,
-              fileUrl: videoFileUrl,
-              youtubeUrl,
-              isYouTubeVideo: isYouTube,
-              thumbnailUrl: content.thumbnailUrl || '',
-              views: content.views || 0,
-              createdAt: content.createdAt || content.date || new Date().toISOString(),
-              subjectId: subjectId,
-              subjectName: subjectName,
-              classNumber: classNum
-            };
-          });
-
-          setVideos(videosWithSubjects);
+          const list = data.data || data || [];
+          const rows = (Array.isArray(list) ? list : [])
+            .map((c: Record<string, unknown>) => mapOttRowToVideo(c))
+            .filter((v): v is AdminOttSourceRow => !!v);
+          setRawVideos(rows);
         }
-      } catch (error) {
-        console.error('Failed to fetch videos:', error);
-        setVideos([]);
+      } catch (e) {
+        console.error('Failed to fetch OTT videos:', e);
+        if (!cancelled) setRawVideos([]);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
+    })();
+    return () => {
+      cancelled = true;
     };
+  }, []);
 
-    if (activeTab === 'videos') {
-      fetchVideos();
-    }
-  }, [activeTab]);
+  const openVideoById = useCallback(
+    (videoId: string) => {
+      const found = ottVideos.find((v) => v.id === videoId);
+      if (found) setPlaying(found);
+    },
+    [ottVideos],
+  );
 
-  // Fetch live sessions
   useEffect(() => {
-    const fetchLiveSessions = async () => {
+    if (loading || !ottVideos.length) return;
+    const q = search.startsWith('?') ? search.slice(1) : search;
+    const watchId = new URLSearchParams(q).get('watch');
+    if (watchId) openVideoById(watchId);
+  }, [search, loading, ottVideos, openVideoById]);
+
+  useEffect(() => {
+    if (mode !== 'live') return;
+    let cancelled = false;
+    (async () => {
       try {
         setLoadingSessions(true);
         const token = localStorage.getItem('authToken');
-        if (!token) {
-          setLoadingSessions(false);
-          return;
-        }
-
+        if (!token) return;
         const response = await fetch(`${API_BASE_URL}/api/admin/streams`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          }
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         });
-
-        if (response.ok) {
+        if (!cancelled && response.ok) {
           const data = await response.json();
-          const sessionsList = data.data || data || [];
-          setLiveSessions(sessionsList);
+          setLiveSessions(data.data || data || []);
         }
-      } catch (error) {
-        console.error('Failed to fetch live sessions:', error);
-        setLiveSessions([]);
+      } catch (e) {
+        console.error('Failed to fetch live sessions:', e);
+        if (!cancelled) setLiveSessions([]);
       } finally {
-        setLoadingSessions(false);
+        if (!cancelled) setLoadingSessions(false);
       }
+    })();
+    return () => {
+      cancelled = true;
     };
-
-    if (activeTab === 'live-sessions') {
-      fetchLiveSessions();
-    }
-  }, [activeTab]);
+  }, [mode]);
 
   const videoClassOptions = useMemo(() => {
     const set = new Set<string>();
-    videos.forEach((v) => {
-      const l = getSubjectClassLabel({
-        name: v.subjectName,
-        classNumber: v.classNumber,
-      });
-      if (l) set.add(l);
+    ottVideos.forEach((v) => {
+      if (v.classLabel) set.add(v.classLabel);
     });
     return Array.from(set).sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
-  }, [videos]);
+  }, [ottVideos]);
 
   const videoSubjectOptions = useMemo(() => {
     const names = new Set<string>();
-    videos.forEach((v) => {
-      const l = getSubjectClassLabel({
-        name: v.subjectName,
-        classNumber: v.classNumber,
-      });
-      if (videoClassFilter !== 'all' && l !== videoClassFilter) return;
-      names.add(extractPlainSubjectName(v.subjectName || '').trim());
+    ottVideos.forEach((v) => {
+      if (videoClassFilter !== 'all' && v.classLabel !== videoClassFilter) return;
+      if (v.subjectName) names.add(v.subjectName);
     });
-    return Array.from(names).filter(Boolean).sort((a, b) => a.localeCompare(b));
-  }, [videos, videoClassFilter]);
+    return Array.from(names).sort((a, b) => a.localeCompare(b));
+  }, [ottVideos, videoClassFilter]);
 
   const filteredVideos = useMemo(() => {
-    return videos.filter((video) => {
+    return ottVideos.filter((video) => {
       const matchesSearch =
         video.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (video.description || '').toLowerCase().includes(searchTerm.toLowerCase());
-      const classL = getSubjectClassLabel({
-        name: video.subjectName,
-        classNumber: video.classNumber,
-      });
-      const matchesClass =
-        videoClassFilter === 'all' || classL === videoClassFilter;
-      const plain = extractPlainSubjectName(video.subjectName || '').toLowerCase();
+      const matchesClass = videoClassFilter === 'all' || video.classLabel === videoClassFilter;
       const matchesSubject =
         videoSubjectFilter === 'all' ||
-        plain === videoSubjectFilter.toLowerCase();
+        video.subjectName.toLowerCase() === videoSubjectFilter.toLowerCase();
       return matchesSearch && matchesClass && matchesSubject;
     });
-  }, [videos, searchTerm, videoClassFilter, videoSubjectFilter]);
+  }, [ottVideos, searchTerm, videoClassFilter, videoSubjectFilter]);
 
-  const sessionClassOptions = useMemo(() => {
-    const set = new Set<string>();
-    liveSessions.forEach((session) => {
-      const l = getSubjectClassLabel({
-        name: session.subject?.name,
-        classNumber: session.classNumber,
-      });
-      if (l) set.add(l);
-    });
-    return Array.from(set).sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
-  }, [liveSessions]);
+  const featured = filteredVideos[0] || null;
 
-  const sessionSubjectOptions = useMemo(() => {
-    const names = new Set<string>();
-    liveSessions.forEach((session) => {
-      const l = getSubjectClassLabel({
-        name: session.subject?.name,
-        classNumber: session.classNumber,
-      });
-      if (sessionClassFilter !== 'all' && l !== sessionClassFilter) return;
-      names.add(extractPlainSubjectName(session.subject?.name || '').trim());
-    });
-    return Array.from(names).filter(Boolean).sort((a, b) => a.localeCompare(b));
-  }, [liveSessions, sessionClassFilter]);
+  const subjectRows = useMemo(() => {
+    const map = new Map<string, OttVideo[]>();
+    for (const v of filteredVideos) {
+      const key = v.subjectName || 'Other';
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(v);
+    }
+    return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
+  }, [filteredVideos]);
+
+  const playingIndex = playing ? filteredVideos.findIndex((v) => v.id === playing.id) : -1;
+  const nextVideo =
+    playingIndex >= 0 && playingIndex < filteredVideos.length - 1
+      ? filteredVideos[playingIndex + 1]
+      : null;
 
   const filteredSessions = useMemo(() => {
     return liveSessions.filter((session) => {
@@ -301,313 +242,233 @@ export default function AdminEduOTT() {
         session.title.toLowerCase().includes(sessionSearchTerm.toLowerCase()) ||
         (session.description || '').toLowerCase().includes(sessionSearchTerm.toLowerCase());
       const matchesStatus = filterStatus === 'all' || session.status === filterStatus;
-      const classL = getSubjectClassLabel({
-        name: session.subject?.name,
-        classNumber: session.classNumber,
-      });
-      const matchesClass =
-        sessionClassFilter === 'all' || classL === sessionClassFilter;
-      const plain = extractPlainSubjectName(session.subject?.name || '').toLowerCase();
-      const matchesSubject =
-        sessionSubjectFilter === 'all' ||
-        plain === sessionSubjectFilter.toLowerCase();
-      return matchesSearch && matchesStatus && matchesClass && matchesSubject;
+      return matchesSearch && matchesStatus;
     });
-  }, [
-    liveSessions,
-    sessionSearchTerm,
-    filterStatus,
-    sessionClassFilter,
-    sessionSubjectFilter,
-  ]);
+  }, [liveSessions, sessionSearchTerm, filterStatus]);
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'live':
-        return 'bg-red-100 text-red-700';
-      case 'scheduled':
-        return 'bg-blue-100 text-blue-700';
-      case 'ended':
-        return 'bg-gray-100 text-gray-700';
-      case 'cancelled':
-        return 'bg-orange-100 text-orange-700';
-      default:
-        return 'bg-gray-100 text-gray-700';
-    }
-  };
+  if (playing) {
+    return (
+      <div className="viswam-ott viswam-ott-admin">
+        <AdminOttPremiumPlayer
+          video={playing}
+          nextVideo={nextVideo}
+          onClose={() => setPlaying(null)}
+          onPlayNext={(v) => setPlaying(v)}
+        />
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-3 sm:space-y-4 lg:space-y-6">
-      <AdminOttAnalyticsPanel />
-      {/* Header */}
-      <div className="bg-white/80 backdrop-blur-xl rounded-3xl p-3 sm:p-4 lg:p-6 shadow-xl border border-white/20">
-        <div className="flex items-center gap-3 mb-6">
-          <div className="w-12 h-12 bg-gradient-to-br from-sky-400 to-teal-500 rounded-lg flex items-center justify-center">
-            <VideoIcon className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 text-white" />
-          </div>
-          <div>
-            <h2 className="text-xl sm:text-2xl font-bold text-gray-900">EduOTT</h2>
-            <p className="text-gray-600">Educational content and live sessions</p>
-          </div>
+    <div className="viswam-ott viswam-ott-admin">
+      <header className="ott-admin-topbar">
+        <div className="ott-admin-topbar-brand">
+          <span className="ott-admin-topbar-logo">Viswam OTT</span>
+          <span className="ott-admin-topbar-tag">Premium streaming</span>
         </div>
+        <div className="ott-admin-mode-tabs">
+          <button
+            type="button"
+            className={mode === 'videos' ? 'active' : ''}
+            onClick={() => setMode('videos')}
+          >
+            <VideoIcon className="h-4 w-4" />
+            On demand
+          </button>
+          <button
+            type="button"
+            className={mode === 'live' ? 'active' : ''}
+            onClick={() => setMode('live')}
+          >
+            <Radio className="h-4 w-4" />
+            Live
+          </button>
+        </div>
+      </header>
 
-        {/* Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-1 sm:grid-cols-2">
-            <TabsTrigger value="videos">Videos</TabsTrigger>
-            <TabsTrigger value="live-sessions">Live Sessions</TabsTrigger>
-          </TabsList>
-
-          {/* Videos Tab */}
-          <TabsContent value="videos" className="space-y-3 sm:space-y-4 lg:space-y-6 mt-6">
-            {/* Search and Filter */}
-            <div className="flex flex-col gap-4 lg:flex-row lg:flex-wrap lg:items-end">
-              <div className="flex-1 min-w-[200px] relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-3 h-3 sm:w-4 sm:h-4 text-gray-400" />
-                <Input
-                  placeholder="Search videos..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="px-0 pl-10 sm:pl-11"
-                />
-              </div>
-              <div className="space-y-1.5 w-full sm:w-auto">
-                <Label className="text-xs text-gray-500">Class</Label>
-                <Select value={videoClassFilter} onValueChange={setVideoClassFilter}>
-                  <SelectTrigger className="w-full md:w-[180px] bg-white">
-                    <SelectValue placeholder="All classes" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All classes</SelectItem>
-                    {videoClassOptions.map((c) => (
-                      <SelectItem key={c} value={c}>
-                        Class {c}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5 w-full sm:w-auto">
-                <Label className="text-xs text-gray-500">Subject</Label>
-                <Select value={videoSubjectFilter} onValueChange={setVideoSubjectFilter}>
-                  <SelectTrigger className="w-full md:w-[200px] bg-white">
-                    <Filter className="w-3 h-3 sm:w-4 sm:h-4 mr-2 shrink-0" />
-                    <SelectValue placeholder="All subjects" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All subjects</SelectItem>
-                    {videoSubjectOptions.map((name) => (
-                      <SelectItem key={name} value={name}>
-                        {name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+      {mode === 'videos' ? (
+        <>
+          {loading ? (
+            <div className="flex min-h-[40vh] items-center justify-center">
+              <Loader2 className="h-10 w-10 animate-spin text-emerald-500" />
             </div>
-
-            {/* Videos Grid */}
-            {loading ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:p-4 lg:p-6">
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <Skeleton key={i} className="h-64 w-full" />
-                ))}
+          ) : (
+            <div className="ott-admin-main">
+              <div className="ott-admin-feature-strip">
+                <AdminOttFeaturedHero
+                  featured={featured}
+                  videoCount={filteredVideos.length}
+                  onPlay={(v) => setPlaying(v)}
+                />
+                <AdminOttAnalyticsPanel variant="light" compact />
               </div>
-            ) : filteredVideos.length === 0 ? (
-              <Card>
-                <CardContent className="py-16 text-center">
-                  <VideoIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                  <h3 className="text-base sm:text-lg font-semibold text-gray-600 mb-2">No Videos Found</h3>
-                  <p className="text-gray-500">No videos match your search criteria.</p>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:p-4 lg:p-6">
-                {filteredVideos.map((video) => (
-                  <EduOTTVideoCard
-                    key={video._id}
-                    video={video}
-                    onPlay={() => setSelectedVideo(video)}
-                    playAccentClass="text-sky-600"
-                    subjectBadges={
-                      video.subjectName ? (
-                        <EduOTTSubjectBadges
-                          subjectLabel={extractPlainSubjectName(video.subjectName)}
-                          classLabel={
-                            getSubjectClassLabel({
-                              name: video.subjectName,
-                              classNumber: video.classNumber,
-                            }) || undefined
-                          }
-                        />
-                      ) : undefined
-                    }
-                  />
-                ))}
-              </div>
-            )}
-          </TabsContent>
 
-          {/* Live Sessions Tab */}
-          <TabsContent value="live-sessions" className="space-y-3 sm:space-y-4 lg:space-y-6 mt-6">
-            {/* Search and Filter */}
-            <div className="flex flex-col gap-4 lg:flex-row lg:flex-wrap lg:items-end">
-              <div className="flex-1 min-w-[200px] relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-3 h-3 sm:w-4 sm:h-4 text-gray-400" />
+              <div className="ott-filters-wrap">
+                <div className="ott-filter-panel space-y-3">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:flex-wrap lg:items-end">
+                    <div className="flex-1 min-w-[200px] relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
+                      <Input
+                        placeholder="Search titles, subjects…"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="pl-10 bg-white border-emerald-200/80 text-slate-800 placeholder:text-slate-400"
+                      />
+                    </div>
+                    <Select value={videoClassFilter} onValueChange={setVideoClassFilter}>
+                      <SelectTrigger className="w-full md:w-[180px] bg-white border-emerald-200/80 text-slate-800">
+                        <SelectValue placeholder="All classes" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All classes</SelectItem>
+                        {videoClassOptions.map((c) => (
+                          <SelectItem key={c} value={c}>
+                            Class {c}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Select value={videoSubjectFilter} onValueChange={setVideoSubjectFilter}>
+                      <SelectTrigger className="w-full md:w-[200px] bg-white border-emerald-200/80 text-slate-800">
+                        <SelectValue placeholder="All subjects" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All subjects</SelectItem>
+                        {videoSubjectOptions.map((name) => (
+                          <SelectItem key={name} value={name}>
+                            {name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+
+              {filteredVideos.length === 0 ? (
+                <OttEmptyState
+                  message={
+                    searchTerm || videoClassFilter !== 'all' || videoSubjectFilter !== 'all'
+                      ? 'No videos match your filters.'
+                      : 'Upload videos in Super Admin → Content Studio → Viswam OTT.'
+                  }
+                  hasFilters={
+                    !!(searchTerm || videoClassFilter !== 'all' || videoSubjectFilter !== 'all')
+                  }
+                  onClearFilters={() => {
+                    setSearchTerm('');
+                    setVideoClassFilter('all');
+                    setVideoSubjectFilter('all');
+                  }}
+                />
+              ) : (
+                <div className="ott-admin-catalog">
+                  {filteredVideos.length > 1 ? (
+                    <OttContentRow
+                      title="Continue browsing"
+                      subtitle={`${filteredVideos.length} lessons available`}
+                      videos={filteredVideos}
+                      onSelect={setPlaying}
+                    />
+                  ) : null}
+                  {subjectRows.map(([subjectName, rows]) => (
+                    <OttContentRow
+                      key={subjectName}
+                      title={subjectName}
+                      subtitle={`Class ${rows[0]?.classLabel || '—'} · ${rows.length} lesson${rows.length !== 1 ? 's' : ''}`}
+                      videos={rows}
+                      onSelect={setPlaying}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </>
+      ) : (
+        <div className="ott-admin-main ott-admin-main--live">
+          <div className="ott-filter-panel">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
+              <div className="flex-1 relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
                 <Input
-                  placeholder="Search live sessions..."
+                  placeholder="Search live sessions…"
                   value={sessionSearchTerm}
                   onChange={(e) => setSessionSearchTerm(e.target.value)}
-                  className="px-0 pl-10 sm:pl-11"
+                  className="pl-10 bg-white border-emerald-200/80 text-slate-800 placeholder:text-slate-400"
                 />
               </div>
-              <div className="space-y-1.5 w-full sm:w-auto">
-                <Label className="text-xs text-gray-500">Class</Label>
-                <Select value={sessionClassFilter} onValueChange={setSessionClassFilter}>
-                  <SelectTrigger className="w-full md:w-[180px] bg-white">
-                    <SelectValue placeholder="All classes" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All classes</SelectItem>
-                    {sessionClassOptions.map((c) => (
-                      <SelectItem key={c} value={c}>
-                        Class {c}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5 w-full sm:w-auto">
-                <Label className="text-xs text-gray-500">Subject</Label>
-                <Select value={sessionSubjectFilter} onValueChange={setSessionSubjectFilter}>
-                  <SelectTrigger className="w-full md:w-[200px] bg-white">
-                    <SelectValue placeholder="All subjects" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All subjects</SelectItem>
-                    {sessionSubjectOptions.map((name) => (
-                      <SelectItem key={name} value={name}>
-                        {name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5 w-full sm:w-auto">
-                <Label className="text-xs text-gray-500">Status</Label>
-                <Select value={filterStatus} onValueChange={setFilterStatus}>
-                  <SelectTrigger className="w-full md:w-[160px] bg-white">
-                    <Filter className="w-3 h-3 sm:w-4 sm:h-4 mr-2 shrink-0" />
-                    <SelectValue placeholder="Filter by status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Status</SelectItem>
-                    <SelectItem value="scheduled">Scheduled</SelectItem>
-                    <SelectItem value="live">Live</SelectItem>
-                    <SelectItem value="ended">Ended</SelectItem>
-                    <SelectItem value="cancelled">Cancelled</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+              <Select value={filterStatus} onValueChange={setFilterStatus}>
+                <SelectTrigger className="w-full sm:w-[180px] bg-white border-emerald-200/80 text-slate-800">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All status</SelectItem>
+                  <SelectItem value="scheduled">Scheduled</SelectItem>
+                  <SelectItem value="live">Live</SelectItem>
+                  <SelectItem value="ended">Ended</SelectItem>
+                  <SelectItem value="cancelled">Cancelled</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
+          </div>
 
-            {/* Live Sessions List */}
-            {loadingSessions ? (
-              <div className="space-y-4">
-                {Array.from({ length: 3 }).map((_, i) => (
-                  <Skeleton key={i} className="h-32 w-full" />
-                ))}
-              </div>
-            ) : filteredSessions.length === 0 ? (
-              <Card>
-                <CardContent className="py-16 text-center">
-                  <Radio className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                  <h3 className="text-base sm:text-lg font-semibold text-gray-600 mb-2">No Live Sessions Found</h3>
-                  <p className="text-gray-500">No live sessions match your search criteria.</p>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="space-y-4">
-                {filteredSessions.map((session) => (
-                  <Card key={session._id} className="hover:shadow-lg transition-shadow">
-                    <CardContent className="p-3 sm:p-4 lg:p-6">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-2">
-                            <h3 className="text-base sm:text-lg font-semibold text-gray-900">{session.title}</h3>
-                            <Badge className={getStatusColor(session.status)}>
-                              {session.status.toUpperCase()}
-                            </Badge>
-                          </div>
-                          {session.description && (
-                            <p className="text-gray-600 mb-4">{session.description}</p>
-                          )}
-                          <div className="flex flex-wrap items-center gap-4 text-xs sm:text-sm text-gray-600">
-                            <div className="flex items-center gap-1">
-                              <Users className="w-3 h-3 sm:w-4 sm:h-4" />
-                              <span>{session.streamer?.fullName || session.streamer?.email || 'Unknown'}</span>
-                            </div>
-                            {session.subject?.name && (
-                              <div className="flex items-center gap-1">
-                                <BookOpen className="w-3 h-3 sm:w-4 sm:h-4" />
-                                <span>{extractPlainSubjectName(session.subject.name)}</span>
-                              </div>
-                            )}
-                            {getSubjectClassLabel({
-                              name: session.subject?.name,
-                              classNumber: session.classNumber,
-                            }) ? (
-                              <Badge variant="outline">
-                                Class{' '}
-                                {getSubjectClassLabel({
-                                  name: session.subject?.name,
-                                  classNumber: session.classNumber,
-                                })}
-                              </Badge>
-                            ) : null}
-                            <div className="flex items-center gap-1">
-                              <Eye className="w-3 h-3 sm:w-4 sm:h-4" />
-                              <span>{session.viewerCount || 0} viewers</span>
-                            </div>
-                            {(session.scheduledTime || session.scheduledStartTime) && (
-                              <div className="flex items-center gap-1">
-                                <Calendar className="w-3 h-3 sm:w-4 sm:h-4" />
-                                <span>
-                                  {new Date(session.scheduledTime || session.scheduledStartTime || '').toLocaleString()}
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                        {session.status === 'live' && session.hlsUrl && (
-                          <Button
-                            variant="outline"
-                            onClick={() => {
-                              window.open(session.hlsUrl, '_blank');
-                            }}
-                          >
-                            <Play className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
-                            Watch Live
-                          </Button>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </TabsContent>
-        </Tabs>
-      </div>
-
-      <EduOTTVideoPlayerDialog
-        video={selectedVideo}
-        open={!!selectedVideo}
-        onOpenChange={(open) => {
-          if (!open) setSelectedVideo(null);
-        }}
-      />
+          {loadingSessions ? (
+            <div className="flex justify-center py-16">
+              <Loader2 className="h-8 w-8 animate-spin text-emerald-500" />
+            </div>
+          ) : filteredSessions.length === 0 ? (
+            <OttEmptyState message="No live sessions match your search." hasFilters={!!sessionSearchTerm} />
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2">
+              {filteredSessions.map((session) => (
+                <article
+                  key={session._id}
+                  className="ott-live-card rounded-xl border border-emerald-200/80 bg-white p-5 transition hover:border-emerald-400 hover:shadow-md"
+                >
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <h3 className="font-semibold text-emerald-950">{session.title}</h3>
+                    <span className={`ott-live-badge ott-live-badge--${session.status}`}>
+                      {session.status}
+                    </span>
+                  </div>
+                  {session.description ? (
+                    <p className="text-sm text-slate-400 mb-3 line-clamp-2">{session.description}</p>
+                  ) : null}
+                  <div className="flex flex-wrap gap-3 text-xs text-slate-500">
+                    <span className="inline-flex items-center gap-1">
+                      <Users className="h-3.5 w-3.5" />
+                      {session.streamer?.fullName || 'Host'}
+                    </span>
+                    <span className="inline-flex items-center gap-1">
+                      <Eye className="h-3.5 w-3.5" />
+                      {session.viewerCount || 0} viewers
+                    </span>
+                    {(session.scheduledTime || session.scheduledStartTime) && (
+                      <span className="inline-flex items-center gap-1">
+                        <Calendar className="h-3.5 w-3.5" />
+                        {new Date(
+                          session.scheduledTime || session.scheduledStartTime || '',
+                        ).toLocaleString()}
+                      </span>
+                    )}
+                  </div>
+                  {session.status === 'live' && session.hlsUrl ? (
+                    <button
+                      type="button"
+                      className="ott-btn-play mt-4 w-full justify-center"
+                      onClick={() => window.open(session.hlsUrl, '_blank')}
+                    >
+                      <Play className="h-4 w-4" />
+                      Watch live
+                    </button>
+                  ) : null}
+                </article>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
-

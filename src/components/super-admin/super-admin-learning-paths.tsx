@@ -31,6 +31,7 @@ import {
   Grid3X3,
   LayoutList,
   Loader2,
+  Pencil,
   Play,
   Plus,
   Search,
@@ -39,7 +40,14 @@ import {
   Youtube,
 } from "lucide-react";
 import { API_BASE_URL } from "@/lib/api-config";
-import { fetchProducts, fetchProductCurriculum, type Product } from "@/lib/products";
+import {
+  fetchProducts,
+  fetchProductCurriculum,
+  fetchAdminProductWorkspace,
+  fetchAdminProductCurriculum,
+  getProductCatalogTags,
+  type Product,
+} from "@/lib/products";
 import { extractPlainSubjectName } from "@/lib/subject-names";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -56,7 +64,7 @@ type LinkRow = {
   classNumber?: string;
   productCode?: string;
   createdAt?: string;
-  subject?: { name?: string; classNumber?: string };
+  subject?: { _id?: string; name?: string; classNumber?: string };
 };
 
 function youtubeVideoId(url: string): string {
@@ -91,7 +99,19 @@ function parseBulkUrls(text: string): string[] {
     .filter((line) => isYoutubeUrl(line));
 }
 
-export default function SuperAdminLearningPaths() {
+export type LearningPathLibraryVariant = "super-admin" | "admin";
+
+type SuperAdminLearningPathsProps = {
+  /** School admin: view-only library scoped to licensed products. */
+  variant?: LearningPathLibraryVariant;
+};
+
+export default function SuperAdminLearningPaths({
+  variant = "super-admin",
+}: SuperAdminLearningPathsProps = {}) {
+  const isSchoolAdmin = variant === "admin";
+  const readOnly = isSchoolAdmin;
+  const apiBase = isSchoolAdmin ? "/api/admin" : "/api/super-admin";
   const { toast } = useToast();
   const [products, setProducts] = useState<Product[]>([]);
   const [productCode, setProductCode] = useState("");
@@ -102,6 +122,8 @@ export default function SuperAdminLearningPaths() {
   const [saving, setSaving] = useState(false);
   const [bulkProgress, setBulkProgress] = useState<{ done: number; total: number } | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editing, setEditing] = useState<LinkRow | null>(null);
   const [addMode, setAddMode] = useState<"single" | "bulk">("single");
   const [preview, setPreview] = useState<LinkRow | null>(null);
 
@@ -133,22 +155,39 @@ export default function SuperAdminLearningPaths() {
     const qs = new URLSearchParams({ channel: "learning_path" });
     if (productCode) qs.set("productCode", productCode);
     const res = await fetch(
-      `${API_BASE_URL}/api/super-admin/curriculum/channel-content?${qs}`,
+      `${API_BASE_URL}${apiBase}/curriculum/channel-content?${qs}`,
       { headers: headers() },
     );
     if (res.ok) {
       const j = await res.json();
       setLinks(j.data || []);
+      if (isSchoolAdmin && j.message && !(j.data || []).length) {
+        toast({ title: j.message, variant: "destructive" });
+      }
     }
-  }, [productCode, headers]);
+  }, [productCode, headers, apiBase, isSchoolAdmin, toast]);
 
   const load = useCallback(async () => {
     setLoading(true);
-    const p = await fetchProducts();
-    setProducts(p);
+    if (isSchoolAdmin) {
+      const ws = await fetchAdminProductWorkspace();
+      const codes = new Set(
+        [
+          ws?.admin?.primaryProductCode,
+          ...(ws?.admin?.productCodes || []),
+        ].filter(Boolean) as string[],
+      );
+      setProducts((ws?.products || []).filter((p) => codes.has(p.code)));
+      if (!productCode && ws?.admin?.primaryProductCode) {
+        setProductCode(ws.admin.primaryProductCode);
+      }
+    } else {
+      const p = await fetchProducts();
+      setProducts(p);
+    }
     await loadLinks();
     setLoading(false);
-  }, [loadLinks]);
+  }, [loadLinks, isSchoolAdmin, productCode]);
 
   useEffect(() => {
     load();
@@ -165,19 +204,23 @@ export default function SuperAdminLearningPaths() {
       setSubjects([]);
       return;
     }
-    fetchProductCurriculum(productCode).then((data) => {
+    const loadCurriculum = isSchoolAdmin
+      ? fetchAdminProductCurriculum
+      : fetchProductCurriculum;
+    loadCurriculum(productCode).then((data) => {
       if (data) {
         setClasses(data.classes);
         setSubjects(data.subjects);
       }
     });
-  }, [productCode]);
+  }, [productCode, isSchoolAdmin]);
 
   const productName = products.find((p) => p.code === productCode)?.name || "All products";
 
   const subjectFilterOptions = useMemo(() => {
     const p = products.find((x) => x.code === productCode);
-    if (p?.catalogSubjects?.length) return p.catalogSubjects;
+    const fromCatalog = getProductCatalogTags(p);
+    if (fromCatalog.length) return fromCatalog;
     const names = new Set<string>();
     subjects.forEach((s) => {
       const n = extractPlainSubjectName(s.name);
@@ -241,7 +284,7 @@ export default function SuperAdminLearningPaths() {
     fileUrl: string;
     classNumber?: string;
   }) => {
-    const res = await fetch(`${API_BASE_URL}/api/super-admin/curriculum/channel-content`, {
+    const res = await fetch(`${API_BASE_URL}${apiBase}/curriculum/channel-content`, {
       method: "POST",
       headers: headers(),
       body: JSON.stringify({
@@ -342,14 +385,121 @@ export default function SuperAdminLearningPaths() {
     await loadLinks();
   };
 
+  const resolveSubjectId = (row: LinkRow) => {
+    if (row.subject?._id) return String(row.subject._id);
+    const plain = extractPlainSubjectName(row.subject?.name || "");
+    const match = subjects.find(
+      (s) =>
+        String(s.classNumber) === String(row.classNumber) &&
+        extractPlainSubjectName(s.name).toLowerCase() === plain.toLowerCase(),
+    );
+    return match?._id;
+  };
+
+  const openEdit = (row: LinkRow) => {
+    setEditing(row);
+    setForm({ title: row.title, youtubeUrl: row.fileUrl });
+    setContentTarget({
+      productCode: row.productCode || productCode,
+      classNumber: row.classNumber,
+      subjectId: resolveSubjectId(row),
+    });
+    setEditOpen(true);
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editing || readOnly) return;
+    const url = form.youtubeUrl.trim();
+    if (!isYoutubeUrl(url)) {
+      toast({
+        title: "YouTube only",
+        description: "Paste a valid youtube.com or youtu.be link.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!contentTarget.subjectId) {
+      toast({ title: "Select subject & class", variant: "destructive" });
+      return;
+    }
+    setSaving(true);
+    try {
+      const payload = {
+        title: form.title.trim() || editing.title,
+        fileUrl: url,
+        subjectId: contentTarget.subjectId,
+        classNumber: contentTarget.classNumber,
+        productCode: contentTarget.productCode || editing.productCode,
+      };
+      let res = await fetch(
+        `${API_BASE_URL}${apiBase}/curriculum/channel-content/${editing._id}`,
+        { method: "PUT", headers: headers(), body: JSON.stringify(payload) },
+      );
+      if (res.status === 404 && apiBase === "/api/super-admin") {
+        res = await fetch(`${API_BASE_URL}/api/super-admin/content/${editing._id}`, {
+          method: "PUT",
+          headers: headers(),
+          body: JSON.stringify({
+            title: payload.title,
+            fileUrl: payload.fileUrl,
+            classNumber: payload.classNumber,
+          }),
+        });
+      }
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(
+          json.message ||
+            (res.status === 404
+              ? "Video not found — restart the backend or refresh the page."
+              : "Failed to update"),
+        );
+      }
+      toast({ title: "Video updated" });
+      setEditOpen(false);
+      setEditing(null);
+      setForm({ title: "", youtubeUrl: "" });
+      if (preview?._id === editing._id) setPreview(null);
+      await loadLinks();
+    } catch (err) {
+      toast({
+        title: "Could not update",
+        description: err instanceof Error ? err.message : "Error",
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleDelete = async (id: string) => {
     if (!confirm("Remove this YouTube link from learning paths?")) return;
-    await fetch(`${API_BASE_URL}/api/super-admin/curriculum/channel-content/${id}`, {
+    if (readOnly) return;
+    const res = await fetch(`${API_BASE_URL}${apiBase}/curriculum/channel-content/${id}`, {
       method: "DELETE",
       headers: headers(),
     });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      toast({
+        title: "Could not remove",
+        description:
+          json.message ||
+          (res.status === 404
+            ? "Route not found — restart the backend (npm start in backend folder), then try again."
+            : "Delete failed"),
+        variant: "destructive",
+      });
+      return;
+    }
+    toast({ title: "Video removed" });
     if (preview?._id === id) setPreview(null);
-    loadLinks();
+    if (editing?._id === id) {
+      setEditOpen(false);
+      setEditing(null);
+    }
+    await loadLinks();
   };
 
   const previewEmbedId = preview ? youtubeVideoId(preview.fileUrl) : "";
@@ -380,21 +530,29 @@ export default function SuperAdminLearningPaths() {
               Learning path library
             </h2>
             <p className="text-white/90 text-sm sm:text-base leading-relaxed">
-              Manage hundreds of YouTube lessons in one place. Filter by product, class, and subject.
-              Uploaded files stay in <span className="font-semibold text-[var(--brand-emerald)]">Viswam OTT</span> — this tab is links only.
+              {readOnly
+                ? "View YouTube lessons added by Super Admin for your school’s products. Filter by product, class, and subject."
+                : "Manage hundreds of YouTube lessons in one place. Filter by product, class, and subject. Uploaded files stay in "}
+              {!readOnly && (
+                <>
+                  <span className="font-semibold text-[var(--brand-emerald)]">Viswam OTT</span> — this tab is links only.
+                </>
+              )}
             </p>
           </div>
           <div className="flex flex-wrap gap-3 items-end">
             <StatPill label="In library" value={stats.total} />
             <StatPill label="Matching filters" value={stats.showing} highlight />
-            <Button
-              size="lg"
-              className="bg-[var(--brand-emerald)] hover:bg-[var(--brand-emerald-hover)] text-white shadow-lg shadow-emerald-900/30 h-11 px-6 font-semibold"
-              onClick={() => setAddOpen(true)}
-            >
-              <Plus className="h-5 w-5 mr-2" />
-              Add videos
-            </Button>
+            {!readOnly && (
+              <Button
+                size="lg"
+                className="bg-[var(--brand-emerald)] hover:bg-[var(--brand-emerald-hover)] text-white shadow-lg shadow-emerald-900/30 h-11 px-6 font-semibold"
+                onClick={() => setAddOpen(true)}
+              >
+                <Plus className="h-5 w-5 mr-2" />
+                Add videos
+              </Button>
+            )}
           </div>
         </div>
       </div>
@@ -535,6 +693,7 @@ export default function SuperAdminLearningPaths() {
             hasProduct={!!productCode}
             onAdd={() => setAddOpen(true)}
             searchActive={!!search.trim()}
+            readOnly={readOnly}
           />
         ) : viewMode === "grid" ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 sm:gap-5">
@@ -543,7 +702,9 @@ export default function SuperAdminLearningPaths() {
                 key={row._id}
                 row={row}
                 onOpen={() => setPreview(row)}
+                onEdit={() => openEdit(row)}
                 onDelete={() => handleDelete(row._id)}
+                readOnly={readOnly}
               />
             ))}
           </div>
@@ -554,7 +715,9 @@ export default function SuperAdminLearningPaths() {
                 key={row._id}
                 row={row}
                 onOpen={() => setPreview(row)}
+                onEdit={() => openEdit(row)}
                 onDelete={() => handleDelete(row._id)}
+                readOnly={readOnly}
               />
             ))}
           </div>
@@ -569,7 +732,8 @@ export default function SuperAdminLearningPaths() {
         )}
       </div>
 
-      {/* Add sheet */}
+      {/* Add sheet — super admin only */}
+      {!readOnly && (
       <Sheet open={addOpen} onOpenChange={setAddOpen}>
         <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
           <SheetHeader>
@@ -695,6 +859,67 @@ export default function SuperAdminLearningPaths() {
           </div>
         </SheetContent>
       </Sheet>
+      )}
+
+      {/* Edit sheet — super admin only */}
+      {!readOnly && (
+        <Sheet
+          open={editOpen}
+          onOpenChange={(o) => {
+            setEditOpen(o);
+            if (!o) setEditing(null);
+          }}
+        >
+          <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
+            <SheetHeader>
+              <SheetTitle className="flex items-center gap-2 text-[var(--brand-navy)]">
+                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--brand-navy)]/10">
+                  <Pencil className="h-5 w-5 text-[var(--brand-navy)]" />
+                </span>
+                Edit video
+              </SheetTitle>
+              <SheetDescription>
+                Update title, YouTube link, or move to another class/subject.
+              </SheetDescription>
+            </SheetHeader>
+
+            <form onSubmit={handleSaveEdit} className="mt-6 space-y-4">
+              <ProductSubjectPicker
+                products={products}
+                value={contentTarget}
+                onChange={(next) => {
+                  setContentTarget(next);
+                  if (next.productCode) setProductCode(next.productCode);
+                }}
+              />
+              <div className="space-y-1">
+                <Label>Title</Label>
+                <Input
+                  value={form.title}
+                  onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+                  placeholder="Lesson title"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>YouTube URL</Label>
+                <Input
+                  value={form.youtubeUrl}
+                  onChange={(e) => setForm((f) => ({ ...f, youtubeUrl: e.target.value }))}
+                  placeholder="https://www.youtube.com/watch?v=..."
+                />
+              </div>
+              <Button
+                type="submit"
+                disabled={saving}
+                className="w-full bg-[var(--brand-emerald)] hover:bg-[var(--brand-emerald-hover)] h-11 font-semibold"
+              >
+                {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                Save changes
+              </Button>
+            </form>
+          </SheetContent>
+        </Sheet>
+      )}
 
       {/* Preview dialog */}
       <Dialog open={!!preview} onOpenChange={(o) => !o && setPreview(null)}>
@@ -736,13 +961,21 @@ export default function SuperAdminLearningPaths() {
                       Open on YouTube
                     </a>
                   </Button>
-                  <Button
-                    variant="destructive"
-                    onClick={() => handleDelete(preview._id)}
-                  >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Remove
-                  </Button>
+                  {!readOnly && (
+                    <>
+                      <Button variant="outline" onClick={() => openEdit(preview)}>
+                        <Pencil className="h-4 w-4 mr-2" />
+                        Edit
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        onClick={() => handleDelete(preview._id)}
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete
+                      </Button>
+                    </>
+                  )}
                 </div>
               </div>
             </>
@@ -789,11 +1022,15 @@ function StatPill({
 function VideoCard({
   row,
   onOpen,
+  onEdit,
   onDelete,
+  readOnly = false,
 }: {
   row: LinkRow;
   onOpen: () => void;
+  onEdit: () => void;
   onDelete: () => void;
+  readOnly?: boolean;
 }) {
   const thumb = youtubeThumb(row.fileUrl, "hq");
   return (
@@ -826,18 +1063,6 @@ function VideoCard({
         <Badge className="absolute top-2 left-2 bg-[var(--brand-navy)] border border-[var(--brand-emerald)]/30 text-white font-medium">
           Class {row.classNumber}
         </Badge>
-        <Button
-          type="button"
-          size="icon"
-          variant="ghost"
-          className="absolute top-2 right-2 h-8 w-8 bg-[var(--brand-navy)]/80 hover:bg-red-600 text-white opacity-0 group-hover:opacity-100"
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete();
-          }}
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
       </div>
       <div className="p-4 space-y-2">
         <h3 className="font-semibold text-[var(--brand-navy)] line-clamp-2 text-sm sm:text-base leading-snug min-h-[2.5rem]">
@@ -846,6 +1071,33 @@ function VideoCard({
         <p className="text-xs text-[var(--brand-emerald)] font-medium truncate">
           {extractPlainSubjectName(row.subject?.name || "Subject")}
         </p>
+        {!readOnly && (
+          <div
+            className="flex gap-2 pt-2 border-t border-slate-100"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="flex-1 h-8 text-xs"
+              onClick={onEdit}
+            >
+              <Pencil className="h-3.5 w-3.5 mr-1" />
+              Edit
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="flex-1 h-8 text-xs text-red-600 border-red-200 hover:bg-red-50"
+              onClick={onDelete}
+            >
+              <Trash2 className="h-3.5 w-3.5 mr-1" />
+              Delete
+            </Button>
+          </div>
+        )}
       </div>
     </article>
   );
@@ -854,11 +1106,15 @@ function VideoCard({
 function VideoListRow({
   row,
   onOpen,
+  onEdit,
   onDelete,
+  readOnly = false,
 }: {
   row: LinkRow;
   onOpen: () => void;
+  onEdit: () => void;
   onDelete: () => void;
+  readOnly?: boolean;
 }) {
   const thumb = youtubeThumb(row.fileUrl, "mq");
   return (
@@ -888,9 +1144,21 @@ function VideoListRow({
         <Button variant="outline" size="sm" onClick={onOpen}>
           <Play className="h-4 w-4" />
         </Button>
-        <Button variant="ghost" size="icon" onClick={onDelete}>
-          <Trash2 className="h-4 w-4 text-red-600" />
-        </Button>
+        {!readOnly && (
+          <>
+            <Button variant="outline" size="sm" onClick={onEdit}>
+              <Pencil className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-red-600 border-red-200 hover:bg-red-50"
+              onClick={onDelete}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </>
+        )}
       </div>
     </div>
   );
@@ -966,10 +1234,12 @@ function EmptyLibrary({
   hasProduct,
   onAdd,
   searchActive,
+  readOnly = false,
 }: {
   hasProduct: boolean;
   onAdd: () => void;
   searchActive: boolean;
+  readOnly?: boolean;
 }) {
   return (
     <div className="rounded-2xl border-2 border-dashed border-[var(--brand-emerald)]/30 bg-gradient-to-b from-emerald-50/80 to-white py-20 px-6 text-center">
@@ -982,11 +1252,15 @@ function EmptyLibrary({
       <p className="text-slate-500 mt-2 max-w-md mx-auto">
         {searchActive
           ? "Try different filters or clear the search box."
-          : hasProduct
-            ? "Add YouTube links one at a time, or paste hundreds of URLs with bulk import."
-            : "Select a product above, then use Add videos to build your catalog."}
+          : readOnly
+            ? hasProduct
+              ? "No learning-path videos for this product yet. Super Admin adds them in Content studio."
+              : "Select a product above, or ask Super Admin to assign products to your school."
+            : hasProduct
+              ? "Add YouTube links one at a time, or paste hundreds of URLs with bulk import."
+              : "Select a product above, then use Add videos to build your catalog."}
       </p>
-      {!searchActive && (
+      {!searchActive && !readOnly && (
         <Button
           className="mt-6 bg-[var(--brand-emerald)] hover:bg-[var(--brand-emerald-hover)] h-11 px-8 font-semibold shadow-md"
           onClick={onAdd}

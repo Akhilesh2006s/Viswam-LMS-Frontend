@@ -13,6 +13,7 @@ const Login = lazy(() => import("./pages/auth/login"));
 const Register = lazy(() => import("./pages/auth/register"));
 const AdminDashboard = lazy(() => import("./pages/admin/dashboard"));
 const AdminSubjectContent = lazy(() => import("./pages/admin/subject-content"));
+const AdminPeriodDetailPage = lazy(() => import("./pages/admin/period-detail"));
 const TimetableManagementPage = lazy(() => import("./pages/admin/timetable"));
 const TeacherDashboard = lazy(() => import("./pages/teacher/dashboard"));
 const TeacherTimetablePage = lazy(() => import("./pages/teacher/timetable"));
@@ -28,8 +29,7 @@ const EduOTTMyLearning = lazy(() => import("./pages/edu-ott-my-learning"));
 import StudentPageLoader from "@/components/student/StudentPageLoader";
 const QuizPage = lazy(() => import("./pages/quiz"));
 const SuperAdminDashboard = lazy(() => import("./pages/super-admin-dashboard"));
-const SuperAdminSchoolDetail = lazy(() => import("./pages/super-admin-school-detail"));
-const SuperAdminTest = lazy(() => import("./pages/super-admin-test"));
+const SuperAdminSchoolWorkspace = lazy(() => import("./pages/super-admin-school-workspace"));
 const Onboarding = lazy(() => import("./pages/onboarding"));
 const Privacy = lazy(() => import("./pages/privacy"));
 const Terms = lazy(() => import("./pages/terms"));
@@ -56,14 +56,14 @@ function Router() {
       <Route path="/signin" component={Login} />
       <Route path="/auth/register" component={Register} />
       <Route path="/admin/dashboard" component={AdminDashboard} />
+      <Route path="/admin/period/:id" component={AdminPeriodDetailPage} />
       <Route path="/admin/subject/:id" component={AdminSubjectContent} />
       <Route path="/admin/timetable" component={TimetableManagementPage} />
       <Route path="/teacher/dashboard" component={TeacherDashboard} />
       <Route path="/teacher/timetable" component={TeacherTimetablePage} />
       <Route path="/teacher/subject/:id" component={TeacherSubjectContent} />
       <Route path="/super-admin/dashboard" component={SuperAdminDashboard} />
-      <Route path="/super-admin/schools/:id" component={SuperAdminSchoolDetail} />
-      <Route path="/super-admin/test" component={SuperAdminTest} />
+      <Route path="/super-admin/schools/:id" component={SuperAdminSchoolWorkspace} />
       <Route path="/onboarding" component={Onboarding} />
       <Route path="/privacy" component={Privacy} />
       <Route path="/terms" component={Terms} />

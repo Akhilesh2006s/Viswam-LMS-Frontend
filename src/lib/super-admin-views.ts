@@ -12,4 +12,5 @@ export type SuperAdminView =
   | 'viswam-ott'
   | 'courses'
   | 'add-admin'
-  | 'calendar';
+  | 'calendar'
+  | 'periods';

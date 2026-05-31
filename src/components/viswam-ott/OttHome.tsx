@@ -162,7 +162,8 @@ export function OttHome() {
                 (product → subject → class). Students only see videos for their class and licensed
                 products.
               </p>
-            </OttAnalyticsStrip>
+            </section>
+            <OttAnalyticsStrip />
           </>
         )}
       </main>

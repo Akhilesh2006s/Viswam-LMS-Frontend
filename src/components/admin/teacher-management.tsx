@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { API_BASE_URL } from '@/lib/api-config';
+import { schoolAdminApiUrl } from '@/lib/school-admin-api';
 import { fetchAdminProductWorkspace } from '@/lib/products';
 import {
   AdminPageShell,
@@ -270,7 +271,13 @@ function getTeacherInitials(fullName?: string): string {
     .toUpperCase();
 }
 
-const TeacherManagement = () => {
+type TeacherManagementProps = {
+  schoolAdminId?: string;
+};
+
+const TeacherManagement = ({ schoolAdminId }: TeacherManagementProps = {}) => {
+  const uiVariant = schoolAdminId ? ('premium' as const) : ('default' as const);
+  const adminApi = (path: string) => schoolAdminApiUrl(path, schoolAdminId);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [classes, setClasses] = useState<Class[]>([]);
@@ -301,16 +308,16 @@ const TeacherManagement = () => {
   });
 
   useEffect(() => {
-    fetchAdminProductWorkspace();
+    fetchAdminProductWorkspace(schoolAdminId);
     fetchTeachers();
     fetchSubjects();
     fetchClasses();
-  }, []);
+  }, [schoolAdminId]);
 
   const fetchTeachers = async () => {
     try {
       const token = localStorage.getItem('authToken');
-      const response = await fetch(`${API_BASE_URL}/api/admin/teachers`, {
+      const response = await fetch(`${adminApi('')}/teachers`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -381,7 +388,7 @@ const TeacherManagement = () => {
   const fetchSubjects = async () => {
     try {
       const token = localStorage.getItem('authToken');
-      const response = await fetch(`${API_BASE_URL}/api/admin/subjects`, {
+      const response = await fetch(`${adminApi('')}/subjects`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -428,7 +435,7 @@ const TeacherManagement = () => {
   const fetchClasses = async () => {
     try {
       const token = localStorage.getItem('authToken');
-      const response = await fetch(`${API_BASE_URL}/api/admin/classes`, {
+      const response = await fetch(`${adminApi('')}/classes`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -486,7 +493,7 @@ const TeacherManagement = () => {
     
     try {
       const token = localStorage.getItem('authToken');
-      const response = await fetch(`${API_BASE_URL}/api/admin/teachers`, {
+      const response = await fetch(`${adminApi('')}/teachers`, {
         method: 'POST',
         headers: { 
           'Authorization': `Bearer ${token}`,
@@ -534,7 +541,7 @@ const TeacherManagement = () => {
         return;
       }
 
-      const response = await fetch(`${API_BASE_URL}/api/admin/teachers/${editingTeacher.id}`, {
+      const response = await fetch(`${adminApi('')}/teachers/${editingTeacher.id}`, {
         method: 'PUT',
         headers: { 
           'Content-Type': 'application/json',
@@ -567,7 +574,7 @@ const TeacherManagement = () => {
           return;
         }
 
-        const response = await fetch(`${API_BASE_URL}/api/admin/teachers/${teacherId}`, {
+        const response = await fetch(`${adminApi('')}/teachers/${teacherId}`, {
           method: 'DELETE',
           headers: {
             'Authorization': `Bearer ${token}`
@@ -597,7 +604,7 @@ const TeacherManagement = () => {
     
     console.log('Uploading teacher CSV file:', file.name, file.size, 'bytes');
     console.log('API Base URL:', API_BASE_URL);
-    console.log('Upload endpoint:', `${API_BASE_URL}/api/admin/teachers/upload`);
+    console.log('Upload endpoint:', `${adminApi('')}/teachers/upload`);
     
     try {
       const token = localStorage.getItem('authToken');
@@ -607,7 +614,7 @@ const TeacherManagement = () => {
         return;
       }
 
-      const response = await fetch(`${API_BASE_URL}/api/admin/teachers/upload`, {
+      const response = await fetch(`${adminApi('')}/teachers/upload`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -714,7 +721,7 @@ Jane Smith,jane.smith@school.edu,TeacherPass2,1234567891,Science,MSc in Chemistr
         return;
       }
 
-      const response = await fetch(`${API_BASE_URL}/api/admin/teachers/${teacherId}/assign-classes`, {
+      const response = await fetch(`${adminApi('')}/teachers/${teacherId}/assign-classes`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -781,7 +788,7 @@ Jane Smith,jane.smith@school.edu,TeacherPass2,1234567891,Science,MSc in Chemistr
         return;
       }
 
-      const response = await fetch(`${API_BASE_URL}/api/admin/teachers/${teacherId}/assign-subjects`, {
+      const response = await fetch(`${adminApi('')}/teachers/${teacherId}/assign-subjects`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -821,7 +828,7 @@ Jane Smith,jane.smith@school.edu,TeacherPass2,1234567891,Science,MSc in Chemistr
           await delay(600); // give backend time to persist
           try {
             const token2 = localStorage.getItem('authToken');
-            const resp2 = await fetch(`${API_BASE_URL}/api/admin/teachers`, {
+            const resp2 = await fetch(`${adminApi('')}/teachers`, {
               headers: {
                 'Authorization': `Bearer ${token2}`,
                 'Content-Type': 'application/json'
@@ -966,10 +973,12 @@ Jane Smith,jane.smith@school.edu,TeacherPass2,1234567891,Science,MSc in Chemistr
 
   return (
     <AdminPageShell
+      variant={uiVariant}
       title="Teachers"
       description="Add teachers and assign them to classes and subjects for your licensed products."
     >
       <AdminStatGrid
+        variant={uiVariant}
         stats={[
           { label: 'Teachers', value: totalTeachers, icon: Users },
           { label: 'Active', value: activeTeachers, icon: CheckCircle },
@@ -977,7 +986,7 @@ Jane Smith,jane.smith@school.edu,TeacherPass2,1234567891,Science,MSc in Chemistr
         ]}
       />
 
-        <AdminPanel>
+        <AdminPanel variant={uiVariant}>
         <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
           <div className="flex flex-col sm:flex-row gap-4 items-center">
             <div className="relative">

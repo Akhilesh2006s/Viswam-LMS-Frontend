@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
 import { API_BASE_URL, apiFetch } from '@/lib/api-config';
+import { schoolAdminApiUrl } from '@/lib/school-admin-api';
 import { useToast } from '@/hooks/use-toast';
 import { 
   GraduationCap, 
@@ -39,6 +40,7 @@ import {
   type Product,
   type SchoolProductAssignment,
 } from '@/lib/products';
+import { DEFAULT_CLASS_SECTION, formatClassLabel, getClassDisplayTitle } from '@/lib/class-display';
 import {
   AdminPageShell,
   AdminStatGrid,
@@ -125,7 +127,17 @@ const subjectRowMatchesStoredId = (row: Subject, storedId: string) => {
   return ids.has(String(storedId));
 };
 
-const ClassDashboard = () => {
+type ClassDashboardProps = {
+  /** When set, super admin is managing this school (full CRUD). */
+  schoolAdminId?: string;
+  /** School admin: view classes and assigned roster only. */
+  readOnly?: boolean;
+};
+
+const ClassDashboard = ({ schoolAdminId, readOnly: readOnlyProp }: ClassDashboardProps = {}) => {
+  const readOnly = readOnlyProp ?? !schoolAdminId;
+  const uiVariant = schoolAdminId ? ('premium' as const) : ('default' as const);
+  const adminApi = (path: string) => schoolAdminApiUrl(path, schoolAdminId);
   const { toast } = useToast();
   const [classes, setClasses] = useState<Class[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
@@ -153,8 +165,7 @@ const ClassDashboard = () => {
     setCustomSectionLetter('');
   };
   // Assign Subjects state
-  const [selectedClassForSubjects, setSelectedClassForSubjects] = useState<string>('');
-  const [selectedSectionForSubjects, setSelectedSectionForSubjects] = useState<string>('');
+  const [selectedClassIdForSubjects, setSelectedClassIdForSubjects] = useState<string>('');
   const [selectedSubjectIds, setSelectedSubjectIds] = useState<string[]>([]);
   const [isAssigningSubjects, setIsAssigningSubjects] = useState(false);
   const [selectedClassesForPromotion, setSelectedClassesForPromotion] = useState<Set<string>>(new Set());
@@ -167,7 +178,7 @@ const ClassDashboard = () => {
   const assignTargetKeyRef = useRef('');
 
   useEffect(() => {
-    fetchAdminProductWorkspace().then((w) => {
+    fetchAdminProductWorkspace(schoolAdminId).then((w) => {
       if (w) {
         setProducts(w.products);
         setAssignments(w.admin.productAssignments || []);
@@ -181,30 +192,27 @@ const ClassDashboard = () => {
     };
     window.addEventListener('subjectsUpdated', onSubjectsUpdated);
     return () => window.removeEventListener('subjectsUpdated', onSubjectsUpdated);
-  }, []);
+  }, [schoolAdminId]);
 
   const findClassForAssignSelection = (
     classNumber: string,
-    section: string,
+    section?: string,
   ): Class | undefined => {
     const wantNum = normalizeClassNumber(classNumber);
-    const wantSection = String(section || '').toUpperCase();
-    return classes.find(
-      (c) =>
-        normalizeClassNumber(c.classNumber) === wantNum &&
-        String(c.section || '').toUpperCase() === wantSection,
+    const matches = classes.filter(
+      (c) => normalizeClassNumber(c.classNumber) === wantNum,
+    );
+    if (!matches.length) return undefined;
+    const wantSection = String(section || DEFAULT_CLASS_SECTION).toUpperCase();
+    return (
+      matches.find((c) => String(c.section || DEFAULT_CLASS_SECTION).toUpperCase() === wantSection) ||
+      matches[0]
     );
   };
 
-  const sectionsForSelectedClass = selectedClassForSubjects
-    ? classes
-        .filter(
-          (c) =>
-            normalizeClassNumber(c.classNumber) ===
-              normalizeClassNumber(selectedClassForSubjects) && c.section,
-        )
-        .sort((a, b) => String(a.section).localeCompare(String(b.section)))
-    : [];
+  const selectedClassForAssign = selectedClassIdForSubjects
+    ? classes.find((c) => c.id === selectedClassIdForSubjects)
+    : undefined;
 
   const resolveSubjectIdsForClass = (classItem: Class | undefined): string[] => {
     if (!classItem || subjects.length === 0) return [];
@@ -236,44 +244,37 @@ const ClassDashboard = () => {
     return [...resolved];
   };
 
-  const assignTargetKey =
-    selectedClassForSubjects && selectedSectionForSubjects
-      ? `${normalizeClassNumber(selectedClassForSubjects)}|${String(selectedSectionForSubjects).toUpperCase()}`
-      : '';
-
-  // Load saved subjects when class/section changes (not on every data refetch)
+  // Load saved subjects when selected class changes
   useEffect(() => {
-    if (!assignTargetKey) {
+    if (!selectedClassIdForSubjects) {
       assignTargetKeyRef.current = '';
       userEditedAssignRef.current = false;
       setSelectedSubjectIds([]);
       return;
     }
 
-    if (assignTargetKeyRef.current !== assignTargetKey) {
-      assignTargetKeyRef.current = assignTargetKey;
+    if (assignTargetKeyRef.current !== selectedClassIdForSubjects) {
+      assignTargetKeyRef.current = selectedClassIdForSubjects;
       userEditedAssignRef.current = false;
     }
 
     if (userEditedAssignRef.current) return;
 
-    const [classNumber, section] = assignTargetKey.split('|');
-    const classForSection = findClassForAssignSelection(classNumber, section);
-    setSelectedSubjectIds(resolveSubjectIdsForClass(classForSection));
-  }, [assignTargetKey, classes, subjects]);
+    const row = classes.find((c) => c.id === selectedClassIdForSubjects);
+    setSelectedSubjectIds(resolveSubjectIdsForClass(row));
+  }, [selectedClassIdForSubjects, classes, subjects]);
 
   const hydrateAssignSelectionFromServer = () => {
-    if (!assignTargetKey) return;
-    const [classNumber, section] = assignTargetKey.split('|');
-    const classForSection = findClassForAssignSelection(classNumber, section);
+    if (!selectedClassIdForSubjects) return;
+    const row = classes.find((c) => c.id === selectedClassIdForSubjects);
     userEditedAssignRef.current = false;
-    setSelectedSubjectIds(resolveSubjectIdsForClass(classForSection));
+    setSelectedSubjectIds(resolveSubjectIdsForClass(row));
   };
 
   const fetchSubjects = async () => {
     try {
       const token = localStorage.getItem('authToken');
-      const response = await fetch(`${API_BASE_URL}/api/admin/subjects`, {
+      const response = await fetch(`${adminApi('')}/subjects`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -317,7 +318,7 @@ const ClassDashboard = () => {
   const fetchStudents = async () => {
     try {
       const token = localStorage.getItem('authToken');
-      const response = await fetch(`${API_BASE_URL}/api/admin/users`, {
+      const response = await fetch(`${adminApi('')}/users`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -359,7 +360,7 @@ const ClassDashboard = () => {
         return;
       }
 
-      const response = await fetch(`${API_BASE_URL}/api/admin/students/${studentId}/analytics`, {
+      const response = await fetch(`${adminApi('')}/students/${studentId}/analytics`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -398,7 +399,7 @@ const ClassDashboard = () => {
   const fetchClasses = async () => {
     try {
       const token = localStorage.getItem('authToken');
-      const response = await fetch(`${API_BASE_URL}/api/admin/classes`, {
+      const response = await fetch(`${adminApi('')}/classes`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -470,27 +471,16 @@ const ClassDashboard = () => {
   const handleAddClass = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    const sectionValue = isCustomSection
-      ? customSectionLetter.trim().toUpperCase()
-      : newClass.section.trim();
+    const sectionValue = DEFAULT_CLASS_SECTION;
 
-    if (!newClass.classNumber || !sectionValue) {
-      alert(
-        isCustomSection
-          ? 'Please fill in Class Number and enter a section letter.'
-          : 'Please fill in all required fields: Class Number and Section.'
-      );
-      return;
-    }
-
-    if (isCustomSection && !/^[A-Z0-9]{1,3}$/i.test(sectionValue)) {
-      alert('Section must be 1–3 letters or numbers (e.g. D, E1).');
+    if (!newClass.classNumber?.trim()) {
+      alert('Please enter a class number (e.g. 1, 2, 10).');
       return;
     }
     
     try {
       const token = localStorage.getItem('authToken');
-      const response = await fetch(`${API_BASE_URL}/api/admin/classes`, {
+      const response = await fetch(`${adminApi('')}/classes`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -538,7 +528,7 @@ const ClassDashboard = () => {
 
     try {
       const token = localStorage.getItem('authToken');
-      const response = await fetch(`${API_BASE_URL}/api/admin/classes/${classId}`, {
+      const response = await fetch(`${adminApi('')}/classes/${classId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -576,7 +566,7 @@ const ClassDashboard = () => {
     setIsDeletingAll(true);
     try {
       const token = localStorage.getItem('authToken');
-      const response = await fetch(`${API_BASE_URL}/api/admin/classes/delete-all`, {
+      const response = await fetch(`${adminApi('')}/classes/delete-all`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -642,7 +632,7 @@ const ClassDashboard = () => {
       } else {
         nextClassNum = absClassNum + 1; // Should not reach here
       }
-      return `Class ${c.classNumber}${c.section ? c.section : ''} → ${willBeFinished ? 'Finished Academic Career' : `Class ${nextClassNum}${c.section ? c.section : ''}`}`;
+      return `${formatClassLabel(c.classNumber)} → ${willBeFinished ? 'Finished Academic Career' : formatClassLabel(nextClassNum)}`;
     }).join('\n');
 
     if (!confirm(`Are you sure you want to promote the following ${classIds.length} class(es)?\n\n${promotionDetails}\n\nThis action cannot be undone.`)) {
@@ -660,7 +650,7 @@ const ClassDashboard = () => {
       })));
       
       const token = localStorage.getItem('authToken');
-      const response = await fetch(`${API_BASE_URL}/api/admin/classes/promote`, {
+      const response = await fetch(`${adminApi('')}/classes/promote`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -722,34 +712,12 @@ const ClassDashboard = () => {
   };
 
   const handleAssignSubjects = async () => {
-    if (!selectedClassForSubjects) {
-      toast({
-        title: 'Validation Error',
-        description: 'Please select a class number',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    if (!selectedSectionForSubjects) {
-      toast({
-        title: 'Validation Error',
-        description: 'Please select a section',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    const classForSection = findClassForAssignSelection(
-      selectedClassForSubjects,
-      selectedSectionForSubjects,
-    );
+    const classForSection = selectedClassForAssign;
 
     if (!classForSection?.id) {
       toast({
-        title: 'Class not found',
-        description:
-          'Could not find this class section. Refresh the page or create the class first.',
+        title: 'Validation Error',
+        description: 'Please select a class',
         variant: 'destructive',
       });
       return;
@@ -759,10 +727,17 @@ const ClassDashboard = () => {
 
     setIsAssigningSubjects(true);
     try {
-      const response = await apiFetch(
-        `/api/admin/classes/by-id/${encodeURIComponent(classForSection.id)}/assign-subjects`,
+      const token = localStorage.getItem('authToken');
+      const response = await fetch(
+        adminApi(
+          `/classes/by-id/${encodeURIComponent(classForSection.id)}/assign-subjects`,
+        ),
         {
           method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token || ''}`,
+          },
           body: JSON.stringify({ subjectIds: subjectIdsToSave }),
         },
       );
@@ -784,7 +759,7 @@ const ClassDashboard = () => {
           title: 'Success',
           description:
             data.message ||
-            `Subjects saved for Class ${selectedClassForSubjects} Section ${selectedSectionForSubjects}`,
+            `Subjects saved for ${getClassDisplayTitle(classForSection.classNumber, classForSection.name)}`,
         });
         userEditedAssignRef.current = false;
         await fetchClasses();
@@ -868,10 +843,16 @@ const ClassDashboard = () => {
 
   return (
     <AdminPageShell
+      variant={uiVariant}
       title="Classes"
-      description="Classes are created from your licensed products. Add extra sections (B, C) or assign teachers and students."
+      description={
+        readOnly
+          ? 'View licensed classes and the teachers and students assigned to each class.'
+          : 'Manage classes, assign subjects, teachers, and students for this school.'
+      }
     >
       <AdminStatGrid
+        variant={uiVariant}
         stats={[
           { label: 'Classes', value: classes.length, icon: GraduationCap },
           { label: 'Students', value: totalStudents, icon: Users },
@@ -885,23 +866,27 @@ const ClassDashboard = () => {
       />
 
         <Tabs defaultValue="classes" className="space-y-4">
-          <AdminTabsList>
-            <AdminTabsTrigger value="classes">
+          <AdminTabsList variant={uiVariant}>
+            <AdminTabsTrigger variant={uiVariant} value="classes">
               <GraduationCap className="mr-2 h-4 w-4 inline" />
               Classes
             </AdminTabsTrigger>
-            <AdminTabsTrigger value="assign-subjects">
-              <BookOpen className="mr-2 h-4 w-4 inline" />
-              Assign Subjects
-            </AdminTabsTrigger>
-            <AdminTabsTrigger value="promote-class">
-              <ArrowUp className="mr-2 h-4 w-4 inline" />
-              Promote Class
-            </AdminTabsTrigger>
+            {!readOnly ? (
+              <>
+                <AdminTabsTrigger variant={uiVariant} value="assign-subjects">
+                  <BookOpen className="mr-2 h-4 w-4 inline" />
+                  Assign Subjects
+                </AdminTabsTrigger>
+                <AdminTabsTrigger variant={uiVariant} value="promote-class">
+                  <ArrowUp className="mr-2 h-4 w-4 inline" />
+                  Promote Class
+                </AdminTabsTrigger>
+              </>
+            ) : null}
           </AdminTabsList>
 
           <TabsContent value="classes" className="space-y-4">
-            <AdminPanel>
+            <AdminPanel variant={uiVariant}>
               <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
                 <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center w-full md:w-auto">
                   <div className="relative flex-1 sm:flex-initial">
@@ -929,7 +914,7 @@ const ClassDashboard = () => {
                   </Select>
                 </div>
                 <div className="flex gap-2 w-full md:w-auto">
-                  {classes.length > 0 && (
+                  {!readOnly && classes.length > 0 && (
                     <AlertDialog open={isDeleteAllDialogOpen} onOpenChange={setIsDeleteAllDialogOpen}>
                       <AlertDialogTrigger asChild>
                         <Button variant="destructive" className={adminDestructiveBtn}>
@@ -962,10 +947,6 @@ const ClassDashboard = () => {
                       </AlertDialogContent>
                     </AlertDialog>
                   )}
-                  <Button onClick={() => setIsAddClassDialogOpen(true)} className={adminPrimaryBtn}>
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add section
-                  </Button>
                 </div>
               </div>
             </AdminPanel>
@@ -998,7 +979,7 @@ const ClassDashboard = () => {
                       </div>
                       <div className="min-w-0 flex-1">
                         <h3 className="font-semibold text-slate-900 truncate">
-                          {classItem.name || `Class ${classItem.classNumber}${classItem.section || ''}`}
+                          {getClassDisplayTitle(classItem.classNumber, classItem.name)}
                         </h3>
                         <AdminProductBadge
                           productCode={classProductCode(classItem)}
@@ -1040,15 +1021,6 @@ const ClassDashboard = () => {
                         <span className="font-medium text-sky-500 text-xs shrink-0 whitespace-nowrap text-right">
                           No teachers assigned
                         </span>
-                      </div>
-                    )}
-                    {classItem.section && (
-                      <div className="flex items-center justify-between gap-2 text-xs sm:text-sm min-w-0">
-                        <div className="flex items-center text-sky-700 min-w-0">
-                          <GraduationCap className="w-3 h-3 sm:w-4 sm:h-4 mr-3 text-sky-600 shrink-0" />
-                          <span className="shrink-0">Section:</span>
-                        </div>
-                        <span className="font-medium text-sky-900 shrink-0">{classItem.section}</span>
                       </div>
                     )}
                   </div>
@@ -1151,6 +1123,7 @@ const ClassDashboard = () => {
                     </div>
                   </div>
                   
+                  {!readOnly ? (
                   <div className="flex justify-end mt-4 pt-4 border-t border-sky-200">
                     <Button 
                       size="sm" 
@@ -1165,6 +1138,7 @@ const ClassDashboard = () => {
                       Delete
                     </Button>
                   </div>
+                  ) : null}
                 </div>
               </div>
                   );
@@ -1173,11 +1147,11 @@ const ClassDashboard = () => {
           </div>
             ))
           ) : (
-            <AdminPanel className="text-center py-12">
+            <AdminPanel variant={uiVariant} className="text-center py-12">
               <GraduationCap className="w-12 h-12 text-slate-300 mx-auto mb-3" />
               <p className="text-slate-600 font-medium">No classes yet</p>
               <p className="text-slate-500 text-sm mt-1">
-                Licensed classes are created automatically when you open Home or this page. Use Add section for B/C.
+                Licensed classes are created automatically when you open Home or this page.
               </p>
             </AdminPanel>
           )}
@@ -1189,75 +1163,50 @@ const ClassDashboard = () => {
                 <CardTitle className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-purple-600 via-pink-600 to-red-500 bg-clip-text text-transparent">
                   Assign Subjects to Class
                 </CardTitle>
-                <p className="text-gray-600 mt-2">Select a class, section, and subjects for that section only</p>
+                <p className="text-gray-600 mt-2">Select a class and the subjects taught in that class</p>
               </CardHeader>
               <CardContent className="space-y-3 sm:space-y-4 lg:space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="class-select" className="text-sm sm:text-base font-semibold mb-2 block">Select Class Number *</Label>
+                  <Label htmlFor="class-select" className="text-sm sm:text-base font-semibold mb-2 block">Select class *</Label>
                   <Select
-                    value={selectedClassForSubjects}
+                    value={selectedClassIdForSubjects}
                     onValueChange={(value) => {
                       userEditedAssignRef.current = false;
                       assignTargetKeyRef.current = '';
-                      setSelectedClassForSubjects(value);
-                      setSelectedSectionForSubjects('');
+                      setSelectedClassIdForSubjects(value);
                       setSelectedSubjectIds([]);
                     }}
                   >
                     <SelectTrigger id="class-select" className="w-full">
-                      <SelectValue placeholder="Choose a class number" />
+                      <SelectValue placeholder="Choose a class" />
                     </SelectTrigger>
                     <SelectContent>
-                      {Array.from(new Set(classes.map(c => c.classNumber).filter(cn => cn))) // Filter out undefined/null
+                      {[...classes]
                         .sort((a, b) => {
-                          // Sort numerically if both are numbers, otherwise alphabetically
-                          const numA = parseInt(a);
-                          const numB = parseInt(b);
-                          if (!isNaN(numA) && !isNaN(numB)) {
-                            return numA - numB;
-                          }
-                          return a.localeCompare(b);
+                          const numA = parseInt(String(a.classNumber).replace(/\D/g, ''), 10);
+                          const numB = parseInt(String(b.classNumber).replace(/\D/g, ''), 10);
+                          if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+                          return String(a.classNumber).localeCompare(String(b.classNumber));
                         })
-                        .map(classNumber => {
-                          // Count total students across all sections of this class number
-                          const sectionsForClass = classes.filter(c => c.classNumber === classNumber);
-                          const totalStudents = sectionsForClass.reduce((sum, c) => sum + (c.studentCount || 0), 0);
-                          const sectionCount = sectionsForClass.length;
-                          return (
-                            <SelectItem key={classNumber} value={classNumber}>
-                              Class {classNumber} ({sectionCount} section{sectionCount !== 1 ? 's' : ''}, {totalStudents} students)
-                            </SelectItem>
-                          );
-                        })}
+                        .map((c) => (
+                          <SelectItem key={c.id} value={c.id}>
+                            {getClassDisplayTitle(c.classNumber, c.name)} ({c.studentCount || 0} students)
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                 </div>
 
-                <div>
-                  <Label htmlFor="section-select" className="text-sm sm:text-base font-semibold mb-2 block">Select Section *</Label>
-                  <Select
-                    value={selectedSectionForSubjects}
-                    onValueChange={setSelectedSectionForSubjects}
-                    disabled={!selectedClassForSubjects || sectionsForSelectedClass.length === 0}
-                  >
-                    <SelectTrigger id="section-select" className="w-full">
-                      <SelectValue placeholder={selectedClassForSubjects ? 'Choose a section' : 'Select class first'} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {sectionsForSelectedClass.map((classItem) => (
-                        <SelectItem key={classItem.id} value={String(classItem.section)}>
-                          Section {classItem.section} ({classItem.studentCount || 0} students)
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
                 </div>
 
-                {selectedClassForSubjects && selectedSectionForSubjects && (
+                {selectedClassIdForSubjects && (
                   <p className="text-xs sm:text-sm text-gray-600">
-                    Subjects will be assigned to Class {selectedClassForSubjects} Section {selectedSectionForSubjects} only.
+                    Subjects will be assigned to{' '}
+                    {getClassDisplayTitle(
+                      classes.find((c) => c.id === selectedClassIdForSubjects)?.classNumber || '',
+                    )}{' '}
+                    only.
                   </p>
                 )}
 
@@ -1329,8 +1278,7 @@ const ClassDashboard = () => {
                     onClick={() => {
                       userEditedAssignRef.current = false;
                       assignTargetKeyRef.current = '';
-                      setSelectedClassForSubjects('');
-                      setSelectedSectionForSubjects('');
+                      setSelectedClassIdForSubjects('');
                       setSelectedSubjectIds([]);
                     }}
                     disabled={isAssigningSubjects}
@@ -1340,11 +1288,7 @@ const ClassDashboard = () => {
                   <Button
                     type="button"
                     onClick={() => void handleAssignSubjects()}
-                    disabled={
-                      !selectedClassForSubjects ||
-                      !selectedSectionForSubjects ||
-                      isAssigningSubjects
-                    }
+                    disabled={!selectedClassIdForSubjects || isAssigningSubjects}
                     className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white"
                   >
                     {isAssigningSubjects ? 'Saving...' : 'Save'}
@@ -1446,10 +1390,9 @@ const ClassDashboard = () => {
                         return (
                           <div key={classNum} className="space-y-2">
                             <div className="flex items-center space-x-2 mb-2">
-                              <h4 className="font-semibold text-gray-700">Class {classNum}</h4>
-                              <Badge variant="outline" className="text-xs">
-                                {classItems.length} section{classItems.length !== 1 ? 's' : ''}
-                              </Badge>
+                              <h4 className="font-semibold text-gray-700">
+                                {formatClassLabel(classNum)}
+                              </h4>
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 ml-4">
                               {classItems.map((classItem) => {
@@ -1489,7 +1432,7 @@ const ClassDashboard = () => {
                                       <div className="flex-1 min-w-0">
                                         <div className="flex items-center justify-between mb-1">
                                           <span className="font-semibold text-gray-900 text-xs sm:text-sm">
-                                            Section {classItem.section || 'N/A'}
+                                            {getClassDisplayTitle(classItem.classNumber, classItem.name)}
                                           </span>
                                           {isSelected && (
                                             <CheckCircle2 className="w-3 h-3 sm:w-4 sm:h-4 text-green-600 flex-shrink-0" />
@@ -1503,7 +1446,7 @@ const ClassDashboard = () => {
                                           <span className="text-gray-500">
                                             {willBeFinished 
                                               ? 'Finished'
-                                              : `Class ${nextClassNum}${classItem.section ? classItem.section : ''}`
+                                              : formatClassLabel(nextClassNum)
                                             }
                                           </span>
                                         </div>
@@ -1566,117 +1509,6 @@ const ClassDashboard = () => {
             </Card>
           </TabsContent>
         </Tabs>
-
-        {/* Add Class Dialog */}
-        <Dialog
-          open={isAddClassDialogOpen}
-          onOpenChange={(open) => {
-            setIsAddClassDialogOpen(open);
-            if (!open) resetAddClassForm();
-          }}
-        >
-          <DialogContent className="bg-white/90 backdrop-blur-xl border-sky-200">
-            <DialogHeader>
-              <DialogTitle className="text-sky-900">Add New Class</DialogTitle>
-              <DialogDescription>
-                Create a new class to organize your students
-              </DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleAddClass} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="classNumber" className="text-xs sm:text-sm font-medium text-sky-800">
-                    Class Number <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    id="classNumber"
-                    value={newClass.classNumber}
-                    onChange={(e) => setNewClass({ ...newClass, classNumber: e.target.value })}
-                    className="rounded-xl bg-white/70 border-sky-200 text-sky-900 backdrop-blur-sm"
-                    required
-                    placeholder="e.g., 10, 11, 12"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="section" className="text-xs sm:text-sm font-medium text-sky-800">
-                    Section <span className="text-red-500">*</span>
-                  </Label>
-                  <Select
-                    value={isCustomSection ? '__add__' : newClass.section}
-                    onValueChange={(value) => {
-                      if (value === '__add__') {
-                        setIsCustomSection(true);
-                        setNewClass({ ...newClass, section: '' });
-                      } else {
-                        setIsCustomSection(false);
-                        setCustomSectionLetter('');
-                        setNewClass({ ...newClass, section: value });
-                      }
-                    }}
-                  >
-                    <SelectTrigger className="rounded-xl bg-white/70 border-sky-200 text-sky-900 backdrop-blur-sm">
-                      <SelectValue placeholder="Select section" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="A">Section A</SelectItem>
-                      <SelectItem value="B">Section B</SelectItem>
-                      <SelectItem value="C">Section C</SelectItem>
-                      <SelectItem value="__add__">
-                        <span className="flex items-center gap-2">
-                          <Plus className="h-3 w-3 sm:h-4 sm:w-4" />
-                          Add new section…
-                        </span>
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                  {isCustomSection && (
-                    <Input
-                      id="customSection"
-                      value={customSectionLetter}
-                      onChange={(e) =>
-                        setCustomSectionLetter(
-                          e.target.value.replace(/[^a-zA-Z0-9]/g, '').slice(0, 3)
-                        )
-                      }
-                      className="rounded-xl bg-white/70 border-sky-200 text-sky-900 backdrop-blur-sm mt-2"
-                      placeholder="Enter section letter (e.g. D)"
-                      maxLength={3}
-                      autoFocus
-                      required
-                    />
-                  )}
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="description" className="text-xs sm:text-sm font-medium text-sky-800">Description (Optional)</Label>
-                <Textarea
-                  id="description"
-                  value={newClass.description}
-                  onChange={(e) => setNewClass({ ...newClass, description: e.target.value })}
-                  className="rounded-xl bg-white/70 border-sky-200 text-sky-900 backdrop-blur-sm"
-                  rows={3}
-                  placeholder="Optional description for this class"
-                />
-              </div>
-              <div className="flex justify-end space-x-3">
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  onClick={() => {
-                    resetAddClassForm();
-                    setIsAddClassDialogOpen(false);
-                  }}
-                  className="border-sky-200 text-sky-700 hover:bg-sky-50"
-                >
-                  Cancel
-                </Button>
-                <Button type="submit" className="bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white">
-                  Create Class
-                </Button>
-              </div>
-            </form>
-          </DialogContent>
-        </Dialog>
 
         {/* Student Analysis Dialog */}
         <Dialog open={isStudentAnalysisDialogOpen} onOpenChange={setIsStudentAnalysisDialogOpen}>

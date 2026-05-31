@@ -4,12 +4,20 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Package, Plus, Loader2, Trash2, X, BookOpen, Save } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Package, Plus, Loader2, Trash2, X, Save, Layers, GraduationCap } from "lucide-react";
 import {
   fetchProducts,
   deleteProduct,
   updateProduct,
   type Product,
+  type ProductStructureType,
+  type SubjectsByClass,
+  isLevelBasedProduct,
+  normalizeClassNumber,
+  getProductClassNumbers,
+  getProductLevelNumbers,
 } from "@/lib/products";
 import { API_BASE_URL } from "@/lib/api-config";
 import { SuperAdminPageHeader } from "@/components/super-admin/premium";
@@ -27,19 +35,81 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
-function SubjectChips({
-  subjects,
+export type ProductCatalogEdit = {
+  structureType: ProductStructureType;
+  catalogClassNumbers: string[];
+  sameSubjectsForAllClasses: boolean;
+  catalogSubjects: string[];
+  subjectsByClass: SubjectsByClass;
+  catalogCategories: string[];
+};
+
+function productToEdit(p: Product): ProductCatalogEdit {
+  const slotNumbers = isLevelBasedProduct(p)
+    ? getProductLevelNumbers(p)
+    : getProductClassNumbers(p);
+  return {
+    structureType: p.structureType || "class_based",
+    catalogClassNumbers: slotNumbers,
+    sameSubjectsForAllClasses: p.sameSubjectsForAllClasses !== false,
+    catalogSubjects: [...(p.catalogSubjects || [])],
+    subjectsByClass: { ...(p.subjectsByClass || {}) },
+    catalogCategories: [...(p.catalogCategories || [])],
+  };
+}
+
+function validateClassBased(edit: ProductCatalogEdit): string | null {
+  if (edit.structureType !== "class_based") return null;
+  if (!edit.catalogClassNumbers.length) {
+    return "Add at least one class for this product.";
+  }
+  return null;
+}
+
+function validateLevelBased(edit: ProductCatalogEdit): string | null {
+  if (edit.structureType !== "level_based") return null;
+  if (!edit.catalogClassNumbers.length) {
+    return "Add at least one level for this product.";
+  }
+  return null;
+}
+
+function validateCatalog(edit: ProductCatalogEdit): string | null {
+  return validateClassBased(edit) || validateLevelBased(edit);
+}
+
+function buildSavePayload(edit: ProductCatalogEdit) {
+  if (edit.structureType === "level_based") {
+    return {
+      structureType: edit.structureType,
+      catalogClassNumbers: edit.catalogClassNumbers,
+      catalogCategories: edit.catalogCategories,
+    };
+  }
+  return {
+    structureType: edit.structureType,
+    catalogClassNumbers: edit.catalogClassNumbers,
+    sameSubjectsForAllClasses: edit.sameSubjectsForAllClasses,
+    catalogSubjects: edit.sameSubjectsForAllClasses ? edit.catalogSubjects : [],
+    subjectsByClass: edit.sameSubjectsForAllClasses ? {} : edit.subjectsByClass,
+  };
+}
+
+function TagChips({
+  tags,
+  emptyHint,
   onRemove,
 }: {
-  subjects: string[];
+  tags: string[];
+  emptyHint: string;
   onRemove?: (name: string) => void;
 }) {
-  if (!subjects.length) {
-    return <p className="text-xs text-slate-400">No subjects yet — add at least one.</p>;
+  if (!tags.length) {
+    return <p className="text-xs text-slate-400">{emptyHint}</p>;
   }
   return (
     <div className="flex flex-wrap gap-1.5">
-      {subjects.map((s) => (
+      {tags.map((s) => (
         <Badge
           key={s}
           variant="secondary"
@@ -62,63 +132,280 @@ function SubjectChips({
   );
 }
 
-function SubjectEditor({
-  subjects,
-  onChange,
-  onSave,
-  saving,
+function TagInputRow({
+  placeholder,
+  onAdd,
 }: {
-  subjects: string[];
-  onChange: (next: string[]) => void;
-  onSave: () => void;
-  saving: boolean;
+  placeholder: string;
+  onAdd: (name: string) => void;
 }) {
   const [draft, setDraft] = useState("");
-
-  const add = () => {
-    const name = draft.trim();
-    if (!name) return;
-    if (subjects.some((s) => s.toLowerCase() === name.toLowerCase())) {
-      setDraft("");
-      return;
-    }
-    onChange([...subjects, name]);
+  const submit = () => {
+    const trimmed = draft.trim();
+    if (!trimmed) return;
+    onAdd(trimmed);
     setDraft("");
   };
-
   return (
-    <div className="space-y-2 mt-3 pt-3 border-t border-slate-100">
-      <p className="text-xs font-semibold text-[var(--brand-navy)] flex items-center gap-1">
-        <BookOpen className="h-3.5 w-3.5 text-[var(--brand-emerald)]" />
-        Subjects (products under this book line)
-      </p>
-      <SubjectChips subjects={subjects} onRemove={(n) => onChange(subjects.filter((s) => s !== n))} />
-      <div className="flex gap-2">
-        <Input
-          placeholder="e.g. Abacus, Mathematics"
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), add())}
-          className="h-9"
-        />
-        <Button type="button" variant="outline" size="sm" onClick={add}>
-          <Plus className="h-4 w-4" />
-        </Button>
-      </div>
-      <Button
-        type="button"
-        size="sm"
-        variant="outline"
-        className="w-full border-[var(--brand-emerald)]/40 text-[var(--brand-emerald)]"
-        onClick={onSave}
-        disabled={saving || subjects.length === 0}
-      >
-        {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-        Save subjects
+    <div className="flex gap-2 max-w-md">
+      <Input
+        placeholder={placeholder}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), submit())}
+        className="h-9"
+      />
+      <Button type="button" variant="outline" size="sm" onClick={submit}>
+        <Plus className="h-4 w-4" />
       </Button>
     </div>
   );
 }
+
+function SlotNumbersEditor({
+  numbers,
+  onChange,
+  variant,
+}: {
+  numbers: string[];
+  onChange: (next: string[]) => void;
+  variant: "class" | "level";
+}) {
+  const label = variant === "level" ? "Level" : "Class";
+  const Icon = variant === "level" ? Layers : GraduationCap;
+  const add = (raw: string) => {
+    const cn = normalizeClassNumber(raw);
+    if (!cn || numbers.includes(cn)) return;
+    onChange([...numbers, cn].sort((a, b) => Number(a) - Number(b)));
+  };
+  return (
+    <div className="space-y-2">
+      <Label className="text-[var(--brand-navy)] flex items-center gap-1.5">
+        <Icon className="h-3.5 w-3.5 text-[var(--brand-emerald)]" />
+        {label}s <span className="text-red-600">*</span>
+      </Label>
+      <TagChips
+        tags={numbers.map((n) => `${label} ${n}`)}
+        emptyHint={`Required — add ${label.toLowerCase()} numbers (e.g. 1, 2, 10) and press Enter.`}
+        onRemove={(chip) => {
+          const n = chip.replace(new RegExp(`^${label}\\s+`, "i"), "");
+          onChange(numbers.filter((c) => c !== n));
+        }}
+      />
+      <TagInputRow placeholder={`${label} number, press Enter`} onAdd={add} />
+    </div>
+  );
+}
+
+function SubjectTagsEditor({
+  subjects,
+  onChange,
+  title,
+}: {
+  subjects: string[];
+  onChange: (next: string[]) => void;
+  title?: string;
+}) {
+  const add = (name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed || subjects.some((s) => s.toLowerCase() === trimmed.toLowerCase())) return;
+    onChange([...subjects, trimmed]);
+  };
+  return (
+    <div className="space-y-2">
+      {title ? <p className="text-xs font-medium text-[var(--brand-navy)]">{title}</p> : null}
+      <TagChips
+        tags={subjects}
+        emptyHint="No subjects yet."
+        onRemove={(n) => onChange(subjects.filter((s) => s !== n))}
+      />
+      <TagInputRow placeholder="Subject name, press Enter" onAdd={add} />
+    </div>
+  );
+}
+
+function ClassBasedCatalogBlock({
+  edit,
+  onChange,
+  showSave,
+  onSave,
+  saving,
+}: {
+  edit: ProductCatalogEdit;
+  onChange: (next: ProductCatalogEdit) => void;
+  showSave?: boolean;
+  onSave?: () => void;
+  saving?: boolean;
+}) {
+  const setClasses = (catalogClassNumbers: string[]) => {
+    const subjectsByClass = { ...edit.subjectsByClass };
+    catalogClassNumbers.forEach((cn) => {
+      if (!subjectsByClass[cn]) subjectsByClass[cn] = [];
+    });
+    Object.keys(subjectsByClass).forEach((cn) => {
+      if (!catalogClassNumbers.includes(cn)) delete subjectsByClass[cn];
+    });
+    onChange({ ...edit, catalogClassNumbers, subjectsByClass });
+  };
+
+  return (
+    <div className="rounded-xl border border-[var(--brand-emerald)]/20 bg-emerald-50/40 p-4 space-y-4">
+      <SlotNumbersEditor
+        numbers={edit.catalogClassNumbers}
+        onChange={setClasses}
+        variant="class"
+      />
+
+      <div className="flex items-center gap-2 pt-1">
+        <Checkbox
+          id="same-subjects-all"
+          checked={edit.sameSubjectsForAllClasses}
+          onCheckedChange={(checked) =>
+            onChange({
+              ...edit,
+              sameSubjectsForAllClasses: checked === true,
+            })
+          }
+        />
+        <Label htmlFor="same-subjects-all" className="font-normal cursor-pointer text-sm">
+          Same subjects for all classes
+        </Label>
+      </div>
+
+      {edit.sameSubjectsForAllClasses ? (
+        <div className="space-y-2 pl-0">
+          <Label className="text-[var(--brand-navy)]">
+            Subjects <span className="text-slate-500 font-normal">(optional)</span>
+          </Label>
+          <SubjectTagsEditor
+            subjects={edit.catalogSubjects}
+            onChange={(catalogSubjects) => onChange({ ...edit, catalogSubjects })}
+          />
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <p className="text-xs text-slate-600">
+            Add subjects separately for each class. Add classes above first.
+          </p>
+          {edit.catalogClassNumbers.length === 0 ? (
+            <p className="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-lg p-2">
+              Add at least one class to set subjects per class.
+            </p>
+          ) : (
+            edit.catalogClassNumbers.map((cn) => (
+              <div
+                key={cn}
+                className="rounded-lg border border-white/80 bg-white/70 p-3 space-y-2"
+              >
+                <SubjectTagsEditor
+                  title={`Class ${cn}`}
+                  subjects={edit.subjectsByClass[cn] || []}
+                  onChange={(list) =>
+                    onChange({
+                      ...edit,
+                      subjectsByClass: { ...edit.subjectsByClass, [cn]: list },
+                    })
+                  }
+                />
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
+      {showSave && onSave ? (
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="w-full border-[var(--brand-emerald)]/40 text-[var(--brand-emerald)]"
+          onClick={onSave}
+          disabled={saving || edit.catalogClassNumbers.length === 0}
+        >
+          {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+          Save catalog setup
+        </Button>
+      ) : null}
+    </div>
+  );
+}
+
+function LevelBasedCatalogBlock({
+  edit,
+  onChange,
+  showSave,
+  onSave,
+  saving,
+}: {
+  edit: ProductCatalogEdit;
+  onChange: (next: ProductCatalogEdit) => void;
+  showSave?: boolean;
+  onSave?: () => void;
+  saving?: boolean;
+}) {
+  const addCategory = (name: string) => {
+    const trimmed = name.trim();
+    if (
+      !trimmed ||
+      edit.catalogCategories.some((s) => s.toLowerCase() === trimmed.toLowerCase())
+    ) {
+      return;
+    }
+    onChange({ ...edit, catalogCategories: [...edit.catalogCategories, trimmed] });
+  };
+  return (
+    <div className="rounded-xl border border-[var(--brand-emerald)]/20 bg-emerald-50/40 p-4 space-y-4">
+      <SlotNumbersEditor
+        numbers={edit.catalogClassNumbers}
+        onChange={(catalogClassNumbers) => onChange({ ...edit, catalogClassNumbers })}
+        variant="level"
+      />
+      <div className="space-y-2 pt-1 border-t border-[var(--brand-emerald)]/15">
+        <Label className="text-[var(--brand-navy)] flex items-center gap-1">
+          <Layers className="h-3.5 w-3.5 text-[var(--brand-emerald)]" />
+          Categories <span className="text-slate-500 font-normal">(optional)</span>
+        </Label>
+        <p className="text-xs text-slate-600">
+          Category names apply across all levels (e.g. Beginner, Intermediate). Content studio uses
+          each level as a separate slot.
+        </p>
+        <TagChips
+          tags={edit.catalogCategories}
+          emptyHint="No categories yet."
+          onRemove={(n) =>
+            onChange({
+              ...edit,
+              catalogCategories: edit.catalogCategories.filter((s) => s !== n),
+            })
+          }
+        />
+        <TagInputRow placeholder="Category name, press Enter" onAdd={addCategory} />
+      </div>
+      {showSave && onSave ? (
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="w-full border-[var(--brand-emerald)]/40 text-[var(--brand-emerald)]"
+          onClick={onSave}
+          disabled={saving || edit.catalogClassNumbers.length === 0}
+        >
+          {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+          Save catalog setup
+        </Button>
+      ) : null}
+    </div>
+  );
+}
+
+const emptyForm = (): ProductCatalogEdit => ({
+  structureType: "class_based",
+  catalogClassNumbers: [],
+  sameSubjectsForAllClasses: true,
+  catalogSubjects: [],
+  subjectsByClass: {},
+  catalogCategories: [],
+});
 
 export default function ProductManagement() {
   const { toast } = useToast();
@@ -126,25 +413,20 @@ export default function ProductManagement() {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [deletingCode, setDeletingCode] = useState<string | null>(null);
-  const [savingSubjectsCode, setSavingSubjectsCode] = useState<string | null>(null);
-  const [editSubjects, setEditSubjects] = useState<Record<string, string[]>>({});
-  const [form, setForm] = useState({
-    code: "",
-    name: "",
-    description: "",
-    catalogSubjects: [] as string[],
-  });
-  const [newSubjectDraft, setNewSubjectDraft] = useState("");
+  const [savingCatalogCode, setSavingCatalogCode] = useState<string | null>(null);
+  const [editCatalog, setEditCatalog] = useState<Record<string, ProductCatalogEdit>>({});
+  const [form, setForm] = useState<ProductCatalogEdit>(emptyForm());
+  const [formMeta, setFormMeta] = useState({ code: "", name: "", description: "" });
 
   const load = async () => {
     setLoading(true);
     const list = await fetchProducts();
     setProducts(list);
-    const map: Record<string, string[]> = {};
+    const map: Record<string, ProductCatalogEdit> = {};
     list.forEach((p) => {
-      map[p.code] = [...(p.catalogSubjects || [])];
+      map[p.code] = productToEdit(p);
     });
-    setEditSubjects(map);
+    setEditCatalog(map);
     setLoading(false);
   };
 
@@ -152,25 +434,11 @@ export default function ProductManagement() {
     load();
   }, []);
 
-  const addSubjectToForm = () => {
-    const name = newSubjectDraft.trim();
-    if (!name) return;
-    if (form.catalogSubjects.some((s) => s.toLowerCase() === name.toLowerCase())) {
-      setNewSubjectDraft("");
-      return;
-    }
-    setForm((f) => ({ ...f, catalogSubjects: [...f.catalogSubjects, name] }));
-    setNewSubjectDraft("");
-  };
-
   const handleCreate = async () => {
-    if (!form.code.trim() || !form.name.trim()) return;
-    if (form.catalogSubjects.length === 0) {
-      toast({
-        title: "Add at least one subject",
-        description: "Each product needs subjects (e.g. Abacus, Mathematics).",
-        variant: "destructive",
-      });
+    if (!formMeta.code.trim() || !formMeta.name.trim()) return;
+    const classErr = validateClassBased(form);
+    if (classErr) {
+      toast({ title: "Classes required", description: classErr, variant: "destructive" });
       return;
     }
     setCreating(true);
@@ -182,17 +450,17 @@ export default function ProductManagement() {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        code: form.code.trim().toUpperCase().replace(/\s+/g, "_"),
-        name: form.name.trim(),
-        description: form.description.trim(),
-        catalogSubjects: form.catalogSubjects,
+        code: formMeta.code.trim().toUpperCase().replace(/\s+/g, "_"),
+        name: formMeta.name.trim(),
+        description: formMeta.description.trim(),
         isPremium: true,
+        ...buildSavePayload(form),
       }),
     });
     setCreating(false);
     if (res.ok) {
-      setForm({ code: "", name: "", description: "", catalogSubjects: [] });
-      setNewSubjectDraft("");
+      setFormMeta({ code: "", name: "", description: "" });
+      setForm(emptyForm());
       toast({ title: "Product created" });
       await load();
     } else {
@@ -201,17 +469,22 @@ export default function ProductManagement() {
     }
   };
 
-  const saveProductSubjects = async (p: Product) => {
-    const subjects = editSubjects[p.code] || [];
-    if (!subjects.length) {
-      toast({ title: "Add at least one subject", variant: "destructive" });
+  const saveProductCatalog = async (p: Product) => {
+    const edit = editCatalog[p.code];
+    if (!edit) return;
+    const catalogErr = validateCatalog(edit);
+    if (catalogErr) {
+      toast({ title: "Catalog required", description: catalogErr, variant: "destructive" });
       return;
     }
-    setSavingSubjectsCode(p.code);
-    const result = await updateProduct(p.code, { catalogSubjects: subjects });
-    setSavingSubjectsCode(null);
+    setSavingCatalogCode(p.code);
+    const result = await updateProduct(p.code, buildSavePayload(edit));
+    setSavingCatalogCode(null);
     if (result.ok) {
-      toast({ title: "Subjects saved", description: p.name });
+      toast({
+        title: "Saved & synced",
+        description: `${p.name} — classes and subjects updated everywhere (Content studio, schools, mobile).`,
+      });
       await load();
     } else {
       toast({ title: "Failed", description: result.message, variant: "destructive" });
@@ -238,7 +511,7 @@ export default function ProductManagement() {
     <div className="sa-premium-scope space-y-6">
       <SuperAdminPageHeader
         title="Product catalog"
-        description="Each product is a book line. Add multiple subjects per product — then use Content studio, Learning paths, and Viswam OTT per product → subject → class."
+        description="Class-based products need class numbers; level-based products need level numbers (and optional categories). Use “Same subjects for all classes” when every class shares one subject list."
         icon={Package}
       />
 
@@ -252,55 +525,63 @@ export default function ProductManagement() {
               <Label>Code</Label>
               <Input
                 placeholder="e.g. ABACUS"
-                value={form.code}
-                onChange={(e) => setForm({ ...form, code: e.target.value })}
+                value={formMeta.code}
+                onChange={(e) => setFormMeta({ ...formMeta, code: e.target.value })}
               />
             </div>
             <div>
               <Label>Name</Label>
               <Input
                 placeholder="Display name"
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                value={formMeta.name}
+                onChange={(e) => setFormMeta({ ...formMeta, name: e.target.value })}
               />
             </div>
             <div>
               <Label>Description</Label>
               <Input
                 placeholder="Optional"
-                value={form.description}
-                onChange={(e) => setForm({ ...form, description: e.target.value })}
+                value={formMeta.description}
+                onChange={(e) => setFormMeta({ ...formMeta, description: e.target.value })}
               />
             </div>
           </div>
-          <div className="rounded-xl border border-[var(--brand-emerald)]/20 bg-emerald-50/40 p-4 space-y-2">
-            <Label className="text-[var(--brand-navy)]">Subjects for this product</Label>
-            <SubjectChips
-              subjects={form.catalogSubjects}
-              onRemove={(n) =>
-                setForm((f) => ({
-                  ...f,
-                  catalogSubjects: f.catalogSubjects.filter((s) => s !== n),
-                }))
+
+          <div className="space-y-2">
+            <Label className="text-[var(--brand-navy)]">Product structure</Label>
+            <RadioGroup
+              value={form.structureType}
+              onValueChange={(v) =>
+                setForm((f) => ({ ...f, structureType: v as ProductStructureType }))
               }
-            />
-            <div className="flex gap-2 max-w-md">
-              <Input
-                placeholder="Subject name, press Enter"
-                value={newSubjectDraft}
-                onChange={(e) => setNewSubjectDraft(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addSubjectToForm())}
-              />
-              <Button type="button" variant="outline" onClick={addSubjectToForm}>
-                <Plus className="h-4 w-4" />
-              </Button>
-            </div>
+              className="flex flex-wrap gap-4"
+            >
+              <div className="flex items-center gap-2">
+                <RadioGroupItem value="class_based" id="structure-class" />
+                <Label htmlFor="structure-class" className="font-normal cursor-pointer">
+                  Class based
+                </Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <RadioGroupItem value="level_based" id="structure-level" />
+                <Label htmlFor="structure-level" className="font-normal cursor-pointer">
+                  Level based
+                </Label>
+              </div>
+            </RadioGroup>
           </div>
+
+          {form.structureType === "level_based" ? (
+            <LevelBasedCatalogBlock edit={form} onChange={setForm} />
+          ) : (
+            <ClassBasedCatalogBlock edit={form} onChange={setForm} />
+          )}
+
           <Button
             type="button"
             className="w-fit rounded-xl bg-[var(--brand-navy)] hover:bg-[var(--brand-navy-hover)]"
             onClick={handleCreate}
-            disabled={creating}
+            disabled={creating || form.catalogClassNumbers.length === 0}
           >
             {creating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
             Create product
@@ -314,81 +595,108 @@ export default function ProductManagement() {
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {products.map((p) => (
-            <Card
-              key={p.code}
-              className={cn(
-                "rounded-2xl border-2",
-                (editSubjects[p.code]?.length || 0) > 0
-                  ? "border-[var(--brand-emerald)]/20"
-                  : "border-amber-200/80",
-              )}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-start justify-between gap-2">
-                  <CardTitle className="text-base pr-2 text-[var(--brand-navy)]">{p.name}</CardTitle>
-                  <div className="flex shrink-0 items-center gap-1">
-                    {p.isPremium ? (
-                      <Badge className="bg-[var(--brand-emerald)]">Premium</Badge>
-                    ) : (
-                      <Badge variant="outline">Standard</Badge>
-                    )}
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-slate-400 hover:text-red-600 hover:bg-red-50"
-                          disabled={deletingCode === p.code}
-                          aria-label={`Delete ${p.name}`}
-                        >
-                          {deletingCode === p.code ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <Trash2 className="h-4 w-4" />
-                          )}
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Delete product?</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            Remove <strong>{p.name}</strong> ({p.code}) from the catalog. This
-                            cannot be undone. Products assigned to schools must be unassigned first.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction
-                            className="bg-red-600 hover:bg-red-700"
-                            onClick={() => handleDelete(p)}
+          {products.map((p) => {
+            const levelBased = isLevelBasedProduct(p);
+            const edit = editCatalog[p.code] || productToEdit(p);
+            const slotCount = edit.catalogClassNumbers.length;
+            return (
+              <Card
+                key={p.code}
+                className={cn(
+                  "rounded-2xl border-2",
+                  slotCount > 0 ||
+                    edit.catalogSubjects.length > 0 ||
+                    edit.catalogCategories.length > 0
+                    ? "border-[var(--brand-emerald)]/20"
+                    : "border-slate-200",
+                )}
+              >
+                <CardHeader className="pb-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <CardTitle className="text-base pr-2 text-[var(--brand-navy)]">{p.name}</CardTitle>
+                    <div className="flex shrink-0 items-center gap-1 flex-wrap justify-end">
+                      <Badge variant="outline" className="text-xs">
+                        {levelBased ? "Level based" : "Class based"}
+                      </Badge>
+                      {p.isPremium ? (
+                        <Badge className="bg-[var(--brand-emerald)]">Premium</Badge>
+                      ) : (
+                        <Badge variant="outline">Standard</Badge>
+                      )}
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-slate-400 hover:text-red-600 hover:bg-red-50"
+                            disabled={deletingCode === p.code}
+                            aria-label={`Delete ${p.name}`}
                           >
-                            Delete
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
+                            {deletingCode === p.code ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-4 w-4" />
+                            )}
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete product?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Remove <strong>{p.name}</strong> ({p.code}) from the catalog.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              className="bg-red-600 hover:bg-red-700"
+                              onClick={() => handleDelete(p)}
+                            >
+                              Delete
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
                   </div>
-                </div>
-                <p className="text-xs font-mono text-slate-500">{p.code}</p>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-slate-600 line-clamp-2">{p.description || "—"}</p>
-                <SubjectEditor
-                  subjects={editSubjects[p.code] || []}
-                  onChange={(next) => setEditSubjects((m) => ({ ...m, [p.code]: next }))}
-                  onSave={() => saveProductSubjects(p)}
-                  saving={savingSubjectsCode === p.code}
-                />
-                {p.allowedContentTypes?.length ? (
-                  <p className="mt-2 text-xs text-slate-400">
-                    Content types: {p.allowedContentTypes.join(", ")}
-                  </p>
-                ) : null}
-              </CardContent>
-            </Card>
-          ))}
+                  <p className="text-xs font-mono text-slate-500">{p.code}</p>
+                  {slotCount > 0 ? (
+                    <p className="text-xs text-slate-500 mt-1">
+                      {levelBased ? "Levels" : "Classes"}:{" "}
+                      {edit.catalogClassNumbers
+                        .map((n) => (levelBased ? `Level ${n}` : `Class ${n}`))
+                        .join(", ")}
+                    </p>
+                  ) : null}
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-slate-600 line-clamp-2 mb-2">{p.description || "—"}</p>
+                  {levelBased ? (
+                    <LevelBasedCatalogBlock
+                      edit={edit}
+                      onChange={(next) =>
+                        setEditCatalog((m) => ({ ...m, [p.code]: next }))
+                      }
+                      showSave
+                      onSave={() => saveProductCatalog(p)}
+                      saving={savingCatalogCode === p.code}
+                    />
+                  ) : (
+                    <ClassBasedCatalogBlock
+                      edit={edit}
+                      onChange={(next) =>
+                        setEditCatalog((m) => ({ ...m, [p.code]: next }))
+                      }
+                      showSave
+                      onSave={() => saveProductCatalog(p)}
+                      saving={savingCatalogCode === p.code}
+                    />
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>

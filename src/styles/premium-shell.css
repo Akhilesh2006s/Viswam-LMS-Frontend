@@ -1,0 +1,772 @@
+/* VISWAM — Premium dashboard shell (top nav, centered content) */
+
+.viswam-premium-shell {
+  min-height: 100vh;
+  background-color: #f4f7fb;
+  background-image:
+    radial-gradient(ellipse 90% 60% at 50% -10%, rgba(0, 168, 107, 0.08), transparent 55%),
+    radial-gradient(ellipse 70% 50% at 100% 0%, rgba(212, 175, 55, 0.06), transparent 50%),
+    linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+}
+
+.viswam-premium-topnav {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(16px);
+  box-shadow: 0 4px 24px rgba(11, 31, 58, 0.06);
+}
+
+.viswam-premium-topnav-inner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0.625rem 1rem;
+}
+
+@media (min-width: 1024px) {
+  .viswam-premium-topnav-inner {
+    padding: 0.75rem 1.5rem;
+  }
+}
+
+.viswam-premium-nav-scroll {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  gap: 0.25rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  padding: 0.125rem 0;
+}
+
+.viswam-premium-nav-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.viswam-premium-nav-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+  border-radius: 9999px;
+  padding: 0.5rem 0.875rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #475569;
+  transition: background 0.2s, color 0.2s, box-shadow 0.2s;
+  white-space: nowrap;
+}
+
+.viswam-premium-nav-pill:hover:not(.viswam-premium-nav-pill-active) {
+  background: rgba(15, 23, 42, 0.06);
+  color: #0f172a;
+}
+
+.viswam-premium-nav-pill-active {
+  background: linear-gradient(135deg, #0b1f3a 0%, #102b4e 100%);
+  color: #fff;
+  box-shadow: 0 6px 20px rgba(11, 31, 58, 0.22);
+}
+
+.viswam-premium-nav-pill-active.viswam-premium-nav-pill-ott {
+  background: linear-gradient(135deg, #00a86b 0%, #008f5a 100%);
+  box-shadow: 0 6px 24px rgba(0, 168, 107, 0.35);
+}
+
+.viswam-premium-main {
+  width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+  padding: 1rem 1rem 2rem;
+}
+
+@media (min-width: 640px) {
+  .viswam-premium-main {
+    padding: 1.25rem 1.5rem 2.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .viswam-premium-main {
+    padding: 1.5rem 2rem 3rem;
+  }
+}
+
+.viswam-premium-main-centered {
+  max-width: 1280px;
+}
+
+.viswam-premium-main-wide {
+  max-width: 1400px;
+}
+
+.viswam-premium-main-cinema {
+  max-width: none;
+  padding-left: 0;
+  padding-right: 0;
+  padding-top: 0;
+}
+
+.viswam-premium-mobile-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  display: flex;
+  justify-content: space-around;
+  border-top: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(12px);
+  padding: 0.5rem 0.25rem;
+  padding-bottom: calc(0.5rem + env(safe-area-inset-bottom, 0px));
+}
+
+.viswam-premium-mobile-bar-active {
+  color: var(--brand-emerald, #00a86b);
+}
+
+/* Admin: navigation rail on the right */
+.viswam-premium-shell--sidebar-right .viswam-premium-topnav-inner--sidebar-right {
+  max-width: none;
+}
+
+.viswam-premium-body-row {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  min-height: calc(100vh - 3.5rem);
+}
+
+.viswam-premium-shell--sidebar-right .viswam-premium-main {
+  flex: 1;
+  min-width: 0;
+  max-width: none;
+  margin-right: 0;
+}
+
+.viswam-premium-sidebar-rail {
+  flex-direction: column;
+  width: 15.5rem;
+  flex-shrink: 0;
+  border-left: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(12px);
+  padding: 1rem 0.75rem;
+  gap: 0.5rem;
+  position: sticky;
+  top: 3.25rem;
+  align-self: flex-start;
+  max-height: calc(100vh - 3.25rem);
+}
+
+.viswam-premium-sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.25rem 0;
+}
+
+.viswam-premium-sidebar-link {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  border-radius: 0.75rem;
+  padding: 0.625rem 0.75rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #475569;
+  text-align: left;
+  transition: background 0.2s, color 0.2s;
+}
+
+.viswam-premium-sidebar-link:hover:not(.viswam-premium-sidebar-link-active) {
+  background: rgba(15, 23, 42, 0.05);
+  color: #0f172a;
+}
+
+.viswam-premium-sidebar-link-active {
+  background: linear-gradient(135deg, #0b1f3a 0%, #102b4e 100%);
+  color: #fff;
+  box-shadow: 0 4px 16px rgba(11, 31, 58, 0.18);
+}
+
+.viswam-premium-sidebar-link-active.viswam-premium-sidebar-link-ott {
+  background: linear-gradient(135deg, #00a86b 0%, #008f5a 100%);
+}
+
+/* Admin periods — timetable strip */
+.admin-periods-timetable {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(9.5rem, 1fr);
+  gap: 0.75rem;
+  overflow-x: auto;
+  padding-bottom: 0.25rem;
+  scrollbar-width: thin;
+}
+
+.admin-period-slot-card {
+  gap: 0.5rem;
+  cursor: default;
+}
+
+.admin-period-slot-open {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.35rem;
+  flex: 1;
+  width: 100%;
+  min-height: 4.5rem;
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.admin-period-slot-open.admin-period-slot-link:hover {
+  opacity: 0.92;
+}
+
+.admin-period-slot-restudy {
+  flex-shrink: 0;
+}
+
+.admin-period-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.35rem;
+  min-height: 5.5rem;
+  border-radius: 1rem;
+  border: 2px solid #e2e8f0;
+  background: #fff;
+  padding: 0.75rem 0.875rem;
+  text-align: left;
+  transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+}
+
+.admin-period-slot-card:hover {
+  border-color: rgba(0, 168, 107, 0.35);
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.06);
+}
+
+.admin-period-slot-card.admin-period-slot-link:hover,
+.admin-period-slot-link:hover {
+  border-color: #00a86b;
+  box-shadow: 0 4px 20px rgba(0, 168, 107, 0.12);
+}
+
+.admin-period-slot-active {
+  border-color: var(--brand-emerald, #00a86b);
+  background: linear-gradient(180deg, rgba(0, 168, 107, 0.08) 0%, #fff 100%);
+  box-shadow: 0 8px 24px rgba(0, 168, 107, 0.15);
+}
+
+.admin-period-slot-complete {
+  border-color: rgba(16, 185, 129, 0.45);
+  background: linear-gradient(180deg, rgba(16, 185, 129, 0.12) 0%, #fff 100%);
+}
+
+.admin-period-detail-panel {
+  border-radius: 1.25rem;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: #fff;
+  box-shadow: 0 8px 32px rgba(11, 31, 58, 0.06);
+  overflow: hidden;
+}
+
+.admin-period-material-card {
+  display: flex;
+  flex-direction: column;
+  border-radius: 1rem;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  overflow: hidden;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.admin-period-material-card-done {
+  border-color: #a7f3d0;
+  background: linear-gradient(180deg, #ecfdf5 0%, #fff 55%);
+}
+
+.admin-period-material-card:hover {
+  border-color: rgba(0, 168, 107, 0.3);
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.06);
+}
+
+/* OTT Admin Cinema (Super Admin Viswam OTT) */
+.viswam-ott-admin-cinema {
+  --ott-cinema-bg: #070b12;
+  --ott-cinema-surface: #121a28;
+  --ott-cinema-border: rgba(255, 255, 255, 0.08);
+  --ott-cinema-text: #f1f5f9;
+  --ott-cinema-muted: #94a3b8;
+  min-height: min(70vh, 720px);
+  color: var(--ott-cinema-text);
+  background: var(--ott-cinema-bg);
+}
+
+/* Light mint premium variant */
+.viswam-ott-admin-cinema-light {
+  --ott-cinema-bg: #f0fdf4;
+  --ott-cinema-surface: #ffffff;
+  --ott-cinema-border: rgba(16, 185, 129, 0.2);
+  --ott-cinema-text: #0f172a;
+  --ott-cinema-muted: #64748b;
+  --ott-mint: #6ee7b7;
+  --ott-mint-deep: #10b981;
+  background: linear-gradient(180deg, #ecfdf5 0%, #f8fafc 45%, #f0fdf4 100%);
+  color: var(--ott-cinema-text);
+}
+
+.viswam-ott-admin-cinema-light .viswam-ott-admin-hero::before {
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 0%, rgba(110, 231, 183, 0.45), transparent 60%),
+    radial-gradient(ellipse 50% 40% at 90% 20%, rgba(52, 211, 153, 0.2), transparent 50%),
+    linear-gradient(180deg, #d1fae5 0%, #f0fdf4 85%);
+}
+
+.viswam-ott-admin-cinema-light .viswam-ott-admin-hero-title {
+  color: #047857;
+  background: none;
+  -webkit-text-fill-color: #047857;
+}
+
+.viswam-ott-admin-cinema-light .viswam-ott-admin-hero-sub {
+  color: #475569;
+}
+
+.viswam-ott-admin-cinema-light .viswam-ott-admin-tab {
+  color: #64748b;
+}
+
+.viswam-ott-admin-cinema-light .viswam-ott-admin-tab-active {
+  color: #065f46;
+  background: rgba(110, 231, 183, 0.35);
+  border-color: rgba(16, 185, 129, 0.5);
+}
+
+.viswam-ott-admin-cinema-light .viswam-ott-admin-notice {
+  border-color: rgba(16, 185, 129, 0.35);
+  background: rgba(209, 250, 229, 0.6);
+  color: #334155;
+}
+
+.viswam-ott-admin-cinema-light .viswam-ott-admin-notice .font-semibold {
+  color: #065f46;
+}
+
+.viswam-ott-admin-cinema-light .viswam-ott-admin-panel {
+  background: #fff;
+  box-shadow: 0 12px 40px rgba(16, 185, 129, 0.08);
+}
+
+.viswam-ott-admin-cinema-light .viswam-ott-admin-catalog {
+  background: #fff;
+}
+
+.viswam-ott-admin-cinema-light .viswam-ott-admin-catalog-header {
+  background: linear-gradient(90deg, #ecfdf5, #f8fafc);
+}
+
+/* Mint upload card — cohesive light green (no dark inputs) */
+.viswam-ott-admin-cinema-light .viswam-ott-admin-panel {
+  border: 1px solid #bbf7d0;
+  border-radius: 1rem;
+  box-shadow:
+    0 4px 6px rgba(16, 185, 129, 0.06),
+    0 12px 32px rgba(16, 185, 129, 0.12);
+  padding: 1.5rem 1.75rem;
+  background: #ffffff;
+}
+
+.viswam-ott-admin-cinema-light .viswam-ott-admin-tab:hover {
+  color: #065f46;
+  background: rgba(167, 243, 208, 0.45);
+}
+
+.viswam-ott-admin-cinema-light .viswam-ott-upload-title {
+  color: #047857;
+}
+
+.viswam-ott-admin-cinema-light .viswam-ott-upload-sub {
+  color: #64748b;
+}
+
+.viswam-ott-admin-cinema-light .ott-picker-mint {
+  background: linear-gradient(180deg, #ecfdf5 0%, #f0fdf4 100%) !important;
+  border-color: #86efac !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.viswam-ott-admin-cinema-light .ott-picker-mint > p:first-child {
+  color: #059669 !important;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+}
+
+/* Light mint fields — match product picker dropdowns */
+.viswam-ott-admin-cinema-light .viswam-ott-mint-field label {
+  color: #64748b !important;
+  font-weight: 500;
+}
+
+.viswam-ott-admin-cinema-light .viswam-ott-mint-field input,
+.viswam-ott-admin-cinema-light .viswam-ott-mint-field button[role="combobox"] {
+  background-color: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #0f172a !important;
+  border-radius: 0.5rem;
+  min-height: 2.75rem;
+  box-shadow: 0 1px 2px rgba(16, 185, 129, 0.04);
+}
+
+.viswam-ott-admin-cinema-light .viswam-ott-mint-field input:focus,
+.viswam-ott-admin-cinema-light .viswam-ott-mint-field button[role="combobox"]:focus {
+  border-color: #34d399 !important;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(52, 211, 153, 0.25);
+}
+
+.viswam-ott-admin-cinema-light .viswam-ott-mint-field input::placeholder {
+  color: #94a3b8 !important;
+}
+
+.viswam-ott-admin-cinema-light .viswam-ott-mint-field input[type="file"] {
+  background-color: #f8fafc !important;
+  color: #475569 !important;
+  padding: 0.5rem;
+  border-color: #d1d5db !important;
+}
+
+.viswam-ott-admin-cinema-light .viswam-ott-btn-upload-outline {
+  border: 1px solid #d1d5db !important;
+  background: #f8fafc !important;
+  color: #475569 !important;
+}
+
+.viswam-ott-admin-cinema-light .viswam-ott-btn-upload-outline:hover {
+  background: #ecfdf5 !important;
+  border-color: #86efac !important;
+  color: #047857 !important;
+}
+
+.viswam-ott-admin-cinema-light .viswam-ott-btn-primary {
+  width: 100%;
+  min-height: 3rem;
+  border-radius: 0.75rem;
+  background: #00a86b !important;
+  color: #fff !important;
+  font-weight: 600;
+  font-size: 1rem;
+  box-shadow: 0 8px 20px rgba(0, 168, 107, 0.25);
+  border: none;
+}
+
+.viswam-ott-admin-cinema-light .viswam-ott-btn-primary:hover {
+  background: #008f5a !important;
+}
+
+.viswam-ott-admin-cinema-light .viswam-ott-added-banner {
+  animation: viswam-ott-added-in 0.35s ease-out;
+}
+
+@keyframes viswam-ott-added-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.viswam-ott-admin-cinema-light .viswam-ott-admin-panel :where(label) {
+  color: #64748b;
+}
+
+.viswam-ott-admin-cinema-light .viswam-ott-restrictions-panel {
+  border-color: #bbf7d0;
+}
+
+/* Override dark cinema panel input rules */
+.viswam-ott-admin-cinema-light .viswam-ott-admin-panel :where(input, textarea, button[role="combobox"]) {
+  background-color: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
+.viswam-ott-admin-hero {
+  position: relative;
+  overflow: hidden;
+  padding: 2.5rem 1.25rem 2rem;
+  text-align: center;
+}
+
+@media (min-width: 768px) {
+  .viswam-ott-admin-hero {
+    padding: 3.5rem 2rem 2.5rem;
+  }
+}
+
+.viswam-ott-admin-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 0%, rgba(0, 168, 107, 0.22), transparent 60%),
+    radial-gradient(ellipse 50% 40% at 90% 20%, rgba(212, 175, 55, 0.12), transparent 50%),
+    linear-gradient(180deg, #0b1f3a 0%, #070b12 85%);
+  pointer-events: none;
+}
+
+.viswam-ott-admin-hero-inner {
+  position: relative;
+  z-index: 1;
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.viswam-ott-admin-hero-title {
+  font-size: clamp(1.75rem, 4vw, 2.75rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  background: linear-gradient(135deg, #fff 0%, #86efac 45%, #d4af37 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.viswam-ott-admin-hero-sub {
+  margin-top: 0.75rem;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: var(--ott-cinema-muted);
+  max-width: 36rem;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.viswam-ott-admin-tabs {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0 1rem 1.25rem;
+  border-bottom: 1px solid var(--ott-cinema-border);
+}
+
+.viswam-ott-admin-tab {
+  border-radius: 9999px;
+  padding: 0.5rem 1.125rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--ott-cinema-muted);
+  background: transparent;
+  border: 1px solid transparent;
+  transition: all 0.2s;
+}
+
+.viswam-ott-admin-tab:hover {
+  color: var(--ott-cinema-text);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.viswam-ott-admin-tab-active {
+  color: #fff;
+  background: rgba(0, 168, 107, 0.2);
+  border-color: rgba(0, 168, 107, 0.45);
+}
+
+.viswam-ott-admin-body {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 1.5rem 1rem 3rem;
+}
+
+@media (min-width: 768px) {
+  .viswam-ott-admin-body {
+    padding: 2rem 1.5rem 4rem;
+  }
+}
+
+.viswam-ott-admin-panel {
+  border-radius: 1.25rem;
+  border: 1px solid var(--ott-cinema-border);
+  background: var(--ott-cinema-surface);
+  padding: 1.25rem;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+}
+
+@media (min-width: 640px) {
+  .viswam-ott-admin-panel {
+    padding: 1.5rem;
+  }
+}
+
+.viswam-ott-admin-cinema:not(.viswam-ott-admin-cinema-light) .viswam-ott-admin-panel :where(label) {
+  color: #cbd5e1;
+}
+
+.viswam-ott-admin-cinema:not(.viswam-ott-admin-cinema-light)
+  .viswam-ott-admin-panel
+  :where(.text-slate-500, .text-slate-600) {
+  color: var(--ott-cinema-muted) !important;
+}
+
+.viswam-ott-admin-cinema:not(.viswam-ott-admin-cinema-light)
+  .viswam-ott-admin-panel
+  :where(input, textarea, [role="combobox"]) {
+  background: rgba(15, 23, 42, 0.6);
+  border-color: var(--ott-cinema-border);
+  color: #f8fafc;
+}
+
+.viswam-ott-admin-notice {
+  display: flex;
+  gap: 0.75rem;
+  border-radius: 1rem;
+  border: 1px solid rgba(212, 175, 55, 0.35);
+  background: rgba(212, 175, 55, 0.08);
+  padding: 1rem 1.25rem;
+  max-width: 1200px;
+  margin: 0 auto 1.25rem;
+  font-size: 0.875rem;
+  color: #e2e8f0;
+}
+
+.viswam-ott-admin-catalog {
+  border-radius: 1.25rem;
+  border: 1px solid var(--ott-cinema-border);
+  background: var(--ott-cinema-surface);
+  overflow: hidden;
+}
+
+.viswam-ott-admin-catalog-header {
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid var(--ott-cinema-border);
+  background: rgba(11, 31, 58, 0.4);
+}
+
+.viswam-ott-admin-catalog-header :where(h2, h3, p) {
+  color: var(--ott-cinema-text);
+}
+
+/* Super-admin — Manage school workspace (mint cinema, not flat dashboard) */
+.viswam-school-workspace-shell {
+  min-height: 100vh;
+  --sws-mint: #e8f8f1;
+  --sws-mint-deep: #d4f0e4;
+  background-color: var(--sws-mint);
+  background-image:
+    radial-gradient(ellipse 120% 80% at 50% -20%, rgba(0, 168, 107, 0.18), transparent 55%),
+    radial-gradient(ellipse 60% 40% at 100% 10%, rgba(212, 175, 55, 0.08), transparent 45%),
+    radial-gradient(ellipse 50% 35% at 0% 30%, rgba(11, 31, 58, 0.04), transparent 50%),
+    linear-gradient(165deg, #f0fdf7 0%, #e8f5f0 42%, #f4f9f7 100%);
+}
+
+.viswam-school-workspace-shell .viswam-premium-topnav {
+  border-bottom-color: rgba(0, 168, 107, 0.12);
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.viswam-school-workspace-centered {
+  max-width: 1200px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.viswam-school-workspace-hero {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.92) 0%, rgba(232, 248, 241, 0.88) 100%);
+  box-shadow:
+    0 20px 50px rgba(11, 31, 58, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  padding: 1.5rem 1.75rem;
+}
+
+@media (min-width: 640px) {
+  .viswam-school-workspace-hero {
+    padding: 2rem 2.25rem;
+  }
+}
+
+.viswam-school-workspace-hero::before {
+  content: "";
+  position: absolute;
+  right: -8%;
+  top: -40%;
+  width: 55%;
+  height: 140%;
+  background: radial-gradient(circle, rgba(0, 168, 107, 0.14) 0%, transparent 68%);
+  pointer-events: none;
+}
+
+.viswam-school-workspace-hero-stat {
+  border-radius: 1rem;
+  border: 1px solid rgba(0, 168, 107, 0.15);
+  background: rgba(255, 255, 255, 0.75);
+  padding: 0.75rem 1.125rem;
+  min-width: 7rem;
+  backdrop-filter: blur(8px);
+}
+
+.viswam-school-workspace-tabs {
+  border-radius: 1.25rem;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.55);
+  padding: 0.375rem;
+  box-shadow: 0 8px 32px rgba(11, 31, 58, 0.06);
+  backdrop-filter: blur(12px);
+}
+
+.viswam-school-workspace-tabs [data-state="active"] {
+  background: linear-gradient(135deg, #00a86b 0%, #008f5a 100%) !important;
+  color: #fff !important;
+  box-shadow: 0 8px 24px rgba(0, 168, 107, 0.35);
+}
+
+.viswam-school-workspace-content {
+  border-radius: 1.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 16px 48px rgba(11, 31, 58, 0.06);
+  backdrop-filter: blur(14px);
+  padding: 1.25rem 1.5rem;
+}
+
+@media (min-width: 640px) {
+  .viswam-school-workspace-content {
+    padding: 1.5rem 1.75rem;
+  }
+}
+
+.viswam-school-workspace-shell .sws-panel-header {
+  border-bottom: 1px solid rgba(0, 168, 107, 0.1);
+  background: linear-gradient(180deg, rgba(232, 248, 241, 0.5) 0%, transparent 100%);
+}
+
+.viswam-school-workspace-shell .sws-segment {
+  border-radius: 0.875rem;
+  border: 1px solid rgba(0, 168, 107, 0.12);
+  background: rgba(255, 255, 255, 0.5);
+  padding: 0.25rem;
+}

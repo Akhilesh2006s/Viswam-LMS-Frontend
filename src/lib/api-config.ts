@@ -31,6 +31,14 @@ export const API_BASE_URL =
     ? resolveProductionApiBaseUrl()
     : DEV_URL.replace(/\/$/, "");
 
+/**
+ * Origin for /uploads/... files (DigitalOcean). API calls may use '' (Vercel /api proxy).
+ */
+export const MEDIA_BASE_URL =
+  import.meta.env.VITE_MEDIA_BASE_URL?.trim().replace(/\/$/, "") ||
+  DEV_URL.replace(/\/$/, "") ||
+  "http://206.189.179.75:5000";
+
 /** Standalone Abacus API (port 5001 locally). Same DB, separate server. */
 export const ABACUS_API_BASE_URL =
   import.meta.env.MODE === "production"
@@ -46,17 +54,26 @@ export function isOurBackendPdfUrl(url: string): boolean {
   try {
     const parsed = new URL(url);
     const host = parsed.hostname;
+    const mediaHost = (() => {
+      try {
+        return new URL(MEDIA_BASE_URL).hostname;
+      } catch {
+        return "";
+      }
+    })();
     const apiHost = (() => {
       try {
-        return new URL(API_BASE_URL).hostname;
+        return API_BASE_URL ? new URL(API_BASE_URL).hostname : "";
       } catch {
         return "";
       }
     })();
     return (
+      host === mediaHost ||
       host === apiHost ||
       host === "localhost" ||
-      host === "127.0.0.1"
+      host === "127.0.0.1" ||
+      host === "206.189.179.75"
     );
   } catch {
     return true;

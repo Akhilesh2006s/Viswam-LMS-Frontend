@@ -1,4 +1,4 @@
-import { API_BASE_URL } from "@/lib/api-config";
+import { API_BASE_URL, MEDIA_BASE_URL } from "@/lib/api-config";
 
 const CDN_BASE =
   import.meta.env.VITE_CDN_BASE_URL ||
@@ -48,6 +48,7 @@ export function resolveMediaUrl(url?: string | null): string {
   if (cdn && raw.startsWith("/uploads/")) {
     return `${cdn}${raw}`;
   }
-  if (raw.startsWith("/")) return `${API_BASE_URL}${raw}`;
-  return `${API_BASE_URL}/${raw}`;
+  const fileOrigin = (MEDIA_BASE_URL || API_BASE_URL || "").replace(/\/$/, "");
+  if (raw.startsWith("/")) return `${fileOrigin}${raw}`;
+  return `${fileOrigin}/${raw}`;
 }

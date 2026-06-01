@@ -9,6 +9,10 @@
       "destination": "http://206.189.179.75:5000/api/:path*"
     },
     {
+      "source": "/uploads/:path*",
+      "destination": "http://206.189.179.75:5000/uploads/:path*"
+    },
+    {
       "source": "/abacus-api/api/:path*",
       "destination": "https://viswam-abacus-backend-production.up.railway.app/api/:path*"
     },

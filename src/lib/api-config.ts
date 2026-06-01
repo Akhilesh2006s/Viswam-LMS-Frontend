@@ -177,11 +177,22 @@ function resolvePdfPreviewBaseUrl(fileUrl: string, title?: string): string {
     return absolute;
   }
 
+  // Vercel HTTPS: /uploads is same-origin (vercel.json → DO); no student proxy/JWT needed.
+  if (absolute.startsWith("/uploads/")) {
+    return absolute;
+  }
+
   if (isOurBackendPdfUrl(absolute) && !mustProxyPdfOnClient(fileUrl)) {
     return absolute;
   }
 
   return getPdfContentPreviewProxyUrl(fileUrl, title);
+}
+
+/** Prefer same-origin /uploads for “Open in new tab” (avoids JSON error from content-preview). */
+export function getPdfOpenInNewTabUrl(fileUrl: string, title?: string): string {
+  const base = resolvePdfPreviewBaseUrl(fileUrl, title);
+  return appendPdfViewerChromelessHash(base);
 }
 
 /**

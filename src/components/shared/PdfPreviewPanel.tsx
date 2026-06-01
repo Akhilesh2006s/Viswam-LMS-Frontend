@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import {
   getEmbeddedPdfIframeSrc,
   getPdfContentPreviewProxyUrl,
+  getPdfOpenInNewTabUrl,
   mustProxyPdfOnClient,
   normalizeContentFileUrl,
 } from '@/lib/api-config';
@@ -35,8 +36,13 @@ function isPdfBuffer(buffer: ArrayBuffer): boolean {
 async function fetchPdfBytes(fileUrl: string, title?: string): Promise<ArrayBuffer> {
   const absolute = normalizeContentFileUrl(fileUrl);
   const proxy = getPdfContentPreviewProxyUrl(fileUrl, title);
+  const sameOriginUploads = absolute.startsWith('/uploads/');
   const candidates = (
-    mustProxyPdfOnClient(fileUrl) ? [proxy, absolute] : [absolute, proxy]
+    mustProxyPdfOnClient(fileUrl)
+      ? sameOriginUploads
+        ? [absolute, proxy]
+        : [proxy, absolute]
+      : [absolute, proxy]
   ).filter(Boolean);
   const seen = new Set<string>();
   const token = typeof window !== 'undefined' ? localStorage.getItem('authToken') || '' : '';
@@ -45,7 +51,10 @@ async function fetchPdfBytes(fileUrl: string, title?: string): Promise<ArrayBuff
     if (seen.has(url)) continue;
     seen.add(url);
 
-    const isStaticUpload = /\/uploads\//i.test(url);
+    const isProxyPreview = /\/api\/student\/content-preview/i.test(url);
+    const isStaticUpload =
+      !isProxyPreview &&
+      (/^https?:\/\/[^/]+\/uploads\//i.test(url) || url.startsWith('/uploads/'));
     try {
       const res = await fetch(url, {
         method: 'GET',
@@ -105,9 +114,9 @@ export default function PdfPreviewPanel({ fileUrl, title, className = '' }: PdfP
   const iframeSrc = getEmbeddedPdfIframeSrc(absoluteUrl || fileUrl, title);
 
   const openInNewTab = useCallback(() => {
-    const target = proxyUrl || absoluteUrl;
+    const target = getPdfOpenInNewTabUrl(fileUrl, title);
     if (target) window.open(target, '_blank', 'noopener,noreferrer');
-  }, [proxyUrl, absoluteUrl]);
+  }, [fileUrl, title]);
 
   useEffect(() => {
     if (!useCanvasPreview || !containerRef.current) return;

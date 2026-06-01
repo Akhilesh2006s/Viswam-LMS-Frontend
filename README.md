@@ -12,7 +12,7 @@ npm run dev
 
 ## Environment
 
-Set `VITE_API_URL` (dev) and `VITE_API_URL_PROD` (production builds) in `.env` — e.g. `https://viswam-lms-backend-production.up.railway.app`. **Do not commit `.env`.**
+Set `VITE_API_URL` (dev) and `VITE_API_URL_PROD` (production builds) in `.env` — e.g. `http://206.189.179.75:5000`. **Do not commit `.env`.**
 
 ## Scripts
 

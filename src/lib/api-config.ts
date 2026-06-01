@@ -5,28 +5,40 @@
 import { isCdnHostedUrl, resolveMediaUrl } from "./media-url";
 
 /**
- * Production on Vercel: use same-origin `/api` (vercel.json proxies to DigitalOcean).
- * Avoids mixed-content blocking (HTTPS page → HTTP API).
- * Override with VITE_API_URL_PROD only if you have an HTTPS API domain.
+ * Production on Vercel: same-origin `/api` (vercel.json → DigitalOcean).
+ * HTTP API URLs in env are ignored in production to prevent mixed-content blocks.
  */
-const PRODUCTION_API_URL = "";
-const PRODUCTION_ABACUS_API_URL = "/abacus-api";
+const PRODUCTION_API_PROXY = "";
+const PRODUCTION_ABACUS_PROXY = "/abacus-api";
+
+function resolveProductionApiBaseUrl(): string {
+  const fromEnv = import.meta.env.VITE_API_URL_PROD?.trim() ?? "";
+  if (fromEnv.startsWith("https://")) return fromEnv.replace(/\/$/, "");
+  return PRODUCTION_API_PROXY;
+}
+
+function resolveProductionAbacusBaseUrl(): string {
+  const fromEnv = import.meta.env.VITE_ABACUS_API_URL_PROD?.trim() ?? "";
+  if (fromEnv.startsWith("https://")) return fromEnv.replace(/\/$/, "");
+  if (fromEnv.startsWith("http://")) return PRODUCTION_ABACUS_PROXY;
+  return PRODUCTION_ABACUS_PROXY;
+}
 
 const DEV_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
-const PROD_URL =
-  import.meta.env.VITE_API_URL_PROD?.trim() ||
-  (import.meta.env.MODE === "production" ? PRODUCTION_API_URL : DEV_URL);
 
 export const API_BASE_URL =
-  import.meta.env.MODE === "production" ? PROD_URL : DEV_URL;
+  import.meta.env.MODE === "production"
+    ? resolveProductionApiBaseUrl()
+    : DEV_URL.replace(/\/$/, "");
 
 /** Standalone Abacus API (port 5001 locally). Same DB, separate server. */
 export const ABACUS_API_BASE_URL =
-  import.meta.env.VITE_ABACUS_API_URL ||
-  import.meta.env.VITE_ABACUS_API_URL_PROD ||
-  (import.meta.env.MODE === "production"
-    ? PRODUCTION_ABACUS_API_URL
-    : "http://localhost:5001");
+  import.meta.env.MODE === "production"
+    ? resolveProductionAbacusBaseUrl()
+    : (import.meta.env.VITE_ABACUS_API_URL || "http://localhost:5001").replace(
+        /\/$/,
+        "",
+      );
 
 /** PDFs on our hosts can load in an iframe without the student proxy. */
 export function isOurBackendPdfUrl(url: string): boolean {

@@ -48,6 +48,15 @@ export function resolveMediaUrl(url?: string | null): string {
   if (cdn && raw.startsWith("/uploads/")) {
     return `${cdn}${raw}`;
   }
+  // Vercel HTTPS: load /uploads via same-origin (vercel.json → DigitalOcean), not http:// IP
+  if (
+    raw.startsWith("/uploads/") &&
+    typeof window !== "undefined" &&
+    window.location.protocol === "https:" &&
+    !API_BASE_URL
+  ) {
+    return raw;
+  }
   const fileOrigin = (MEDIA_BASE_URL || API_BASE_URL || "").replace(/\/$/, "");
   if (raw.startsWith("/")) return `${fileOrigin}${raw}`;
   return `${fileOrigin}/${raw}`;

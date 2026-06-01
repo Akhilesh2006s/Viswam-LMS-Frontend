@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import {
   getEmbeddedPdfIframeSrc,
   getPdfContentPreviewProxyUrl,
+  mustProxyPdfOnClient,
   normalizeContentFileUrl,
 } from '@/lib/api-config';
 import { detectDigitalBoard } from '@/hooks/use-digital-board';
@@ -34,7 +35,9 @@ function isPdfBuffer(buffer: ArrayBuffer): boolean {
 async function fetchPdfBytes(fileUrl: string, title?: string): Promise<ArrayBuffer> {
   const absolute = normalizeContentFileUrl(fileUrl);
   const proxy = getPdfContentPreviewProxyUrl(fileUrl, title);
-  const candidates = [absolute, proxy].filter(Boolean);
+  const candidates = (
+    mustProxyPdfOnClient(fileUrl) ? [proxy, absolute] : [absolute, proxy]
+  ).filter(Boolean);
   const seen = new Set<string>();
   const token = typeof window !== 'undefined' ? localStorage.getItem('authToken') || '' : '';
 

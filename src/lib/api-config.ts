@@ -135,8 +135,25 @@ export function normalizeContentFileUrl(fileUrl: string): string {
  * PDF bytes via API proxy + JWT query (iframe and PDF.js).
  * Use on digital boards where embedded browser PDF plugins fail.
  */
+/** Full http(s) URL for server-side PDF proxy (backend fetches from DigitalOcean). */
+export function toAbsoluteMediaUrlForProxy(fileUrl: string): string {
+  const raw = fileUrl?.trim() || "";
+  if (!raw) return "";
+  if (raw.startsWith("http://") || raw.startsWith("https://")) return raw;
+  const base = MEDIA_BASE_URL.replace(/\/$/, "");
+  return raw.startsWith("/") ? `${base}${raw}` : `${base}/${raw}`;
+}
+
+/** HTTPS pages cannot fetch http:// assets directly (mixed content). */
+export function mustProxyPdfOnClient(fileUrl: string): boolean {
+  if (typeof window === "undefined") return false;
+  if (window.location.protocol !== "https:") return false;
+  const abs = toAbsoluteMediaUrlForProxy(fileUrl);
+  return abs.startsWith("http://");
+}
+
 export function getPdfContentPreviewProxyUrl(fileUrl: string, title?: string): string {
-  const absolute = normalizeContentFileUrl(fileUrl);
+  const absolute = toAbsoluteMediaUrlForProxy(fileUrl);
   if (!absolute) return "";
   if (shouldFetchDirectly(absolute)) return absolute;
 
@@ -160,7 +177,7 @@ function resolvePdfPreviewBaseUrl(fileUrl: string, title?: string): string {
     return absolute;
   }
 
-  if (isOurBackendPdfUrl(absolute)) {
+  if (isOurBackendPdfUrl(absolute) && !mustProxyPdfOnClient(fileUrl)) {
     return absolute;
   }
 

@@ -4,14 +4,18 @@
 
 import { isCdnHostedUrl, resolveMediaUrl } from "./media-url";
 
-/** Production LMS API (DigitalOcean). Override with VITE_API_URL_PROD in .env. */
-const PRODUCTION_API_URL = "http://206.189.179.75:5000";
-const PRODUCTION_ABACUS_API_URL =
-  "https://viswam-abacus-backend-production.up.railway.app";
+/**
+ * Production on Vercel: use same-origin `/api` (vercel.json proxies to DigitalOcean).
+ * Avoids mixed-content blocking (HTTPS page → HTTP API).
+ * Override with VITE_API_URL_PROD only if you have an HTTPS API domain.
+ */
+const PRODUCTION_API_URL = "";
+const PRODUCTION_ABACUS_API_URL = "/abacus-api";
 
 const DEV_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 const PROD_URL =
-  import.meta.env.VITE_API_URL_PROD || import.meta.env.VITE_API_URL || PRODUCTION_API_URL;
+  import.meta.env.VITE_API_URL_PROD?.trim() ||
+  (import.meta.env.MODE === "production" ? PRODUCTION_API_URL : DEV_URL);
 
 export const API_BASE_URL =
   import.meta.env.MODE === "production" ? PROD_URL : DEV_URL;

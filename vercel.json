@@ -6,7 +6,11 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "http://165.232.181.99:3001/api/:path*"
+      "destination": "http://206.189.179.75:5000/api/:path*"
+    },
+    {
+      "source": "/abacus-api/api/:path*",
+      "destination": "https://viswam-abacus-backend-production.up.railway.app/api/:path*"
     },
     {
       "source": "/(.*)",

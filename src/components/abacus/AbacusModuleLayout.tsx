@@ -15,6 +15,7 @@ import { abacusTeacherNavActiveId } from '@/lib/abacus-teacher-nav';
 import type { AbacusModulePage } from '@/lib/abacus-routes';
 
 import { AbacusDashboardSkeleton } from '@/components/abacus/AbacusPortalShell';
+import { ABACUS_THEME } from '@/lib/abacus-theme';
 
 
 
@@ -56,7 +57,7 @@ export function AbacusModuleLayout({ title, children, wide, requiredRole }: Abac
 
     return (
 
-      <div className="min-h-screen bg-[#f4f7fb] p-4 sm:p-6">
+      <div className="min-h-screen p-4 sm:p-6" style={{ backgroundColor: ABACUS_THEME.pageBg }}>
 
         <AbacusDashboardSkeleton />
 

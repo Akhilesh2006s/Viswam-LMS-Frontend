@@ -19,14 +19,26 @@ export type OttRestrictionRule = {
   hiddenSubjectIds: string[];
 };
 
+export type OttStudentDownloadQuota = {
+  userId: string;
+  monthlyDownloadGB: number;
+  label?: string;
+};
+
 export type OttRestrictionsPayload = {
   plan: string;
   status: string;
-  limits?: Record<string, number>;
+  limits?: Record<string, number> & {
+    schoolMonthlyDownloadGB?: number;
+    defaultStudentMonthlyDownloadGB?: number;
+    quotaResetDayOfMonth?: number;
+  };
+  delivery?: { webStreaming?: boolean; mobileDownloads?: boolean };
   features?: { downloads?: boolean; hdStreaming?: boolean; analytics?: boolean };
   streaming?: { maxQuality?: string };
   contentAccess?: OttContentAccess;
   rules?: OttRestrictionRule[];
+  studentDownloadQuotas?: OttStudentDownloadQuota[];
 };
 
 export function newRuleId(): string {
@@ -49,6 +61,12 @@ export function ensureRestrictionsShape(raw: OttRestrictionsPayload | null): Ott
   if (!raw) return null;
   return {
     ...raw,
+    delivery: {
+      webStreaming: false,
+      mobileDownloads: true,
+      ...raw.delivery,
+    },
+    studentDownloadQuotas: Array.isArray(raw.studentDownloadQuotas) ? raw.studentDownloadQuotas : [],
     contentAccess: {
       ...emptyContentAccess(),
       ...raw.contentAccess,

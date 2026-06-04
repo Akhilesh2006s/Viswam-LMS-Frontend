@@ -3,11 +3,15 @@ import { installAbacusBrowserApi } from '@/lib/abacus-browser-api';
 
 /** Legacy scripts use top-level const — must not execute the same file twice per page load. */
 const executedLegacyScripts = new Set<string>();
-const LEGACY_SCRIPT_VERSION = '10';
+const LEGACY_SCRIPT_VERSION = '11';
 
+const BEAD_SOUNDS_SCRIPT = '/abacus/js/bead-sounds.js';
+const BEAD_CURSOR_SCRIPT = '/abacus/js/bead-cursor.js';
 const STUDENT_ABACUS_SCRIPT = '/abacus/js/abacus.js';
 const TEACHER_ABACUS_SCRIPT = '/abacus/js/Teacherabacus.js';
 const PHYSICAL_PRACTICE_SCRIPT = '/abacus/js/physical-practice.js';
+
+const BEAD_FEEDBACK_SCRIPTS = [BEAD_SOUNDS_SCRIPT, BEAD_CURSOR_SCRIPT];
 
 function loadScript(src: string, id: string): Promise<void> {
   const versionedSrc = `${src}?v=${LEGACY_SCRIPT_VERSION}`;
@@ -96,7 +100,15 @@ export function useAbacusLegacyScripts({
         }
         if (cancelled) return;
 
-        for (const src of scripts) {
+        const scriptQueue =
+          usesStudentBoard || usesTeacherBoard
+            ? [
+                ...BEAD_FEEDBACK_SCRIPTS.filter((src) => !scripts.includes(src)),
+                ...scripts,
+              ]
+            : scripts;
+
+        for (const src of scriptQueue) {
           if (cancelled) return;
           const id = `abacus-script-${src.replace(/[^\w]/g, '-')}`;
           await loadScript(src, id);
@@ -153,6 +165,15 @@ export function useAbacusStylesheet() {
 
 declare global {
   interface Window {
+    AbacusBeadSounds?: {
+      playBeadSound: (direction: 'up' | 'down') => void;
+    };
+    AbacusBeadCursor?: {
+      feedback: (direction: 'up' | 'down') => void;
+      bindBead: (el: HTMLElement) => void;
+      bindBoard: (el: HTMLElement) => void;
+      resetBoardBinding?: () => void;
+    };
     initAbacusBoard?: () => void;
     initTeacherAbacusBoard?: () => void;
     clearAbacus?: () => void;

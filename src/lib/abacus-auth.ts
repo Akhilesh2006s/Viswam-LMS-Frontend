@@ -1,4 +1,5 @@
 import { getUser } from '@/lib/auth-utils';
+import { isAbacusLogin } from '@/lib/abacus-api';
 
 export type AbacusUser = {
   id?: string;
@@ -24,7 +25,7 @@ export function isAbacusUser(user?: AbacusUser | null): boolean {
     if (resolved?.productLine === 'ABACUS') return true;
 
     const email = readAbacusEmail(resolved);
-    if (/@abacus\.com$/i.test(email)) return true;
+    if (isAbacusLogin(email)) return true;
 
     if (localStorage.getItem('student')) return true;
 

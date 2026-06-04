@@ -21,12 +21,15 @@ import {
 import { API_BASE_URL } from '@/lib/api-config';
 import { resolveContentDurationSeconds } from '@/lib/eduott-video-utils';
 import { AdminOttAnalyticsPanel } from '@/components/admin/AdminOttAnalyticsPanel';
-import { AdminOttPremiumPlayer } from '@/components/admin/AdminOttPremiumPlayer';
 import { mapAdminRowToOttVideo, type AdminOttSourceRow } from '@/lib/ott/admin-map';
 import type { OttVideo } from '@/lib/ott/types';
 import { AdminOttFeaturedHero } from '@/components/admin/AdminOttFeaturedHero';
 import { OttContentRow } from '@/components/viswam-ott/OttContentRow';
 import { OttEmptyState } from '@/components/viswam-ott/OttEmptyState';
+import { OttMonthlyQuotaCard } from '@/components/ott/OttMonthlyQuotaCard';
+import { OttMobileDownloadBanner } from '@/components/ott/OttMobileDownloadBanner';
+import { fetchAdminSchoolOttQuota, type SchoolOttQuota } from '@/lib/ott/quota-api';
+import { useToast } from '@/hooks/use-toast';
 
 interface LiveSession {
   _id: string;
@@ -92,7 +95,10 @@ function mapOttRowToVideo(content: Record<string, unknown>): AdminOttSourceRow |
 
 export default function AdminEduOTT() {
   const search = useSearch();
+  const { toast } = useToast();
   const [mode, setMode] = useState<'videos' | 'live'>('videos');
+  const [schoolQuota, setSchoolQuota] = useState<SchoolOttQuota | null>(null);
+  const [quotaLoading, setQuotaLoading] = useState(true);
   const [rawVideos, setRawVideos] = useState<AdminOttSourceRow[]>([]);
   const [liveSessions, setLiveSessions] = useState<LiveSession[]>([]);
   const [loading, setLoading] = useState(true);
@@ -102,13 +108,34 @@ export default function AdminEduOTT() {
   const [videoSubjectFilter, setVideoSubjectFilter] = useState('all');
   const [sessionSearchTerm, setSessionSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
-  const [playing, setPlaying] = useState<OttVideo | null>(null);
-
   const ottVideos = useMemo(() => rawVideos.map(mapAdminRowToOttVideo), [rawVideos]);
 
   useEffect(() => {
     setVideoSubjectFilter('all');
   }, [videoClassFilter]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setQuotaLoading(true);
+      const q = await fetchAdminSchoolOttQuota();
+      if (!cancelled) {
+        setSchoolQuota(q);
+        setQuotaLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const blockWebPlayback = useCallback(() => {
+    toast({
+      title: 'Mobile app only',
+      description:
+        'OTT videos are download-only in the VISWAM LMS mobile app. Streaming is not available on the website.',
+    });
+  }, [toast]);
 
   useEffect(() => {
     let cancelled = false;
@@ -149,9 +176,9 @@ export default function AdminEduOTT() {
   const openVideoById = useCallback(
     (videoId: string) => {
       const found = ottVideos.find((v) => v.id === videoId);
-      if (found) setPlaying(found);
+      if (found) blockWebPlayback();
     },
-    [ottVideos],
+    [ottVideos, blockWebPlayback],
   );
 
   useEffect(() => {
@@ -230,12 +257,6 @@ export default function AdminEduOTT() {
     return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
   }, [filteredVideos]);
 
-  const playingIndex = playing ? filteredVideos.findIndex((v) => v.id === playing.id) : -1;
-  const nextVideo =
-    playingIndex >= 0 && playingIndex < filteredVideos.length - 1
-      ? filteredVideos[playingIndex + 1]
-      : null;
-
   const filteredSessions = useMemo(() => {
     return liveSessions.filter((session) => {
       const matchesSearch =
@@ -246,25 +267,12 @@ export default function AdminEduOTT() {
     });
   }, [liveSessions, sessionSearchTerm, filterStatus]);
 
-  if (playing) {
-    return (
-      <div className="viswam-ott viswam-ott-admin">
-        <AdminOttPremiumPlayer
-          video={playing}
-          nextVideo={nextVideo}
-          onClose={() => setPlaying(null)}
-          onPlayNext={(v) => setPlaying(v)}
-        />
-      </div>
-    );
-  }
-
   return (
     <div className="viswam-ott viswam-ott-admin">
       <header className="ott-admin-topbar">
         <div className="ott-admin-topbar-brand">
           <span className="ott-admin-topbar-logo">Viswam OTT</span>
-          <span className="ott-admin-topbar-tag">Premium streaming</span>
+          <span className="ott-admin-topbar-tag">Catalog &amp; download quota</span>
         </div>
         <div className="ott-admin-mode-tabs">
           <button
@@ -286,6 +294,11 @@ export default function AdminEduOTT() {
         </div>
       </header>
 
+      <div className="ott-admin-main px-4 sm:px-6 max-w-5xl mx-auto w-full space-y-4 pb-2">
+        <OttMonthlyQuotaCard quota={schoolQuota} loading={quotaLoading} variant="admin" />
+        <OttMobileDownloadBanner />
+      </div>
+
       {mode === 'videos' ? (
         <>
           {loading ? (
@@ -298,7 +311,7 @@ export default function AdminEduOTT() {
                 <AdminOttFeaturedHero
                   featured={featured}
                   videoCount={filteredVideos.length}
-                  onPlay={(v) => setPlaying(v)}
+                  onPlay={() => blockWebPlayback()}
                 />
                 <AdminOttAnalyticsPanel variant="light" compact />
               </div>
@@ -368,7 +381,7 @@ export default function AdminEduOTT() {
                       title="Continue browsing"
                       subtitle={`${filteredVideos.length} lessons available`}
                       videos={filteredVideos}
-                      onSelect={setPlaying}
+                      onSelect={() => blockWebPlayback()}
                     />
                   ) : null}
                   {subjectRows.map(([subjectName, rows]) => (
@@ -377,7 +390,7 @@ export default function AdminEduOTT() {
                       title={subjectName}
                       subtitle={`Class ${rows[0]?.classLabel || '—'} · ${rows.length} lesson${rows.length !== 1 ? 's' : ''}`}
                       videos={rows}
-                      onSelect={setPlaying}
+                      onSelect={() => blockWebPlayback()}
                     />
                   ))}
                 </div>
@@ -453,14 +466,14 @@ export default function AdminEduOTT() {
                       </span>
                     )}
                   </div>
-                  {session.status === 'live' && session.hlsUrl ? (
+                  {session.status === 'live' ? (
                     <button
                       type="button"
                       className="ott-btn-play mt-4 w-full justify-center"
-                      onClick={() => window.open(session.hlsUrl, '_blank')}
+                      onClick={() => blockWebPlayback()}
                     >
                       <Play className="h-4 w-4" />
-                      Watch live
+                      Watch in mobile app
                     </button>
                   ) : null}
                 </article>

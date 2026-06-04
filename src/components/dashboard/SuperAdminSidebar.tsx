@@ -8,6 +8,7 @@ import type { SuperAdminView } from "@/lib/super-admin-views";
 import { ViswamLogo } from "@/components/brand/ViswamLogo";
 import { SUPER_ADMIN_NAV_ITEMS } from "@/lib/super-admin-view-meta";
 import { PRODUCT_NAME } from "@/lib/brand";
+import { useViswamNativeShell } from "@/hooks/use-viswam-native-shell";
 
 export type { SuperAdminView };
 
@@ -27,6 +28,7 @@ const NAV_GROUPS: { key: string; label: string }[] = [
 
 export function SuperAdminSidebar({ currentView, onViewChange, user, onLogout }: SuperAdminSidebarProps) {
   const useDrawerNav = useSuperAdminDrawerNav();
+  const nativeShell = useViswamNativeShell();
   const [mobileOpen, setMobileOpen] = useState(false);
   const mobileNavItems = SUPER_ADMIN_NAV_ITEMS.slice(0, 5);
 
@@ -123,6 +125,7 @@ export function SuperAdminSidebar({ currentView, onViewChange, user, onLogout }:
           </div>
         </div>
 
+        {!nativeShell ? (
         <div className="sa-premium-mobile-bar fixed bottom-0 left-0 right-0 z-50 flex justify-around py-2 sm:hidden pb-[env(safe-area-inset-bottom,0px)]">
           {mobileNavItems.map((item) => {
             const Icon = item.icon;
@@ -150,6 +153,7 @@ export function SuperAdminSidebar({ currentView, onViewChange, user, onLogout }:
             );
           })}
         </div>
+        ) : null}
       </>
     );
   }

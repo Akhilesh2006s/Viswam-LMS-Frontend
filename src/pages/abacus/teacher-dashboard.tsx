@@ -1,8 +1,8 @@
 import { useLocation, useSearch } from 'wouter';
-import { GraduationCap } from 'lucide-react';
+import { BookOpen, GraduationCap } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { AbacusStatCard } from '@/components/abacus/AbacusActionCard';
+import { AbacusActionCard, AbacusStatCard } from '@/components/abacus/AbacusActionCard';
 import { AbacusTeacherChrome } from '@/components/abacus/AbacusTeacherChrome';
 import {
   AbacusDashboardSkeleton,
@@ -57,6 +57,16 @@ export default function AbacusTeacherDashboard() {
               label="School"
               value={profile.school?.schoolCode ?? '—'}
               hint={profile.school?.name}
+            />
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <AbacusActionCard
+              title="About Abacus"
+              description="Study guide for parts, finger technique, and soroban basics."
+              icon={BookOpen}
+              href={ABACUS_ROUTES.about}
+              accent="gold"
             />
           </div>
 

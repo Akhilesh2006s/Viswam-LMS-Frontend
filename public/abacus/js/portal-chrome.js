@@ -2,7 +2,7 @@
   const NAV = [
     { id: 'dashboard', label: 'Dashboard', href: null, roles: ['student', 'teacher'] },
     { id: 'home', label: 'Home', href: 'Home.html', roles: ['student', 'teacher'] },
-    { id: 'about', label: 'Know Abacus', href: 'about-abacus.html', roles: ['student', 'teacher'] },
+    { id: 'about', label: 'About Abacus', href: 'about-abacus.html', roles: ['student', 'teacher'] },
     { id: 'practice', label: 'Digital Practice', href: 'Practice.html', roles: ['student', 'teacher'] },
     { id: 'physical', label: 'Physical Practice', href: 'Practice-Physical.html', roles: ['student', 'teacher'] },
     { id: 'assessment', label: 'Assessment', href: 'Assesment.html', roles: ['student'], className: 'student-assessment' },

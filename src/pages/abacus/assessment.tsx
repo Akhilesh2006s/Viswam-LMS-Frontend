@@ -7,6 +7,7 @@ import { useAbacusPortal } from '@/hooks/use-abacus-portal';
 import { usePageTitle } from '@/hooks/use-page-title';
 import { ABACUS_ROUTES } from '@/lib/abacus-routes';
 import { installAbacusBrowserApi } from '@/lib/abacus-browser-api';
+import { ABACUS_THEME } from '@/lib/abacus-theme';
 
 function AbacusAssessmentContent() {
   useAbacusStylesheet();
@@ -111,7 +112,7 @@ export default function AbacusAssessmentPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#f4f7fb] p-6">
+      <div className="min-h-screen p-6" style={{ backgroundColor: ABACUS_THEME.pageBg }}>
         <AbacusDashboardSkeleton />
       </div>
     );

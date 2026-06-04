@@ -2,13 +2,13 @@
 
 .abacus-teacher-tool {
   --att-navy: #0b1f3a;
-  --att-emerald: #00a86b;
-  --att-emerald-dark: #008f5a;
+  --att-emerald: #ea580c;
+  --att-emerald-dark: #c2410c;
   --att-surface: #ffffff;
   --att-muted: #64748b;
   --att-border: #e2e8f0;
   --att-soft-blue: #eef4ff;
-  --att-soft-green: #ecfdf5;
+  --att-soft-green: #fff7ed;
   width: 100%;
   max-width: 1280px;
   margin: 0 auto;

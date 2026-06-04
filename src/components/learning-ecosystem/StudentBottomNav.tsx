@@ -1,5 +1,6 @@
 import { Link, useLocation } from "wouter";
 import { Home, BookOpen, Play, User } from "lucide-react";
+import { useViswamNativeShell } from "@/hooks/use-viswam-native-shell";
 
 const NAV = [
   { path: "/dashboard", label: "Home", icon: Home },
@@ -10,6 +11,9 @@ const NAV = [
 
 export function StudentBottomNav() {
   const [location] = useLocation();
+  const nativeShell = useViswamNativeShell();
+
+  if (nativeShell) return null;
 
   return (
     <nav className="eco-bottom-nav md:hidden" aria-label="Student navigation">

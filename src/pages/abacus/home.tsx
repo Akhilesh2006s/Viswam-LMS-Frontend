@@ -17,7 +17,7 @@ export default function AbacusHomePage() {
         </p>
         <div className="mt-6 flex flex-wrap justify-center gap-3">
           <Link href={ABACUS_ROUTES.about} className="rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-[#0b1f3a] shadow">
-            Know About Abacus
+            About Abacus
           </Link>
           <Link href={ABACUS_ROUTES.practice} className="rounded-full border border-white/35 bg-white/10 px-5 py-2.5 text-sm font-semibold text-white">
             Digital Practice

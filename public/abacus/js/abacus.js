@@ -98,7 +98,11 @@ rowEl.appendChild(box);
 
 let s={h:false,e:0,up,eb,box};
 
+window.AbacusBeadCursor?.bindBead(up);
+
 up.onclick=()=>{
+const wasActive=s.h;
+window.AbacusBeadCursor?.feedback(wasActive?"down":"up");
 s.h=!s.h;
 up.style.top=s.h?(BAR_TOP-BEAD_H)+"px":"0px";
 box.innerText=rodValue(s);
@@ -106,7 +110,10 @@ updateTotal();
 };
 
 eb.forEach((b,idx)=>{
+window.AbacusBeadCursor?.bindBead(b);
 b.onclick=()=>{
+const wasActive=idx<s.e;
+window.AbacusBeadCursor?.feedback(wasActive?"down":"up");
 if(idx<s.e)s.e=idx;
 else s.e=idx+1;
 updateEarth(s);
@@ -148,6 +155,8 @@ rowEl.innerHTML="";
 states.length=0;
 
 for(let i=0;i<RODS;i++) createRod(i);
+window.AbacusBeadCursor?.resetBoardBinding?.();
+window.AbacusBeadCursor?.bindBoard(abacusEl);
 updateTotal();
 }
 

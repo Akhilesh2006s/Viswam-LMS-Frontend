@@ -1,0 +1,35 @@
+/**
+ * VISWAM mobile app WebView — native tab bar owns bottom navigation.
+ * Class `viswam-native-shell` is set on <html> via injected script + bootstrap.
+ */
+
+html.viswam-native-shell .eco-bottom-nav,
+html.viswam-native-shell .sa-premium-mobile-bar,
+html.viswam-native-shell .viswam-premium-mobile-bar {
+  display: none !important;
+}
+
+html.viswam-native-shell .viswam-student-main {
+  padding-bottom: 1.25rem;
+}
+
+html.viswam-native-shell .viswam-premium-shell:has(.viswam-premium-mobile-bar) .viswam-premium-main {
+  padding-bottom: 1.25rem;
+}
+
+/* Student / admin top nav — super-admin mobile header already includes safe-area */
+html.viswam-native-shell nav.fixed.top-0 {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+html.viswam-native-shell .sa-premium-shell .flex.min-h-screen.pt-14 {
+  padding-top: calc(3.5rem + env(safe-area-inset-top, 0px));
+}
+
+html.viswam-native-shell .sa-premium-shell .flex.min-h-screen.pb-20 {
+  padding-bottom: 0;
+}
+
+html.viswam-native-shell .sa-premium-shell .flex.min-h-screen.pt-14 {
+  padding-top: calc(3.5rem + env(safe-area-inset-top, 0px));
+}

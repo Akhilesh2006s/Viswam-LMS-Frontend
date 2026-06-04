@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Eye, EyeOff, Mail, Lock, Loader2 } from 'lucide-react';
 import { API_BASE_URL } from '@/lib/api-config';
-import { abacusLogin, isAbacusEmail } from '@/lib/abacus-api';
+import { abacusLogin, isAbacusLogin } from '@/lib/abacus-api';
 import { abacusDashboardPath, isAbacusUser } from '@/lib/abacus-auth';
 import { setAuthToken, setUser } from '@/lib/auth-utils';
 import { invalidateAuthSessionCache } from '@/lib/auth-session';
@@ -44,7 +44,7 @@ const Login = () => {
     setError('');
 
     try {
-      const useAbacusApi = isAbacusEmail(formData.email);
+      const useAbacusApi = isAbacusLogin(formData.email);
       let data: { token?: string; user?: { role: string; email?: string } };
 
       if (useAbacusApi) {
@@ -85,7 +85,7 @@ const Login = () => {
           'student',
           JSON.stringify({
             id: u.id,
-            username: (u.email || '').split('@')[0],
+            username: String((u as { username?: string }).username || u.email || ''),
             name: u.fullName,
             email: u.email,
             category: u.category,
@@ -117,17 +117,18 @@ const Login = () => {
       <form onSubmit={handleSubmit} className="space-y-5">
         <div className="space-y-2">
           <Label htmlFor="email" className="text-sm font-medium text-[var(--text-primary)]">
-            Email address
+            Email or username
           </Label>
           <div className="relative">
             <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--text-secondary)] pointer-events-none" />
             <Input
               id="email"
               name="email"
-              type="email"
+              type="text"
+              autoComplete="username"
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              placeholder="you@school.edu"
+              placeholder="you@school.edu or DEMOABS00001"
               className="pl-10"
               required
             />

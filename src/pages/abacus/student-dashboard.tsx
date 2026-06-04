@@ -2,12 +2,14 @@ import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useSearch } from 'wouter';
 import {
   BarChart3,
+  BookOpen,
   Trophy,
   Clock,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { AbacusStatCard } from '@/components/abacus/AbacusActionCard';
+import { AbacusActionCard, AbacusStatCard } from '@/components/abacus/AbacusActionCard';
+import { ABACUS_ROUTES } from '@/lib/abacus-routes';
 import { AbacusStudentChrome } from '@/components/abacus/AbacusStudentChrome';
 import {
   AbacusDashboardSkeleton,
@@ -114,6 +116,16 @@ export default function AbacusStudentDashboard() {
                 stats.latest ? `${stats.latest.score}/${stats.latest.total}` : '—'
               }
               hint={stats.latest ? formatMode(stats.latest.mode) : 'No attempts yet'}
+            />
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <AbacusActionCard
+              title="About Abacus"
+              description="Learn parts, finger moves, and how mental math training works."
+              icon={BookOpen}
+              href={ABACUS_ROUTES.about}
+              accent="gold"
             />
           </div>
 

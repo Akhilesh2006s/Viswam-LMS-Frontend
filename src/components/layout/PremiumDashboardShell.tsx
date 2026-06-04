@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { ViswamLogo } from "@/components/brand/ViswamLogo";
 import { cn } from "@/lib/utils";
+import { useViswamNativeShell } from "@/hooks/use-viswam-native-shell";
 
 export type PremiumNavItem = {
   id: string;
@@ -54,8 +55,9 @@ export function PremiumDashboardShell({
   hideMobileNav = false,
 }: PremiumDashboardShellProps) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const nativeShell = useViswamNativeShell();
   const bottomItems = (mobileNavItems ?? navItems).slice(0, 5);
-  const showMobileBar = !hideMobileNav && bottomItems.length > 0;
+  const showMobileBar = !hideMobileNav && !nativeShell && bottomItems.length > 0;
 
   const mainWidthClass =
     contentMaxWidth === "full"

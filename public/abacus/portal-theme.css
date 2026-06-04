@@ -29,11 +29,11 @@ body.viswam-abacus-portal {
   font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
   line-height: 1.6;
   color: var(--foreground);
-  background-color: #f4f7fb;
+  background-color: #faf8f5;
   background-image:
-    radial-gradient(ellipse 90% 60% at 50% -10%, rgba(0, 168, 107, 0.08), transparent 55%),
-    radial-gradient(ellipse 70% 50% at 100% 0%, rgba(212, 175, 55, 0.06), transparent 50%),
-    linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+    radial-gradient(ellipse 90% 60% at 50% -10%, rgba(234, 88, 12, 0.06), transparent 55%),
+    radial-gradient(ellipse 70% 50% at 100% 0%, rgba(251, 146, 60, 0.08), transparent 50%),
+    linear-gradient(180deg, #faf8f5 0%, #fff7ed 100%);
   min-height: 100vh;
   scroll-behavior: smooth;
   overflow-x: hidden;

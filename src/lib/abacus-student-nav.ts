@@ -1,6 +1,7 @@
 import {
   LayoutDashboard,
   BarChart3,
+  BookOpen,
   Calculator,
   Hand,
   ClipboardCheck,
@@ -10,6 +11,7 @@ import { ABACUS_ROUTES } from '@/lib/abacus-routes';
 
 export const ABACUS_STUDENT_NAV: PremiumNavItem[] = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard, href: ABACUS_ROUTES.studentDashboard },
+  { id: 'about', label: 'About Abacus', icon: BookOpen, href: ABACUS_ROUTES.about },
   { id: 'digital', label: 'Digital', icon: Calculator, href: ABACUS_ROUTES.practice },
   { id: 'physical', label: 'Physical', icon: Hand, href: ABACUS_ROUTES.physicalPractice },
   { id: 'assessment', label: 'Assessment', icon: ClipboardCheck, href: ABACUS_ROUTES.assessment },
@@ -22,6 +24,9 @@ export const ABACUS_STUDENT_NAV: PremiumNavItem[] = [
 ];
 
 export function abacusStudentNavActiveId(pathname: string, search = ''): string {
+  if (pathname === ABACUS_ROUTES.about) {
+    return 'about';
+  }
   if (pathname === ABACUS_ROUTES.practice || pathname === ABACUS_ROUTES.practiceResults) {
     return 'digital';
   }

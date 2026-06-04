@@ -38,6 +38,8 @@ import type { EduOTTVideoCardItem } from "@/components/eduott/EduOTTVideoCard";
 import { fetchProducts, productLabel, type Product } from "@/lib/products";
 import { extractPlainSubjectName } from "@/lib/subject-names";
 import { useToast } from "@/hooks/use-toast";
+import { OttMonthlyQuotaCard } from "@/components/ott/OttMonthlyQuotaCard";
+import type { SchoolOttQuota } from "@/lib/ott/quota-api";
 import ProductSubjectPicker, {
   type ProductSubjectSelection,
 } from "@/components/super-admin/ProductSubjectPicker";
@@ -86,6 +88,29 @@ export default function SuperAdminOttStudio() {
   const [catalogSubjectFilter, setCatalogSubjectFilter] = useState("all");
   const [catalogView, setCatalogView] = useState<"grid" | "list">("grid");
   const [studioTab, setStudioTab] = useState<"upload" | "restrictions" | "catalog">("upload");
+
+  useEffect(() => {
+    const applyOttTab = (raw: string | null) => {
+      if (raw === "upload" || raw === "restrictions" || raw === "catalog") {
+        setStudioTab(raw);
+      }
+    };
+    try {
+      const params = new URLSearchParams(window.location.search);
+      applyOttTab(params.get("sa_ott_tab"));
+      const fromSession = sessionStorage.getItem("superAdminOttTab");
+      if (fromSession) applyOttTab(fromSession);
+    } catch {
+      /* ignore */
+    }
+    const onOttTab = (e: Event) => {
+      const tab = (e as CustomEvent<{ tab?: string }>).detail?.tab;
+      if (tab) applyOttTab(tab);
+    };
+    window.addEventListener("viswam-sa-ott-tab", onOttTab);
+    return () => window.removeEventListener("viswam-sa-ott-tab", onOttTab);
+  }, []);
+
   const [lastAddedMessage, setLastAddedMessage] = useState<{
     title: string;
     productName: string;
@@ -161,9 +186,18 @@ export default function SuperAdminOttStudio() {
     load();
   }, []);
 
+  const [schoolQuota, setSchoolQuota] = useState<SchoolOttQuota | null>(null);
+  const [quotaResetting, setQuotaResetting] = useState(false);
+
+  const loadSchoolQuota = async (sid: string) => {
+    const { fetchSuperAdminSchoolOttQuota } = await import("@/lib/ott/quota-api");
+    setSchoolQuota(await fetchSuperAdminSchoolOttQuota(sid));
+  };
+
   useEffect(() => {
     if (!schoolId) {
       setRestrictions(null);
+      setSchoolQuota(null);
       return;
     }
     fetch(`${API_BASE_URL}/api/super-admin/ott/schools/${schoolId}/restrictions`, {
@@ -171,6 +205,7 @@ export default function SuperAdminOttStudio() {
     })
       .then((r) => r.json())
       .then((j) => setRestrictions(ensureRestrictionsShape(j.data || null)));
+    void loadSchoolQuota(schoolId);
   }, [schoolId]);
 
   const filteredVideos = useMemo(() => {
@@ -349,8 +384,31 @@ export default function SuperAdminOttStudio() {
     if (res.ok) {
       toast({ title: "Restrictions saved" });
       setRestrictions(json.data);
+      await loadSchoolQuota(schoolId);
     } else {
       toast({ title: "Failed", description: json.message, variant: "destructive" });
+    }
+  };
+
+  const resetSchoolQuota = async () => {
+    if (!schoolId) return;
+    if (
+      !window.confirm(
+        "Reset this school's OTT download quota for the current month? Students can download again within the GB limit.",
+      )
+    ) {
+      return;
+    }
+    setQuotaResetting(true);
+    const { resetSuperAdminSchoolOttQuota } = await import("@/lib/ott/quota-api");
+    const result = await resetSuperAdminSchoolOttQuota(schoolId);
+    setQuotaResetting(false);
+    if (result.ok) {
+      toast({ title: result.message || "Quota reset" });
+      if (result.quota) setSchoolQuota(result.quota);
+      else await loadSchoolQuota(schoolId);
+    } else {
+      toast({ title: "Failed", description: result.message, variant: "destructive" });
     }
   };
 
@@ -593,6 +651,12 @@ export default function SuperAdminOttStudio() {
                   <Badge className={statusMeta.className}>{statusMeta.label}</Badge>
                   <Badge variant="outline">Plan: {restrictions.plan}</Badge>
                 </div>
+                <OttMonthlyQuotaCard
+                  quota={schoolQuota}
+                  variant="super-admin"
+                  onReset={() => void resetSchoolQuota()}
+                  resetting={quotaResetting}
+                />
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="space-y-1">
                     <Label>Plan</Label>
@@ -643,7 +707,7 @@ export default function SuperAdminOttStudio() {
                   />
                 </div>
                 <div className="flex items-center justify-between rounded-lg border border-slate-100 px-3 py-2">
-                  <span className="text-sm text-slate-700">HD streaming</span>
+                  <span className="text-sm text-slate-700">HD streaming (legacy)</span>
                   <Switch
                     checked={!!restrictions.features?.hdStreaming}
                     onCheckedChange={(c) =>
@@ -652,6 +716,59 @@ export default function SuperAdminOttStudio() {
                       )
                     }
                   />
+                </div>
+                <p className="text-xs text-slate-500">
+                  OTT is mobile download-only on the website (no streaming). Quota resets each calendar
+                  month. Downloads cannot be removed by students once saved.
+                </p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <Label>School monthly download quota (GB)</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      step={1}
+                      value={restrictions.limits?.schoolMonthlyDownloadGB ?? 10}
+                      onChange={(e) => {
+                        const v = Number(e.target.value);
+                        setRestrictions((r) =>
+                          r
+                            ? {
+                                ...r,
+                                limits: {
+                                  ...r.limits,
+                                  schoolMonthlyDownloadGB: Number.isFinite(v) ? v : 0,
+                                },
+                              }
+                            : r,
+                        );
+                      }}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Default per-student cap (GB, optional)</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      step={0.5}
+                      placeholder="No individual cap"
+                      value={restrictions.limits?.defaultStudentMonthlyDownloadGB ?? ""}
+                      onChange={(e) => {
+                        const v = e.target.value === "" ? 0 : Number(e.target.value);
+                        setRestrictions((r) =>
+                          r
+                            ? {
+                                ...r,
+                                limits: {
+                                  ...r.limits,
+                                  defaultStudentMonthlyDownloadGB: Number.isFinite(v) ? v : 0,
+                                },
+                              }
+                            : r,
+                        );
+                      }}
+                    />
+                  </div>
                 </div>
                 <OttSchoolAccessEditor
                   restrictions={restrictions}

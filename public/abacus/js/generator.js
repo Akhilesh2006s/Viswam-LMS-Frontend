@@ -842,7 +842,8 @@ wrap.appendChild(input);
 
 const mode = localStorage.getItem("mode");
 let btn = document.createElement("button");
-btn.innerText = "Next";
+const isLastQuestion = currentQuestion + 1 >= problems.length;
+btn.innerText = isLastQuestion ? "Submit" : "Next";
 btn.classList.add("next-btn"); // 🔥 THIS is what you're missing
 
 if(mode === "assessment"){

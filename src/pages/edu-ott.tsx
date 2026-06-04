@@ -1,10 +1,5 @@
-import { EduOTTFilterProvider } from "@/contexts/edu-ott-filter-context";
-import { OttHome } from "@/components/viswam-ott/OttHome";
+import { OttMobileOnlyGate } from "@/components/viswam-ott/OttMobileOnlyGate";
 
 export default function EduOTT() {
-  return (
-    <EduOTTFilterProvider>
-      <OttHome />
-    </EduOTTFilterProvider>
-  );
+  return <OttMobileOnlyGate />;
 }

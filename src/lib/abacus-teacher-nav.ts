@@ -1,5 +1,6 @@
 import {
   LayoutDashboard,
+  BookOpen,
   Calculator,
   Hand,
   Users,
@@ -10,6 +11,7 @@ import { ABACUS_ROUTES } from '@/lib/abacus-routes';
 
 export const ABACUS_TEACHER_NAV: PremiumNavItem[] = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard, href: ABACUS_ROUTES.teacherDashboard },
+  { id: 'about', label: 'About Abacus', icon: BookOpen, href: ABACUS_ROUTES.about },
   {
     id: 'students',
     label: 'Students',
@@ -22,6 +24,7 @@ export const ABACUS_TEACHER_NAV: PremiumNavItem[] = [
 ];
 
 export function abacusTeacherNavActiveId(pathname: string, search = ''): string {
+  if (pathname === ABACUS_ROUTES.about) return 'about';
   if (pathname === ABACUS_ROUTES.teacherTool) return 'tool';
   if (pathname === ABACUS_ROUTES.practice || pathname === ABACUS_ROUTES.practiceResults) {
     return 'digital';

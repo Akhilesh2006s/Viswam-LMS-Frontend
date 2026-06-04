@@ -8,6 +8,7 @@ import { useAbacusPortal } from '@/hooks/use-abacus-portal';
 import { usePageTitle } from '@/hooks/use-page-title';
 import { ABACUS_ROUTES } from '@/lib/abacus-routes';
 import { installAbacusBrowserApi } from '@/lib/abacus-browser-api';
+import { ABACUS_THEME } from '@/lib/abacus-theme';
 import '@/styles/abacus-teacher-tool.css';
 
 function AbacusTeacherToolContent() {
@@ -158,7 +159,7 @@ export default function AbacusTeacherToolPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#f4f7fb] p-6">
+      <div className="min-h-screen p-6" style={{ backgroundColor: ABACUS_THEME.pageBg }}>
         <AbacusDashboardSkeleton />
       </div>
     );

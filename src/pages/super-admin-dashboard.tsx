@@ -59,6 +59,9 @@ import { getUser } from "@/lib/auth-utils";
 import {
   clearSuperAdminDashboardQueryFromUrl,
   consumeSuperAdminViewRestore,
+  isRestorableSuperAdminView,
+  parseSuperAdminViewFromHash,
+  parseSuperAdminViewFromQuery,
 } from "@/lib/super-admin-nav";
 
 const lazySectionFallback = (
@@ -107,11 +110,33 @@ export default function SuperAdminDashboard() {
   const [boardError, setBoardError] = useState<string | null>(null);
   const [systemSettingsOpen, setSystemSettingsOpen] = useState(false);
   useEffect(() => {
-    clearSuperAdminDashboardQueryFromUrl();
-    const restore = consumeSuperAdminViewRestore();
+    const restore =
+      parseSuperAdminViewFromQuery() ??
+      parseSuperAdminViewFromHash() ??
+      consumeSuperAdminViewRestore();
     if (restore) {
       setCurrentView(restore);
     }
+    clearSuperAdminDashboardQueryFromUrl();
+  }, []);
+
+  useEffect(() => {
+    const applyRestore = (view: SuperAdminView | null | undefined) => {
+      if (view) setCurrentView(view);
+    };
+    const onHash = () => applyRestore(parseSuperAdminViewFromHash());
+    const onSaRestore = (e: Event) => {
+      const detail = (e as CustomEvent<{ view?: string }>).detail?.view;
+      if (detail && isRestorableSuperAdminView(detail)) {
+        applyRestore(detail);
+      }
+    };
+    window.addEventListener("hashchange", onHash);
+    window.addEventListener("viswam-sa-restore", onSaRestore);
+    return () => {
+      window.removeEventListener("hashchange", onHash);
+      window.removeEventListener("viswam-sa-restore", onSaRestore);
+    };
   }, []);
 
   const handleViewChange = (view: SuperAdminView) => {

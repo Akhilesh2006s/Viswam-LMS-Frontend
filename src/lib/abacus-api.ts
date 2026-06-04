@@ -22,6 +22,7 @@ export type AbacusSchool = {
 export type AbacusTeacher = {
   id: string;
   fullName: string;
+  username?: string;
   email: string;
   phone: string;
   category: string;
@@ -32,6 +33,7 @@ export type AbacusTeacher = {
 export type AbacusStudent = {
   id: string;
   fullName: string;
+  username?: string;
   email: string;
   className: string;
   category: string;
@@ -44,6 +46,7 @@ export type AbacusStudent = {
 export type AbacusTeacherStudentCandidate = {
   id: string;
   fullName: string;
+  username?: string;
   email: string;
   className: string;
   category: string;
@@ -234,16 +237,41 @@ async function abacusFetch<T>(path: string, init?: RequestInit): Promise<T> {
   return json as T;
 }
 
-/** Login via standalone Abacus backend (@abacus.com teachers/students). */
-export async function abacusLogin(email: string, password: string) {
+const ABACUS_STUDENT_LOGIN = /abs\d{5}$/i;
+const ABACUS_TEACHER_LOGIN = /abstech\d{3}$/i;
+
+/** Bare Abacus username (strips legacy @abacus.com). */
+export function normalizeAbacusLoginId(login: string): string {
+  const t = String(login || '').trim().toLowerCase();
+  if (!t) return '';
+  const at = t.indexOf('@');
+  if (at < 0) return t;
+  const local = t.slice(0, at);
+  const domain = t.slice(at + 1);
+  if (domain === 'abacus.com') return local;
+  return t;
+}
+
+/** True for generated Abacus usernames (no school email addresses). */
+export function isAbacusLogin(login: string): boolean {
+  const raw = String(login || '').trim();
+  if (!raw) return false;
+  if (raw.includes('@') && !/@abacus\.com$/i.test(raw)) return false;
+  const bare = normalizeAbacusLoginId(raw).replace(/[^a-z0-9]/gi, '');
+  return ABACUS_STUDENT_LOGIN.test(bare) || ABACUS_TEACHER_LOGIN.test(bare);
+}
+
+/** Login via standalone Abacus backend. */
+export async function abacusLogin(loginId: string, password: string) {
   if (!ABACUS_API_BASE_URL) {
     throw new Error('Abacus API URL is not configured');
   }
+  const id = normalizeAbacusLoginId(loginId);
   const res = await fetch(`${ABACUS_API_BASE_URL}/api/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ username: id, email: id, password }),
   });
   const data = await res.json();
   if (!res.ok) {
@@ -253,7 +281,7 @@ export async function abacusLogin(email: string, password: string) {
 }
 
 export function isAbacusEmail(email: string): boolean {
-  return /@abacus\.com$/i.test(String(email || '').trim());
+  return isAbacusLogin(email);
 }
 
 export async function fetchAbacusCatalog(): Promise<AbacusCategory[]> {
@@ -398,14 +426,78 @@ export async function deleteAbacusStudent(id: string): Promise<void> {
   await abacusFetch(`/students/${id}`, { method: 'DELETE' });
 }
 
-export function suggestAbacusEmail(name: string): string {
-  const slug = String(name || '')
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '.')
-    .replace(/^\.+|\.+$/g, '');
-  return slug ? `${slug}@abacus.com` : '';
+export function abacusDisplayUsername(person: { username?: string; email?: string }): string {
+  if (person.username) return person.username;
+  return normalizeAbacusLoginId(String(person.email || '')) || String(person.email || '').trim();
 }
 
-export const ABACUS_CSV_TEACHER_HEADERS = 'name,email,password,phone,category,level';
-export const ABACUS_CSV_STUDENT_HEADERS = 'name,email,password,class,category,level';
+/** First 4 letters of school name (uppercase). */
+export function getSchoolLetterPrefix(school?: {
+  name?: string;
+  schoolCode?: string;
+} | null): string {
+  const name = String(school?.name || '').trim();
+  const code = String(school?.schoolCode || '').trim();
+  const fromName = name.replace(/[^a-zA-Z]/g, '').toUpperCase();
+  if (fromName.length >= 4) return fromName.slice(0, 4);
+  const fromCode = code.replace(/[^a-zA-Z]/g, '').toUpperCase();
+  if (fromCode.length >= 4) return fromCode.slice(0, 4);
+  return `${fromName}${fromCode}`.slice(0, 4).padEnd(4, 'X');
+}
+
+export function getStudentUsernameBase(school?: {
+  name?: string;
+  schoolCode?: string;
+} | null): string {
+  return `${getSchoolLetterPrefix(school)}ABS`;
+}
+
+export function getTeacherUsernameBase(school?: {
+  name?: string;
+  schoolCode?: string;
+} | null): string {
+  return `${getSchoolLetterPrefix(school)}ABStech`;
+}
+
+/** Local preview — {SCHOOL4}ABS + digits, or {SCHOOL4}ABStech + digits for teachers. */
+export function previewNextAbacusUsernameLocal(
+  role: 'student' | 'teacher',
+  people: Array<{ username?: string; email?: string }> = [],
+  school?: { name?: string; schoolCode?: string } | null,
+): string {
+  if (role === 'teacher') {
+    const base = getTeacherUsernameBase(school);
+    const re = new RegExp(`^${base}(\\d{3})$`, 'i');
+    let max = 0;
+    for (const p of people) {
+      const u = abacusDisplayUsername(p);
+      const m = u.match(re);
+      if (m) max = Math.max(max, parseInt(m[1], 10));
+    }
+    return `${base}${String(max + 1).padStart(3, '0')}`;
+  }
+  const base = getStudentUsernameBase(school);
+  const re = new RegExp(`^${base}(\\d{5})$`, 'i');
+  let max = 0;
+  for (const p of people) {
+    const u = abacusDisplayUsername(p);
+    const m = u.match(re);
+    if (m) max = Math.max(max, parseInt(m[1], 10));
+  }
+  return `${base}${String(max + 1).padStart(5, '0')}`;
+}
+
+export async function fetchNextAbacusUsername(
+  schoolId: string,
+  role: 'student' | 'teacher',
+): Promise<string> {
+  const json = await abacusFetch<{ data?: { username?: string } }>(
+    `/schools/${schoolId}/next-username?role=${role}`,
+  );
+  const username = String(json.data?.username || '').trim();
+  if (!username) throw new Error('Username preview unavailable');
+  return username;
+}
+
+export const ABACUS_CSV_TEACHER_HEADERS = 'name,password,phone,category,level';
+export const ABACUS_CSV_STUDENT_HEADERS = 'name,password,class,category,level';

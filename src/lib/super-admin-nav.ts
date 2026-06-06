@@ -13,6 +13,7 @@ const RESTORABLE_VIEWS: SuperAdminView[] = [
   "periods",
   "abacus",
   "analytics",
+  "student-analytics",
   "subscriptions",
   "settings",
 ];

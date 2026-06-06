@@ -46,6 +46,56 @@ export function normalizeSubjectDisplayKey(name: string): string {
   return plain;
 }
 
+/** Stable key for deduping catalog rows (e.g. Biology_8). */
+export function subjectPickerNameKey(name: string): string {
+  return String(name || '').split('__deleted__')[0].trim().toLowerCase();
+}
+
+/** Uniq key for pickers: plain subject + class when name has _N suffix (Biology_8 → biology::8). */
+export function subjectPickerUniqKey(name: string, code?: string): string {
+  const raw = String(name || code || '')
+    .split('__deleted__')[0]
+    .trim();
+  if (!raw) return '';
+  const classNum = extractClassNumberFromSubjectName(raw);
+  const plain = extractPlainSubjectName(raw).toLowerCase();
+  if (classNum) return `${plain}::${classNum}`;
+  return subjectPickerNameKey(raw);
+}
+
+function normalizeSubjectRecordId(id: string): string {
+  const s = String(id || '').trim();
+  if (/^[a-f0-9]{24}$/i.test(s)) return s.toLowerCase();
+  return s;
+}
+
+/**
+ * One row per Mongo id, then one row per catalog name/class (fixes duplicate Biology_8 in pickers).
+ */
+export function dedupeSubjectsForPicker<
+  T extends { id?: string; _id?: string; name?: string; code?: string },
+>(subjects: T[]): T[] {
+  const byId = new Map<string, T>();
+  for (const row of subjects) {
+    const id = normalizeSubjectRecordId(String(row.id || row._id || ''));
+    if (!id || byId.has(id)) continue;
+    byId.set(id, row);
+  }
+  const byUniq = new Map<string, T>();
+  for (const row of byId.values()) {
+    const uniq = subjectPickerUniqKey(row.name || '', row.code);
+    if (!uniq) {
+      const id = normalizeSubjectRecordId(String(row.id || row._id || ''));
+      if (id && !byUniq.has(id)) byUniq.set(id, row);
+      continue;
+    }
+    if (!byUniq.has(uniq)) byUniq.set(uniq, row);
+  }
+  return [...byUniq.values()].sort((a, b) =>
+    String(a.name || '').localeCompare(String(b.name || '')),
+  );
+}
+
 /** Active catalog row (not soft-deleted / inactive). */
 export function isActiveCatalogSubject(subject: {
   name?: string;

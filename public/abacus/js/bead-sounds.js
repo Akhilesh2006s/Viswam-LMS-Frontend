@@ -5,17 +5,21 @@
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
     if (!AudioCtx) return null;
     if (!audioCtx) audioCtx = new AudioCtx();
-    if (audioCtx.state === 'suspended') {
-      void audioCtx.resume();
-    }
     return audioCtx;
   }
 
-  function playNoiseBurst(opts) {
+  function ensureAudioReady() {
     const ctx = getAudioContext();
-    if (!ctx) return;
+    if (!ctx) return Promise.resolve(null);
+    if (ctx.state === 'suspended') return ctx.resume().then(() => ctx);
+    return Promise.resolve(ctx);
+  }
 
-    const { decay, frequency, gain: peakGain, q } = opts;
+  function playNoiseBurst(opts) {
+    ensureAudioReady().then((ctx) => {
+      if (!ctx) return;
+
+      const { decay, frequency, gain: peakGain, q } = opts;
     const frameCount = Math.ceil(ctx.sampleRate * decay);
     const buffer = ctx.createBuffer(1, frameCount, ctx.sampleRate);
     const channel = buffer.getChannelData(0);
@@ -42,6 +46,11 @@
 
     source.start(now);
     source.stop(now + decay + 0.02);
+    });
+  }
+
+  function preloadBeadSounds() {
+    return ensureAudioReady();
   }
 
   function playWoodenClick() {
@@ -61,5 +70,6 @@
     playBeadSound,
     playWoodenClick,
     playStoneTap,
+    preloadBeadSounds,
   };
 })();

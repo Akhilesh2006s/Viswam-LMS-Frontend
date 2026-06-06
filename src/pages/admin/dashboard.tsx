@@ -15,7 +15,7 @@ import {
 import { useLocation, useSearch } from 'wouter';
 const ClassDashboard = lazy(() => import('@/components/admin/class-dashboard'));
 const PeriodManagement = lazy(() => import('@/components/admin/PeriodManagement'));
-const AdminLearningPaths = lazy(() => import('@/components/admin/learning-paths'));
+import AdminLearningPaths from '@/components/admin/learning-paths';
 const AdminEduOTT = lazy(() => import('@/components/admin/admin-eduott'));
 const AdminCalendar = lazy(() => import('@/components/admin/admin-calendar'));
 const TimetableManagement = lazy(() => import('@/components/admin/timetable-management'));
@@ -182,7 +182,7 @@ const AdminDashboard = () => {
       contentMaxWidth={activeTab === 'periods' || activeTab === 'eduott' ? 'wide' : 'centered'}
       mainClassName={
         activeTab === 'eduott'
-          ? '!max-w-none !px-0'
+          ? 'viswam-premium-main-cinema'
           : activeTab === 'periods'
             ? '!max-w-none'
             : undefined
@@ -208,11 +208,7 @@ const AdminDashboard = () => {
               <PeriodManagement />
             </Suspense>
           )}
-          {activeTab === 'learning-paths' && (
-            <Suspense fallback={lazySectionFallback}>
-              <AdminLearningPaths />
-            </Suspense>
-          )}
+          {activeTab === 'learning-paths' && <AdminLearningPaths />}
           {activeTab === 'eduott' && (
             <Suspense fallback={lazySectionFallback}>
               <AdminEduOTT />

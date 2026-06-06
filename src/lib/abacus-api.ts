@@ -1,4 +1,5 @@
 import { ABACUS_API_BASE_URL } from '@/lib/api-config';
+import { isAbacusPortalSession } from '@/lib/abacus-auth';
 
 export type AbacusCategory = {
   name: string;
@@ -64,6 +65,9 @@ function authHeaders(): HeadersInit {
 }
 
 async function abacusPortalFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  if (!isAbacusPortalSession()) {
+    throw new Error('Abacus portal session required');
+  }
   if (!ABACUS_API_BASE_URL) {
     throw new Error('Abacus API URL is not configured (VITE_ABACUS_API_URL)');
   }
@@ -90,6 +94,8 @@ export type AbacusTeacherDashboard = {
     phone: string;
     category: string;
     level: string;
+    userRank?: number;
+    accessSummary?: string;
   };
   school: { id: string; name: string; schoolCode: string; place: string } | null;
   students: Array<{
@@ -111,6 +117,8 @@ export type AbacusStudentDashboard = {
     className: string;
     category: string;
     level: string;
+    userRank?: number;
+    accessSummary?: string;
   };
   school: { id: string; name: string; schoolCode: string; place: string } | null;
 };
@@ -157,6 +165,8 @@ export type AbacusPortalProfile = {
     level: string;
     className?: string;
     phone?: string;
+    userRank?: number;
+    accessSummary?: string;
   };
   school: { id: string; name: string; schoolCode: string; place?: string } | null;
   student: {
@@ -250,6 +260,12 @@ export function normalizeAbacusLoginId(login: string): string {
   const domain = t.slice(at + 1);
   if (domain === 'abacus.com') return local;
   return t;
+}
+
+/** Empty or bare login id (4–40 letters/numbers); accepts legacy user@abacus.com. */
+export function isValidOptionalAbacusLogin(raw: string): boolean {
+  const id = normalizeAbacusLoginId(raw);
+  return id.length === 0 || /^[a-z0-9]{4,40}$/.test(id);
 }
 
 /** True for generated Abacus usernames (no school email addresses). */

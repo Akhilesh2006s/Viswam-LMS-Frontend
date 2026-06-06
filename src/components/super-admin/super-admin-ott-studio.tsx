@@ -31,6 +31,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { formatFileSize } from "@/lib/format-bytes";
+import { MAX_OTT_VIDEO_UPLOAD_BYTES, MAX_OTT_VIDEO_UPLOAD_GB } from "@/lib/ott/upload-limits";
 import { API_BASE_URL } from "@/lib/api-config";
 import { resolveMediaUrl } from "@/lib/media-url";
 import { EduOTTVideoPlayerDialog } from "@/components/eduott/EduOTTVideoPlayerDialog";
@@ -46,8 +47,10 @@ import ProductSubjectPicker, {
 import { OttSchoolAccessEditor } from "@/components/super-admin/OttSchoolAccessEditor";
 import {
   ensureRestrictionsShape,
+  normalizeOttRestrictionsForSave,
   type OttRestrictionsPayload,
 } from "@/lib/ott-restrictions";
+import { isYoutubeContent } from "@/lib/learning-path-content";
 
 type SchoolRow = { _id: string; name: string; adminEmail?: string; restrictions: OttRestrictionsPayload };
 type OttRow = {
@@ -81,6 +84,7 @@ export default function SuperAdminOttStudio() {
   const [restrictions, setRestrictions] = useState<OttRestrictions | null>(null);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [saving, setSaving] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [catalogClassFilter, setCatalogClassFilter] = useState("all");
@@ -274,27 +278,83 @@ export default function SuperAdminOttStudio() {
     return [...nums].sort((a, b) => Number(a) - Number(b));
   }, [videos]);
 
+  const uploadVideoFile = async (selected: File): Promise<{ fileUrl: string; fileSizeBytes: number } | null> => {
+    const maxBytes = MAX_OTT_VIDEO_UPLOAD_BYTES;
+    if (selected.size > maxBytes) {
+      toast({
+        title: "File too large",
+        description: `Maximum upload size is ${MAX_OTT_VIDEO_UPLOAD_GB} GB (${formatFileSize(selected.size)} selected).`,
+        variant: "destructive",
+      });
+      return null;
+    }
+    const fd = new FormData();
+    fd.append("file", selected);
+    fd.append("contentType", "Video");
+    const url = `${API_BASE_URL}/api/super-admin/content/upload-file?contentType=Video`;
+    const authHeaders = headers();
+
+    const json = await new Promise<Record<string, unknown>>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", url);
+      Object.entries(authHeaders).forEach(([key, value]) => xhr.setRequestHeader(key, value));
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable) {
+          setUploadProgress(Math.round((event.loaded / event.total) * 100));
+        }
+      };
+      xhr.onload = () => {
+        try {
+          resolve(JSON.parse(xhr.responseText || "{}"));
+        } catch {
+          resolve({});
+        }
+      };
+      xhr.onerror = () => reject(new Error("Network error during upload"));
+      xhr.send(fd);
+    }).catch((err: unknown) => {
+      toast({
+        title: "Upload failed",
+        description:
+          (err instanceof Error ? err.message : "Network error") +
+          (import.meta.env.MODE === "production"
+            ? " Large videos can time out through the web proxy — try the desktop app or upload from a machine on the same network as the API server."
+            : ""),
+        variant: "destructive",
+      });
+      return null;
+    });
+
+    if (!json) {
+      return null;
+    }
+
+    if (json.fileUrl) {
+      const bytes = Number(json.size) || selected.size || 0;
+      setUploadProgress(100);
+      return { fileUrl: String(json.fileUrl), fileSizeBytes: bytes };
+    }
+    toast({
+      title: "Upload failed",
+      description: String(json.message || "Could not upload video to server"),
+      variant: "destructive",
+    });
+    return null;
+  };
+
   const handleUploadFile = async () => {
     if (!file) return;
     setUploading(true);
-    const fd = new FormData();
-    fd.append("file", file);
-    fd.append("contentType", "Video");
-    const res = await fetch(
-      `${API_BASE_URL}/api/super-admin/content/upload-file?contentType=Video`,
-      { method: "POST", headers: headers(), body: fd },
-    );
+    setUploadProgress(0);
+    const uploaded = await uploadVideoFile(file);
     setUploading(false);
-    const json = await res.json().catch(() => ({}));
-    if (res.ok && json.fileUrl) {
-      const bytes = Number(json.size) || file.size || 0;
-      setForm((f) => ({ ...f, fileUrl: json.fileUrl, fileSizeBytes: bytes }));
+    setUploadProgress(0);
+    if (uploaded) {
+      setForm((f) => ({ ...f, fileUrl: uploaded.fileUrl, fileSizeBytes: uploaded.fileSizeBytes }));
       toast({
         title: "Uploaded",
-        description: `Ready to add (${formatFileSize(bytes)})`,
+        description: `Ready to add (${formatFileSize(uploaded.fileSizeBytes)})`,
       });
-    } else {
-      toast({ title: "Upload failed", description: json.message, variant: "destructive" });
     }
   };
 
@@ -312,9 +372,36 @@ export default function SuperAdminOttStudio() {
       });
       return;
     }
-    if (!form.fileUrl || form.fileUrl.includes("youtube")) {
+    let fileUrl = form.fileUrl.trim();
+    let fileSizeBytes = form.fileSizeBytes;
+
+    if (!fileUrl && file) {
+      setSaving(true);
+      setUploading(true);
+      setUploadProgress(0);
+      const uploaded = await uploadVideoFile(file);
+      setUploading(false);
+      setUploadProgress(0);
+      if (!uploaded) {
+        setSaving(false);
+        return;
+      }
+      fileUrl = uploaded.fileUrl;
+      fileSizeBytes = uploaded.fileSizeBytes;
+      setForm((f) => ({ ...f, fileUrl, fileSizeBytes }));
+    }
+
+    if (!fileUrl) {
       toast({
         title: "Upload required",
+        description: "Choose a video file first. Upload runs automatically when you add to the catalog.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (isYoutubeContent({ fileUrl })) {
+      toast({
+        title: "YouTube not allowed",
         description: "OTT videos must be uploaded files, not YouTube links.",
         variant: "destructive",
       });
@@ -330,8 +417,8 @@ export default function SuperAdminOttStudio() {
         subjectId: contentTarget.subjectId,
         classNumber: contentTarget.classNumber,
         title: form.title,
-        fileUrl: form.fileUrl,
-        size: form.fileSizeBytes,
+        fileUrl,
+        size: fileSizeBytes,
         maxStreamQuality: form.maxStreamQuality,
       }),
     });
@@ -345,7 +432,7 @@ export default function SuperAdminOttStudio() {
         "Product";
       const subjectLabel = contentTarget.catalogSubject || "Subject";
       const classLabel = contentTarget.classNumber || "";
-      const sizeLabel = formatFileSize(form.fileSizeBytes);
+      const sizeLabel = formatFileSize(fileSizeBytes);
 
       setLastAddedMessage({
         title: addedTitle,
@@ -378,7 +465,11 @@ export default function SuperAdminOttStudio() {
     if (!schoolId || !restrictions) return;
     const res = await fetch(
       `${API_BASE_URL}/api/super-admin/ott/schools/${schoolId}/restrictions`,
-      { method: "PUT", headers: jsonHeaders(), body: JSON.stringify(restrictions) },
+      {
+        method: "PUT",
+        headers: jsonHeaders(),
+        body: JSON.stringify(normalizeOttRestrictionsForSave(restrictions)),
+      },
     );
     const json = await res.json().catch(() => ({}));
     if (res.ok) {
@@ -516,6 +607,12 @@ export default function SuperAdminOttStudio() {
                   <p className="text-xs text-slate-600 flex items-center gap-1">
                     <HardDrive className="h-3.5 w-3.5" />
                     Selected: {file.name} · {formatFileSize(file.size)}
+                    {!form.fileUrl ? (
+                      <span className="text-amber-700">
+                        {" "}
+                        · uploads when you add to catalog (or use Upload to server)
+                      </span>
+                    ) : null}
                   </p>
                 ) : null}
                 <Button
@@ -531,8 +628,21 @@ export default function SuperAdminOttStudio() {
                   ) : (
                     <Upload className="h-4 w-4 mr-2" />
                   )}
-                  Upload to server
+                  {uploading ? `Uploading ${uploadProgress}%` : "Upload to server"}
                 </Button>
+                {uploading ? (
+                  <div className="space-y-1">
+                    <div className="h-2 w-full rounded-full bg-slate-200 overflow-hidden">
+                      <div
+                        className="h-full bg-emerald-500 transition-all duration-200"
+                        style={{ width: `${uploadProgress}%` }}
+                      />
+                    </div>
+                    <p className="text-xs text-slate-600">
+                      Sending {formatFileSize(file?.size || 0)} to server…
+                    </p>
+                  </div>
+                ) : null}
                 {form.fileUrl ? (
                   <p className="text-xs text-emerald-700 flex flex-wrap items-center gap-2">
                     <span className="truncate">Ready to publish</span>
@@ -721,54 +831,33 @@ export default function SuperAdminOttStudio() {
                   OTT is mobile download-only on the website (no streaming). Quota resets each calendar
                   month. Downloads cannot be removed by students once saved.
                 </p>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="space-y-1">
-                    <Label>School monthly download quota (GB)</Label>
-                    <Input
-                      type="number"
-                      min={0}
-                      step={1}
-                      value={restrictions.limits?.schoolMonthlyDownloadGB ?? 10}
-                      onChange={(e) => {
-                        const v = Number(e.target.value);
-                        setRestrictions((r) =>
-                          r
-                            ? {
-                                ...r,
-                                limits: {
-                                  ...r.limits,
-                                  schoolMonthlyDownloadGB: Number.isFinite(v) ? v : 0,
-                                },
-                              }
-                            : r,
-                        );
-                      }}
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label>Default per-student cap (GB, optional)</Label>
-                    <Input
-                      type="number"
-                      min={0}
-                      step={0.5}
-                      placeholder="No individual cap"
-                      value={restrictions.limits?.defaultStudentMonthlyDownloadGB ?? ""}
-                      onChange={(e) => {
-                        const v = e.target.value === "" ? 0 : Number(e.target.value);
-                        setRestrictions((r) =>
-                          r
-                            ? {
-                                ...r,
-                                limits: {
-                                  ...r.limits,
-                                  defaultStudentMonthlyDownloadGB: Number.isFinite(v) ? v : 0,
-                                },
-                              }
-                            : r,
-                        );
-                      }}
-                    />
-                  </div>
+                <div className="space-y-1">
+                  <Label>Per-user monthly download quota (GB)</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    step={1}
+                    value={restrictions.limits?.schoolMonthlyDownloadGB ?? 10}
+                    onChange={(e) => {
+                      const v = Number(e.target.value);
+                      setRestrictions((r) =>
+                        r
+                          ? {
+                              ...r,
+                              limits: {
+                                ...r.limits,
+                                schoolMonthlyDownloadGB: Number.isFinite(v) ? v : 0,
+                                defaultStudentMonthlyDownloadGB: 0,
+                              },
+                            }
+                          : r,
+                      );
+                    }}
+                  />
+                  <p className="text-xs text-slate-500">
+                    Each student, teacher, and admin gets this many GB per month. Resets each calendar
+                    month.
+                  </p>
                 </div>
                 <OttSchoolAccessEditor
                   restrictions={restrictions}

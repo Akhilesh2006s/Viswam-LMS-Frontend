@@ -550,6 +550,17 @@ function startSolve(showAnswer = true){
         return
     }
 
+    let student = JSON.parse(localStorage.getItem("student") || "{}")
+    let levelCheck = window.validateTeacherQuestionForLevel?.(
+        questionBox.value,
+        student.category || "",
+        student.level || ""
+    )
+    if(levelCheck && !levelCheck.ok){
+        showError(levelCheck.message)
+        return
+    }
+
     clearError()
 
     let tempStates = new Array(RODS).fill(0)

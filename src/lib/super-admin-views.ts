@@ -3,6 +3,7 @@ export type SuperAdminView =
   | 'dashboard'
   | 'admins'
   | 'analytics'
+  | 'student-analytics'
   | 'subscriptions'
   | 'settings'
   | 'content'

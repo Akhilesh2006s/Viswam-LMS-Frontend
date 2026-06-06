@@ -202,6 +202,7 @@ export type SchoolProductAssignment = {
   currentCount?: number;
   remaining?: number;
   isFull?: boolean;
+  classLicenses?: { classNumber: string; maxStrength: number; subjects?: string[] }[];
 };
 
 export type ProductWorkspace = {
@@ -290,6 +291,46 @@ export async function fetchAdminProductWorkspace(
   if (!res.ok) return null;
   const json = await res.json();
   return json.data || null;
+}
+
+/** Licensed products for a school — workspace first, then school-detail fallback. */
+export async function fetchSchoolLicenseAssignments(
+  schoolAdminId?: string | null,
+): Promise<SchoolProductAssignment[]> {
+  const workspace = await fetchAdminProductWorkspace(schoolAdminId);
+  if (workspace?.admin?.productAssignments?.length) {
+    return workspace.admin.productAssignments;
+  }
+
+  if (!schoolAdminId) return [];
+
+  const detailRes = await fetch(
+    `${API_BASE_URL}/api/super-admin/admins/${encodeURIComponent(schoolAdminId)}/school-detail`,
+    { headers: authHeaders() },
+  );
+  if (detailRes.ok) {
+    const detailJson = await detailRes.json();
+    const rows = detailJson?.data?.productAssignments;
+    if (Array.isArray(rows) && rows.length) return rows;
+  }
+
+  const listRes = await fetch(`${API_BASE_URL}/api/super-admin/admins`, {
+    headers: authHeaders(),
+  });
+  if (listRes.ok) {
+    const listJson = await listRes.json();
+    const admins = Array.isArray(listJson) ? listJson : listJson.data || [];
+    const match = admins.find(
+      (a: { id?: string; adminUserId?: string }) =>
+        String(a.id) === String(schoolAdminId) ||
+        String(a.adminUserId) === String(schoolAdminId),
+    );
+    if (Array.isArray(match?.productAssignments) && match.productAssignments.length) {
+      return match.productAssignments;
+    }
+  }
+
+  return [];
 }
 
 export async function saveProductClassLicenses(

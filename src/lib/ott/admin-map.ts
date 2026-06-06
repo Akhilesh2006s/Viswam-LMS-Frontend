@@ -16,6 +16,7 @@ export type AdminOttSourceRow = {
   subjectId?: string;
   subjectName?: string;
   classNumber?: string;
+  size?: number;
 };
 
 export function mapAdminRowToOttVideo(row: AdminOttSourceRow): OttVideo {

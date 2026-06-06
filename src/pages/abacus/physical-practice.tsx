@@ -45,12 +45,18 @@ function AbacusPhysicalPracticeContent() {
           <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
             <div className="text-xl font-semibold text-[#0b1f3a]">Exercise Sheet</div>
             <div className="controls flex flex-wrap gap-2">
-              <select id="category" className="rounded-lg border px-3 py-2" onChange={() => (window as any).updateLevels?.()}>
-                <option value="">Select Category</option>
-              </select>
-              <select id="level" className="rounded-lg border px-3 py-2" onChange={() => (window as any).generateQuestions?.()}>
-                <option value="">Select Level</option>
-              </select>
+              <select
+                id="category"
+                className="rounded-lg border px-3 py-2"
+                defaultValue=""
+                onChange={() => (window as any).updateLevels?.()}
+              />
+              <select
+                id="level"
+                className="rounded-lg border px-3 py-2"
+                defaultValue=""
+                onChange={() => (window as any).generateQuestions?.()}
+              />
               <button type="button" className="start-btn rounded-full px-4 py-2" onClick={() => (window as any).generateQuestions?.()}>
                 New Set
               </button>

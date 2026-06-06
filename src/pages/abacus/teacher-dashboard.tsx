@@ -14,6 +14,7 @@ import {
   abacusTeacherDashboardTab,
   abacusTeacherNavActiveId,
 } from '@/lib/abacus-teacher-nav';
+import { formatAbacusCeilingLabel } from '@/lib/abacus-access';
 import { ABACUS_ROUTES } from '@/lib/abacus-routes';
 
 export default function AbacusTeacherDashboard() {
@@ -42,6 +43,7 @@ export default function AbacusTeacherDashboard() {
 
   const students = profile.students ?? [];
   const studentCount = profile.stats?.students ?? students.length;
+  const ceiling = formatAbacusCeilingLabel(profile.user.category, profile.user.level);
 
   return (
     <AbacusTeacherChrome activeId={activeNavId} profile={profile}>
@@ -49,10 +51,9 @@ export default function AbacusTeacherDashboard() {
         <div className="space-y-6">
           <AbacusWelcomeBanner profile={profile} roleLabel="Teacher Portal" />
 
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <AbacusStatCard label="My Students" value={studentCount} hint="Same category & level" />
-            <AbacusStatCard label="Category" value={profile.user.category} />
-            <AbacusStatCard label="Level" value={profile.user.level} />
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            <AbacusStatCard label="My Students" value={studentCount} hint="At or below your level" />
+            <AbacusStatCard label="Assigned up to" value={ceiling} hint="Maximum category & level" />
             <AbacusStatCard
               label="School"
               value={profile.school?.schoolCode ?? '—'}
@@ -107,8 +108,9 @@ export default function AbacusTeacherDashboard() {
           <div>
             <h2 className="text-xl font-bold text-slate-900">My students</h2>
             <p className="text-sm text-slate-600">
-              Students in {profile.user.category} · Level {profile.user.level}
-              {profile.school ? ` at ${profile.school.name}` : ''}.
+              Students at or below {ceiling}
+              {profile.school ? ` at ${profile.school.name}` : ''}. Includes earlier categories and
+              levels automatically.
             </p>
           </div>
 
@@ -118,7 +120,8 @@ export default function AbacusTeacherDashboard() {
                 <GraduationCap className="mx-auto h-10 w-10 text-slate-300" />
                 <p className="mt-3 font-medium text-slate-900">No students assigned</p>
                 <p className="mt-1 text-sm text-slate-500">
-                  Students matching your category and level will appear here.
+                  Unassigned students at or below your level will appear here, or assign them from
+                  school admin.
                 </p>
               </CardContent>
             </Card>
@@ -131,6 +134,7 @@ export default function AbacusTeacherDashboard() {
                       <th className="px-4 py-3 font-medium">Name</th>
                       <th className="px-4 py-3 font-medium">Email</th>
                       <th className="px-4 py-3 font-medium">Class</th>
+                      <th className="px-4 py-3 font-medium">Category</th>
                       <th className="px-4 py-3 font-medium">Level</th>
                     </tr>
                   </thead>
@@ -140,6 +144,7 @@ export default function AbacusTeacherDashboard() {
                         <td className="px-4 py-3 font-medium text-slate-900">{student.fullName}</td>
                         <td className="px-4 py-3 text-slate-600">{student.email}</td>
                         <td className="px-4 py-3 text-slate-600">{student.className || '—'}</td>
+                        <td className="px-4 py-3 text-slate-600">{student.category}</td>
                         <td className="px-4 py-3">
                           <Badge variant="outline">{student.level}</Badge>
                         </td>

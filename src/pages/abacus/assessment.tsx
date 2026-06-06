@@ -45,19 +45,13 @@ function AbacusAssessmentContent() {
         <div className="top-controls">
           <select
             id="category"
+            defaultValue=""
             onChange={() => {
               (window as any).updateLevels?.();
               (window as any).saveCategory?.();
             }}
-          >
-            <option value="">Category</option>
-            <option value="Star Juniors">Star Juniors</option>
-            <option value="Juniors">Juniors</option>
-            <option value="Seniors">Seniors</option>
-          </select>
-          <select id="level" onChange={() => (window as any).saveLevel?.()}>
-            <option value="">Level</option>
-          </select>
+          />
+          <select id="level" defaultValue="" onChange={() => (window as any).saveLevel?.()} />
           <button
             type="button"
             id="startAssessmentBtn"

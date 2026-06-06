@@ -3,6 +3,7 @@ import { PremiumDashboardShell, type PremiumNavItem } from '@/components/layout/
 import { Skeleton } from '@/components/ui/skeleton';
 import { InteractiveBackground, FloatingParticles } from '@/components/background/InteractiveBackground';
 import type { AbacusPortalProfile } from '@/lib/abacus-api';
+import { formatAbacusCeilingLabel } from '@/lib/abacus-access';
 import { abacusLogout } from '@/lib/abacus-logout';
 
 type AbacusPortalShellProps = {
@@ -77,6 +78,8 @@ export function AbacusWelcomeBanner({
   profile: AbacusPortalProfile;
   roleLabel: string;
 }) {
+  const ceiling = formatAbacusCeilingLabel(profile.user.category, profile.user.level);
+
   return (
     <div className="relative overflow-hidden rounded-2xl border border-emerald-200/60 bg-gradient-to-br from-[#0B1F3A] via-[#123456] to-emerald-900 p-6 sm:p-8 text-white shadow-lg">
       <div className="absolute -right-8 -top-8 h-40 w-40 rounded-full bg-amber-400/10 blur-2xl" />
@@ -85,7 +88,7 @@ export function AbacusWelcomeBanner({
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-200/90">
           Viswam Abacus · {roleLabel}
         </p>
-        <h1 className="mt-2 text-2xl font-bold sm:text-3xl">
+        <h1 className="mt-2 text-2xl font-bold text-white sm:text-3xl">
           Welcome back, {profile.user.fullName.split(' ')[0]}
         </h1>
         <p className="mt-2 max-w-2xl text-sm text-white/75 sm:text-base">
@@ -94,11 +97,8 @@ export function AbacusWelcomeBanner({
             : 'Your abacus learning portal'}
         </p>
         <div className="mt-4 flex flex-wrap gap-2">
-          <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-medium">
-            {profile.user.category}
-          </span>
           <span className="rounded-full border border-amber-300/30 bg-amber-400/15 px-3 py-1 text-xs font-medium text-amber-100">
-            Level {profile.user.level}
+            Up to {ceiling}
           </span>
           {profile.user.className ? (
             <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-medium">

@@ -3,7 +3,7 @@ import { installAbacusBrowserApi } from '@/lib/abacus-browser-api';
 
 /** Legacy scripts use top-level const — must not execute the same file twice per page load. */
 const executedLegacyScripts = new Set<string>();
-const LEGACY_SCRIPT_VERSION = '11';
+const LEGACY_SCRIPT_VERSION = '13';
 
 const BEAD_SOUNDS_SCRIPT = '/abacus/js/bead-sounds.js';
 const BEAD_CURSOR_SCRIPT = '/abacus/js/bead-cursor.js';
@@ -15,15 +15,15 @@ const BEAD_FEEDBACK_SCRIPTS = [BEAD_SOUNDS_SCRIPT, BEAD_CURSOR_SCRIPT];
 
 function loadScript(src: string, id: string): Promise<void> {
   const versionedSrc = `${src}?v=${LEGACY_SCRIPT_VERSION}`;
+  const cacheKey = `${src}@${LEGACY_SCRIPT_VERSION}`;
 
-  if (executedLegacyScripts.has(src)) {
+  if (executedLegacyScripts.has(cacheKey)) {
     return Promise.resolve();
   }
 
   const existing = document.getElementById(id);
   if (existing) {
-    executedLegacyScripts.add(src);
-    return Promise.resolve();
+    existing.remove();
   }
 
   return new Promise((resolve, reject) => {
@@ -32,7 +32,7 @@ function loadScript(src: string, id: string): Promise<void> {
     el.src = versionedSrc;
     el.async = false;
     el.onload = () => {
-      executedLegacyScripts.add(src);
+      executedLegacyScripts.add(cacheKey);
       resolve();
     };
     el.onerror = () => reject(new Error(`Failed to load ${src}`));
@@ -110,7 +110,7 @@ export function useAbacusLegacyScripts({
 
         for (const src of scriptQueue) {
           if (cancelled) return;
-          const id = `abacus-script-${src.replace(/[^\w]/g, '-')}`;
+          const id = `abacus-script-${src.replace(/[^\w]/g, '-')}-v${LEGACY_SCRIPT_VERSION}`;
           await loadScript(src, id);
         }
         if (cancelled) return;

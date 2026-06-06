@@ -17,6 +17,7 @@ import {
 } from '@/components/abacus/AbacusPortalShell';
 import { useAbacusPortal } from '@/hooks/use-abacus-portal';
 import { usePageTitle } from '@/hooks/use-page-title';
+import { formatAbacusCeilingLabel } from '@/lib/abacus-access';
 import { abacusStudentDashboardTab, abacusStudentNavActiveId } from '@/lib/abacus-student-nav';
 import {
   fetchAbacusPracticeResults,
@@ -100,6 +101,8 @@ export default function AbacusStudentDashboard() {
     );
   }
 
+  const ceiling = formatAbacusCeilingLabel(profile.user.category, profile.user.level);
+
   return (
     <AbacusStudentChrome activeId={activeNavId} profile={profile}>
       {activeTab === 'overview' ? (
@@ -107,6 +110,7 @@ export default function AbacusStudentDashboard() {
           <AbacusWelcomeBanner profile={profile} roleLabel="Student Portal" />
 
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <AbacusStatCard label="Assigned up to" value={ceiling} hint="Maximum category & level" />
             <AbacusStatCard label="Total Attempts" value={stats.totalAttempts} hint="Practice & assessment" />
             <AbacusStatCard label="Assessments" value={stats.assessments} hint="Timed tests completed" />
             <AbacusStatCard label="Average Score" value={`${stats.avgScore}%`} hint="Across all sessions" />

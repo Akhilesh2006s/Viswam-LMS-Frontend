@@ -1,16 +1,47 @@
 (function () {
 
+let categoryLoadSeq = 0;
+let levelLoadSeq = 0;
+let levelsInflight = null;
+
+function uniqueLevels(levels) {
+    const seen = new Set();
+    const out = [];
+    (levels || []).forEach((l) => {
+        const name = l?.level_name;
+        if (!name || seen.has(name)) return;
+        seen.add(name);
+        out.push(l);
+    });
+    return out;
+}
+
+function fillLevelDropdown(levelDropdown, levels, selectedLevel) {
+    levelDropdown.innerHTML = "<option value=''>Select Level</option>";
+    uniqueLevels(levels).forEach((l) => {
+        const op = document.createElement("option");
+        op.value = l.level_name;
+        op.textContent = l.Dropdown_names || l.level_name;
+        op.dataset.rank = String(l.rank);
+        levelDropdown.appendChild(op);
+    });
+    if (selectedLevel) levelDropdown.value = selectedLevel;
+}
+
 async function loadCategories(){
+    const seq = ++categoryLoadSeq;
+    const dropdown = document.getElementById("category");
+    if (!dropdown) return;
     try {
         const json = await AbacusAPI.fetch('/portal/catalog');
+        if (seq !== categoryLoadSeq) return;
         const categories = json.data.categories || [];
         const student = JSON.parse(localStorage.getItem("student") || "{}");
-        let dropdown = document.getElementById("category");
         dropdown.innerHTML = "<option value=''>Select Category</option>";
         categories.forEach(c => {
-            let op = document.createElement("option");
+            const op = document.createElement("option");
             op.value = c.category;
-            op.text = c.category;
+            op.textContent = c.category;
             dropdown.appendChild(op);
         });
         if (student.category) {
@@ -23,27 +54,37 @@ async function loadCategories(){
 }
 
 async function updateLevels(){
-    let category = document.getElementById("category").value;
-    let levelDropdown = document.getElementById("level");
-    levelDropdown.innerHTML = "<option value=''>Select Level</option>";
-    if(!category) return;
-    try {
-        const json = await AbacusAPI.fetch('/portal/catalog');
-        const cat = (json.data.categories || []).find(c => c.category === category);
-        if (!cat) return;
-        cat.levels.forEach((l) => {
-            let op = document.createElement("option");
-            op.value = l.level_name;
-            op.text = l.Dropdown_names || l.level_name;
-            op.dataset.rank = String(l.rank);
-            levelDropdown.appendChild(op);
-        });
-        const student = JSON.parse(localStorage.getItem("student") || "{}");
-        if (student.level && student.category === category) {
-            levelDropdown.value = student.level;
+    if (levelsInflight) return levelsInflight;
+    levelsInflight = (async () => {
+        const category = document.getElementById("category")?.value;
+        const levelDropdown = document.getElementById("level");
+        if (!levelDropdown) return;
+        const seq = ++levelLoadSeq;
+        if (!category) {
+            levelDropdown.replaceChildren();
+            const ph = document.createElement("option");
+            ph.value = "";
+            ph.textContent = "Select Level";
+            levelDropdown.appendChild(ph);
+            return;
         }
-    } catch (error) {
-        console.error(error);
+        try {
+            const json = await AbacusAPI.fetch('/portal/catalog');
+            if (seq !== levelLoadSeq) return;
+            const cat = (json.data.categories || []).find(c => c.category === category);
+            if (!cat) return;
+            const student = JSON.parse(localStorage.getItem("student") || "{}");
+            const selected =
+                student.level && student.category === category ? student.level : "";
+            fillLevelDropdown(levelDropdown, cat.levels, selected);
+        } catch (error) {
+            console.error(error);
+        }
+    })();
+    try {
+        await levelsInflight;
+    } finally {
+        levelsInflight = null;
     }
 }
 
@@ -653,7 +694,5 @@ window.generateQuestions = generateQuestions;
 window.checkAnswers = checkAnswers;
 window.resetAnswers = resetAnswers;
 window.initPhysicalPractice = initPhysicalPractice;
-
-initPhysicalPractice();
 
 })();

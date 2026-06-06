@@ -24,6 +24,8 @@ import {
   ArrowLeft,
   Building2,
   Download,
+  Eye,
+  EyeOff,
   GraduationCap,
   Loader2,
   Pencil,
@@ -34,6 +36,7 @@ import {
   UserPlus,
   Users,
 } from 'lucide-react';
+import { formatPhoneInputValue, isValidOptionalPhoneTenDigits } from '@/lib/phone';
 import { useToast } from '@/hooks/use-toast';
 import {
   SuperAdminInnerPage,
@@ -65,6 +68,8 @@ import {
   fetchAbacusTeacherStudents,
   fetchNextAbacusUsername,
   abacusDisplayUsername,
+  isValidOptionalAbacusLogin,
+  normalizeAbacusLoginId,
   getSchoolLetterPrefix,
   getTeacherUsernameBase,
   getStudentUsernameBase,
@@ -147,6 +152,10 @@ function CategoryLevelFields({
   return (
     <>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <p className="text-xs text-slate-500 sm:col-span-2">
+          Assign the highest level reached. Teachers and students automatically get access to all
+          earlier categories and lower levels (e.g. Juniors J4 includes Star Juniors SJ1–SJ4 and J1–J3).
+        </p>
         <div className="space-y-2">
           <div className="flex items-center justify-between gap-2">
             <Label>Category</Label>
@@ -197,7 +206,12 @@ function CategoryLevelFields({
           <DialogHeader>
             <DialogTitle>Add category</DialogTitle>
           </DialogHeader>
-          <Input value={newCat} onChange={(e) => setNewCat(e.target.value)} placeholder="e.g. Star Juniors" className={FIELD} />
+          <Input
+            value={newCat}
+            onChange={(e) => setNewCat(e.target.value)}
+            placeholder="e.g. Star Juniors or Volumes (VM)"
+            className={FIELD}
+          />
           <DialogFooter>
             <Button variant="outline" onClick={() => setAddCatOpen(false)}>Cancel</Button>
             <Button className={SA_BTN_PRIMARY} disabled={busy} onClick={() => void saveCategory()}>Save</Button>
@@ -251,6 +265,7 @@ export default function AbacusManagement() {
   const [assignSelectedIds, setAssignSelectedIds] = useState<string[]>([]);
   const [assignLoading, setAssignLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [showTeacherPassword, setShowTeacherPassword] = useState(false);
   const teacherFileRef = useRef<HTMLInputElement>(null);
   const studentFileRef = useRef<HTMLInputElement>(null);
 
@@ -267,6 +282,7 @@ export default function AbacusManagement() {
 
   const [teacherForm, setTeacherForm] = useState({
     fullName: '',
+    email: '',
     username: '',
     password: '',
     phone: '',
@@ -373,33 +389,65 @@ export default function AbacusManagement() {
 
   const saveTeacher = async () => {
     if (!selectedSchool) return;
+    const name = teacherForm.fullName.trim();
+    if (!name) {
+      toast({ title: 'Name required', description: 'Enter the teacher’s display name (not an email).', variant: 'destructive' });
+      return;
+    }
+    if (name.includes('@')) {
+      toast({
+        title: 'Invalid name',
+        description: 'Use the Name field for the teacher’s full name. Use Login ID below only if you need a custom username.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    if (!isValidOptionalPhoneTenDigits(teacherForm.phone)) {
+      toast({ title: 'Invalid phone', description: 'Phone must be empty or exactly 10 digits.', variant: 'destructive' });
+      return;
+    }
+    const loginRaw = teacherForm.email.trim();
+    if (loginRaw && !isValidOptionalAbacusLogin(loginRaw)) {
+      toast({
+        title: 'Invalid login ID',
+        description: 'Use 4–40 letters and numbers (e.g. birdabstech001), or leave blank for auto-generated username.',
+        variant: 'destructive',
+      });
+      return;
+    }
     setSaving(true);
     try {
+      const phone = formatPhoneInputValue(teacherForm.phone);
+      const loginId = loginRaw ? normalizeAbacusLoginId(loginRaw) : '';
       if (editingTeacherId) {
         const payload: Record<string, string> = {
-          fullName: teacherForm.fullName,
-          phone: teacherForm.phone,
+          fullName: name,
+          phone,
           category: teacherForm.category,
           level: teacherForm.level,
         };
+        if (loginId) payload.email = loginId;
         if (teacherForm.password.trim()) payload.password = teacherForm.password.trim();
         const updated = await updateAbacusTeacher(editingTeacherId, payload);
         setTeachers((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
         toast({ title: 'Teacher updated', description: abacusDisplayUsername(updated) });
       } else {
-        const created = await createAbacusTeacher(selectedSchool.id, {
-          fullName: teacherForm.fullName,
+        const body: Record<string, string> = {
+          fullName: name,
           password: teacherForm.password,
-          phone: teacherForm.phone,
+          phone,
           category: teacherForm.category,
           level: teacherForm.level,
-        });
+        };
+        if (loginId) body.email = loginId;
+        const created = await createAbacusTeacher(selectedSchool.id, body);
         setTeachers((prev) => [...prev, created]);
         toast({ title: 'Teacher saved', description: abacusDisplayUsername(created) });
       }
       setTeacherDialogOpen(false);
       setEditingTeacherId(null);
-      setTeacherForm({ fullName: '', username: '', password: '', phone: '', category: '', level: '' });
+      setShowTeacherPassword(false);
+      setTeacherForm({ fullName: '', email: '', username: '', password: '', phone: '', category: '', level: '' });
     } catch (e: unknown) {
       toast({
         title: editingTeacherId ? 'Could not update teacher' : 'Could not save teacher',
@@ -493,8 +541,10 @@ export default function AbacusManagement() {
 
   const openAddTeacher = () => {
     setEditingTeacherId(null);
+    setShowTeacherPassword(false);
     setTeacherForm({
       fullName: '',
+      email: '',
       username: previewNextAbacusUsernameLocal('teacher', teachers, selectedSchool),
       password: '',
       phone: '',
@@ -506,8 +556,10 @@ export default function AbacusManagement() {
 
   const openEditTeacher = (teacher: AbacusTeacher) => {
     setEditingTeacherId(teacher.id);
+    setShowTeacherPassword(false);
     setTeacherForm({
       fullName: teacher.fullName,
+      email: abacusDisplayUsername(teacher),
       username: abacusDisplayUsername(teacher),
       password: '',
       phone: teacher.phone || '',
@@ -871,7 +923,8 @@ export default function AbacusManagement() {
             setTeacherDialogOpen(open);
             if (!open) {
               setEditingTeacherId(null);
-              setTeacherForm({ fullName: '', username: '', password: '', phone: '', category: '', level: '' });
+              setShowTeacherPassword(false);
+              setTeacherForm({ fullName: '', email: '', username: '', password: '', phone: '', category: '', level: '' });
             }
           }}
         >
@@ -893,28 +946,68 @@ export default function AbacusManagement() {
                   className={FIELD}
                   value={teacherForm.fullName}
                   onChange={(e) => setTeacherForm((f) => ({ ...f, fullName: e.target.value }))}
+                  placeholder="Teacher’s full name (not email)"
+                  autoComplete="name"
                 />
               </div>
               <div className="space-y-2">
-                <Label>{editingTeacherId ? 'Username' : 'Username (auto-generated)'}</Label>
-                <Input className={`${FIELD} font-mono`} value={teacherForm.username} readOnly />
+                <Label>{editingTeacherId ? 'Login ID' : 'Login ID (optional)'}</Label>
+                <Input
+                  className={`${FIELD} font-mono`}
+                  value={teacherForm.email}
+                  onChange={(e) => setTeacherForm((f) => ({ ...f, email: e.target.value }))}
+                  placeholder={
+                    editingTeacherId
+                      ? abacusDisplayUsername({ username: teacherForm.username, email: teacherForm.email })
+                      : teacherForm.username || 'Leave blank for auto username'
+                  }
+                  autoComplete="username"
+                />
+                <p className="text-xs text-slate-500">
+                  {editingTeacherId
+                    ? 'Username used to sign in to Abacus. Change only if you need a different login.'
+                    : 'Leave blank to use the auto-generated username below. Do not put email in the Name field.'}
+                </p>
               </div>
+              {!editingTeacherId ? (
+                <div className="space-y-2">
+                  <Label>Username (auto-generated)</Label>
+                  <Input className={`${FIELD} font-mono`} value={teacherForm.username} readOnly />
+                </div>
+              ) : null}
               <div className="space-y-2">
                 <Label>Password</Label>
-                <Input
-                  className={FIELD}
-                  type="password"
-                  value={teacherForm.password}
-                  onChange={(e) => setTeacherForm((f) => ({ ...f, password: e.target.value }))}
-                  placeholder={editingTeacherId ? 'Leave blank to keep current password' : undefined}
-                />
+                <div className="relative">
+                  <Input
+                    className={`${FIELD} pr-10`}
+                    type={showTeacherPassword ? 'text' : 'password'}
+                    value={teacherForm.password}
+                    onChange={(e) => setTeacherForm((f) => ({ ...f, password: e.target.value }))}
+                    placeholder={editingTeacherId ? 'Leave blank to keep current password' : 'Minimum 6 characters'}
+                    autoComplete="new-password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowTeacherPassword((p) => !p)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
+                    aria-label={showTeacherPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showTeacherPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
               </div>
               <div className="space-y-2">
                 <Label>Phone</Label>
                 <Input
                   className={FIELD}
+                  type="tel"
+                  inputMode="numeric"
+                  maxLength={10}
                   value={teacherForm.phone}
-                  onChange={(e) => setTeacherForm((f) => ({ ...f, phone: e.target.value }))}
+                  onChange={(e) =>
+                    setTeacherForm((f) => ({ ...f, phone: formatPhoneInputValue(e.target.value) }))
+                  }
+                  placeholder="10-digit mobile (optional)"
                 />
               </div>
               <CategoryLevelFields
@@ -941,7 +1034,7 @@ export default function AbacusManagement() {
               <DialogTitle>Assign students</DialogTitle>
               <DialogDescription>
                 {assignTeacher
-                  ? `Select students for ${assignTeacher.fullName} (${assignTeacher.category} · ${assignTeacher.level})`
+                  ? `Select students for ${assignTeacher.fullName} (up to ${assignTeacher.category} · ${assignTeacher.level})`
                   : 'Select students for this teacher'}
               </DialogDescription>
             </DialogHeader>
@@ -982,7 +1075,7 @@ export default function AbacusManagement() {
               </div>
             ) : (
               <p className="py-8 text-center text-sm text-slate-500">
-                No students in this category and level yet.
+                No students at or below this teacher&apos;s level yet.
               </p>
             )}
             <DialogFooter>
@@ -1076,9 +1169,6 @@ export default function AbacusManagement() {
     <SuperAdminInnerPage
       toolbar={
         <SuperAdminToolbar>
-          <p className="text-sm text-slate-600">
-            Abacus API: separate backend (port 5001). Same MongoDB — no school admin dashboard.
-          </p>
           <Button className={SA_BTN_PRIMARY} onClick={() => { resetSchoolForm(); setSchoolDialogOpen(true); }}>
             <Plus className="mr-2 h-4 w-4" />
             Add school

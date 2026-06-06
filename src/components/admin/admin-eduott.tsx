@@ -17,7 +17,14 @@ import {
   Users,
   Calendar,
   Loader2,
+  Download,
+  Monitor,
+  HardDrive,
+  CheckCircle2,
 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { formatFileSize } from '@/lib/format-bytes';
 import { API_BASE_URL } from '@/lib/api-config';
 import { resolveContentDurationSeconds } from '@/lib/eduott-video-utils';
 import { AdminOttAnalyticsPanel } from '@/components/admin/AdminOttAnalyticsPanel';
@@ -28,7 +35,7 @@ import { OttContentRow } from '@/components/viswam-ott/OttContentRow';
 import { OttEmptyState } from '@/components/viswam-ott/OttEmptyState';
 import { OttMonthlyQuotaCard } from '@/components/ott/OttMonthlyQuotaCard';
 import { OttMobileDownloadBanner } from '@/components/ott/OttMobileDownloadBanner';
-import { fetchAdminSchoolOttQuota, type SchoolOttQuota } from '@/lib/ott/quota-api';
+import { fetchAdminSchoolOttQuota, fetchAdminOttDownloads, fetchAdminDesktopAppInfo, requestAdminOttDownload, confirmAdminOttDownload, formatOttBytes, resolveOttDownloadHref, type DesktopAppInfo, type OttDownloadRecord, type SchoolOttQuota } from '@/lib/ott/quota-api';
 import { useToast } from '@/hooks/use-toast';
 
 interface LiveSession {
@@ -90,6 +97,7 @@ function mapOttRowToVideo(content: Record<string, unknown>): AdminOttSourceRow |
     subjectId: String(subjectId),
     subjectName,
     classNumber: classNum,
+    size: Number(content.size ?? content.fileSizeBytes) || 0,
   };
 }
 
@@ -108,7 +116,21 @@ export default function AdminEduOTT() {
   const [videoSubjectFilter, setVideoSubjectFilter] = useState('all');
   const [sessionSearchTerm, setSessionSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
+  const [downloads, setDownloads] = useState<OttDownloadRecord[]>([]);
+  const [desktopApp, setDesktopApp] = useState<DesktopAppInfo | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const ottVideos = useMemo(() => rawVideos.map(mapAdminRowToOttVideo), [rawVideos]);
+
+  const downloadedIds = useMemo(
+    () => new Set(downloads.map((d) => String(d.contentId))),
+    [downloads],
+  );
+
+  const videoSizeById = useMemo(() => {
+    const map = new Map<string, number>();
+    rawVideos.forEach((row) => map.set(row._id, Number(row.size) || 0));
+    return map;
+  }, [rawVideos]);
 
   useEffect(() => {
     setVideoSubjectFilter('all');
@@ -118,9 +140,15 @@ export default function AdminEduOTT() {
     let cancelled = false;
     (async () => {
       setQuotaLoading(true);
-      const q = await fetchAdminSchoolOttQuota();
+      const [q, saved, desktop] = await Promise.all([
+        fetchAdminSchoolOttQuota(),
+        fetchAdminOttDownloads(),
+        fetchAdminDesktopAppInfo(),
+      ]);
       if (!cancelled) {
         setSchoolQuota(q);
+        setDownloads(saved);
+        setDesktopApp(desktop);
         setQuotaLoading(false);
       }
     })();
@@ -131,11 +159,73 @@ export default function AdminEduOTT() {
 
   const blockWebPlayback = useCallback(() => {
     toast({
-      title: 'Mobile app only',
+      title: 'Download to view offline',
       description:
-        'OTT videos are download-only in the VISWAM LMS mobile app. Streaming is not available on the website.',
+        'Click a video poster or use Download below each lesson. Streaming is not available on the website.',
     });
   }, [toast]);
+
+  const handleVideoDownload = useCallback(
+    async (videoId: string, title?: string) => {
+      if (schoolQuota?.downloadsEnabled === false) {
+        toast({
+          title: 'Downloads disabled',
+          description: 'Contact super admin to enable OTT downloads for your school.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      if (schoolQuota && schoolQuota.canDownloadMore === false) {
+        toast({
+          title: 'Quota exceeded',
+          description: `Your monthly limit of ${schoolQuota.schoolMonthlyDownloadGB} GB is used.`,
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      setDownloadingId(videoId);
+      try {
+        const req = await requestAdminOttDownload(videoId);
+        if (!req.ok || !req.data?.downloadUrl) {
+          toast({
+            title: 'Download blocked',
+            description: req.message || 'Could not start download',
+            variant: 'destructive',
+          });
+          return;
+        }
+
+        const bytes = req.data.bytes || videoSizeById.get(videoId) || 0;
+        const href = resolveOttDownloadHref(req.data.downloadUrl);
+        const anchor = document.createElement('a');
+        anchor.href = href;
+        anchor.download = `${title || req.data.title || 'video'}.mp4`;
+        anchor.rel = 'noopener';
+        anchor.target = '_blank';
+        document.body.appendChild(anchor);
+        anchor.click();
+        document.body.removeChild(anchor);
+
+        if (!req.data.alreadyDownloaded) {
+          const confirm = await confirmAdminOttDownload(videoId, bytes);
+          if (confirm.quota) setSchoolQuota(confirm.quota);
+        }
+
+        const [saved, q] = await Promise.all([fetchAdminOttDownloads(), fetchAdminSchoolOttQuota()]);
+        setDownloads(saved);
+        setSchoolQuota(q);
+
+        toast({
+          title: req.data.alreadyDownloaded ? 'Already downloaded' : 'Download started',
+          description: `${title || 'Video'} · ${formatFileSize(bytes)} counted toward your monthly quota`,
+        });
+      } finally {
+        setDownloadingId(null);
+      }
+    },
+    [schoolQuota, toast, videoSizeById],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -176,9 +266,9 @@ export default function AdminEduOTT() {
   const openVideoById = useCallback(
     (videoId: string) => {
       const found = ottVideos.find((v) => v.id === videoId);
-      if (found) blockWebPlayback();
+      void handleVideoDownload(videoId, found?.title);
     },
-    [ottVideos, blockWebPlayback],
+    [ottVideos, handleVideoDownload],
   );
 
   useEffect(() => {
@@ -267,6 +357,13 @@ export default function AdminEduOTT() {
     });
   }, [liveSessions, sessionSearchTerm, filterStatus]);
 
+  const desktopHref = desktopApp?.downloadUrl
+    ? resolveOttDownloadHref(desktopApp.downloadUrl)
+    : '';
+
+  const downloadBlocked =
+    schoolQuota?.downloadsEnabled === false || schoolQuota?.canDownloadMore === false;
+
   return (
     <div className="viswam-ott viswam-ott-admin">
       <header className="ott-admin-topbar">
@@ -296,6 +393,61 @@ export default function AdminEduOTT() {
 
       <div className="ott-admin-main px-4 sm:px-6 max-w-5xl mx-auto w-full space-y-4 pb-2">
         <OttMonthlyQuotaCard quota={schoolQuota} loading={quotaLoading} variant="admin" />
+
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100">
+                <Monitor className="h-5 w-5 text-slate-700" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-slate-900">VISWAM LMS Desktop (.exe)</h3>
+                <p className="text-xs text-slate-600 mt-1 max-w-lg">
+                  {desktopApp?.description ||
+                    'Install the Windows desktop app to browse OTT and save videos for offline viewing.'}
+                </p>
+              </div>
+            </div>
+            {desktopApp?.available && desktopHref ? (
+              <Button asChild className="bg-[#1A3557] hover:bg-[#152a45]">
+                <a href={desktopHref} download={desktopApp.fileName}>
+                  <Download className="h-4 w-4 mr-2" />
+                  Download desktop app
+                </a>
+              </Button>
+            ) : (
+              <Badge variant="outline" className="text-amber-800 border-amber-300 bg-amber-50">
+                Desktop installer not hosted yet
+              </Badge>
+            )}
+          </div>
+        </div>
+
+        {downloads.length > 0 ? (
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <HardDrive className="h-4 w-4 text-emerald-700" />
+              <h3 className="font-semibold text-emerald-900">Your downloaded videos</h3>
+              <Badge variant="secondary">{downloads.length}</Badge>
+            </div>
+            <p className="text-xs text-emerald-800 mb-3">
+              Total you downloaded this month:{' '}
+              <strong>{formatOttBytes(schoolQuota?.adminBytesUsed || 0)}</strong>
+            </p>
+            <ul className="space-y-2 max-h-40 overflow-y-auto">
+              {downloads.map((d) => (
+                <li
+                  key={d._id}
+                  className="flex items-center justify-between gap-2 text-sm rounded-lg bg-white/80 px-3 py-2 border border-emerald-100"
+                >
+                  <span className="truncate font-medium text-slate-800">{d.title || 'Video'}</span>
+                  <span className="shrink-0 text-xs text-slate-500">{formatOttBytes(d.bytes)}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+
         <OttMobileDownloadBanner />
       </div>
 
@@ -311,7 +463,10 @@ export default function AdminEduOTT() {
                 <AdminOttFeaturedHero
                   featured={featured}
                   videoCount={filteredVideos.length}
-                  onPlay={() => blockWebPlayback()}
+                  onPlay={() => {
+                    if (featured) void handleVideoDownload(featured.id, featured.title);
+                    else blockWebPlayback();
+                  }}
                 />
                 <AdminOttAnalyticsPanel variant="light" compact />
               </div>
@@ -375,23 +530,50 @@ export default function AdminEduOTT() {
                   }}
                 />
               ) : (
-                <div className="ott-admin-catalog">
+                <div className="ott-admin-catalog space-y-6">
                   {filteredVideos.length > 1 ? (
                     <OttContentRow
                       title="Continue browsing"
                       subtitle={`${filteredVideos.length} lessons available`}
                       videos={filteredVideos}
-                      onSelect={() => blockWebPlayback()}
+                      onSelect={(v) => void handleVideoDownload(v.id, v.title)}
                     />
                   ) : null}
                   {subjectRows.map(([subjectName, rows]) => (
-                    <OttContentRow
-                      key={subjectName}
-                      title={subjectName}
-                      subtitle={`Class ${rows[0]?.classLabel || '—'} · ${rows.length} lesson${rows.length !== 1 ? 's' : ''}`}
-                      videos={rows}
-                      onSelect={() => blockWebPlayback()}
-                    />
+                    <div key={subjectName} className="space-y-3">
+                      <OttContentRow
+                        title={subjectName}
+                        subtitle={`Class ${rows[0]?.classLabel || '—'} · ${rows.length} lesson${rows.length !== 1 ? 's' : ''}`}
+                        videos={rows}
+                        onSelect={(v) => void handleVideoDownload(v.id, v.title)}
+                      />
+                      <div className="flex flex-wrap gap-2 px-1">
+                        {rows.map((v) => {
+                          const saved = downloadedIds.has(v.id);
+                          const busy = downloadingId === v.id;
+                          return (
+                            <Button
+                              key={v.id}
+                              type="button"
+                              size="sm"
+                              variant={saved ? 'outline' : 'default'}
+                              className={saved ? '' : 'bg-emerald-600 hover:bg-emerald-700'}
+                              disabled={busy || downloadBlocked}
+                              onClick={() => void handleVideoDownload(v.id, v.title)}
+                            >
+                              {busy ? (
+                                <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                              ) : saved ? (
+                                <CheckCircle2 className="h-4 w-4 mr-1.5" />
+                              ) : (
+                                <Download className="h-4 w-4 mr-1.5" />
+                              )}
+                              {downloadBlocked ? 'Quota full' : saved ? 'Download again' : 'Download'}
+                            </Button>
+                          );
+                        })}
+                      </div>
+                    </div>
                   ))}
                 </div>
               )}

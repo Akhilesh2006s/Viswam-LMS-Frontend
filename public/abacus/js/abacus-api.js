@@ -21,7 +21,8 @@ window.AbacusAPI = {
       ...(this.token() ? { Authorization: `Bearer ${this.token()}` } : {}),
       ...(options.headers || {}),
     };
-    const res = await fetch(`${this.base()}${path}`, { ...options, headers });
+    const apiPath = path.startsWith('/api/') ? path : `/api${path.startsWith('/') ? path : `/${path}`}`;
+    const res = await fetch(`${this.base()}${apiPath}`, { ...options, headers });
     const json = await res.json().catch(() => ({}));
     if (!res.ok || json.success === false) {
       throw new Error(json.message || `Request failed (${res.status})`);

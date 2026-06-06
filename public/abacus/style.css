@@ -17,8 +17,9 @@
 --abacus-frame:#18181b;
 --abacus-frame-border:#09090b;
 --abacus-rod:#3f3f46;
---abacus-heaven-bead:#fb923c;
---abacus-earth-bead:#e11d48;
+/* Kit: orange heaven (5-bead), blue earth (1-bead) */
+--abacus-heaven-bead:#f97316;
+--abacus-earth-bead:#38bdf8;
 --abacus-value-box:#fff7ed;
 --abacus-highlight:#fde68a;
 --abacus-accent:#ea580c;

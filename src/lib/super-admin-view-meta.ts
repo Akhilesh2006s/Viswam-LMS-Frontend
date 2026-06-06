@@ -69,7 +69,12 @@ export const SUPER_ADMIN_VIEW_META: Partial<Record<SuperAdminView, SuperAdminVie
   },
   analytics: {
     title: "Analytics",
-    description: "Enterprise insights across schools and learners.",
+    description: "School performance, content usage, and platform insights.",
+    icon: LineChart,
+  },
+  "student-analytics": {
+    title: "Student analytics",
+    description: "Engagement, assessments, and learner activity across the platform.",
     icon: LineChart,
   },
   subscriptions: {

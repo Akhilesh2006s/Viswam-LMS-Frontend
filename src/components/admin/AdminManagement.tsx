@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -269,6 +269,7 @@ export default function AdminManagement() {
   const [admins, setAdmins] = useState<Admin[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isAddingAdmin, setIsAddingAdmin] = useState(false);
+  const addAdminSubmitLock = useRef(false);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingAdmin, setEditingAdmin] = useState<Admin | null>(null);
@@ -380,6 +381,69 @@ export default function AdminManagement() {
         schoolType: sd.schoolType || ''
       }
     };
+  };
+
+  const completeAddAdminSuccess = (
+    newSchoolAdminId?: string,
+    description = "School added successfully",
+  ) => {
+    setNewAdmin({
+      name: '',
+      email: '',
+      password: '',
+      primaryProductCode: '',
+      productCodes: [],
+      isAsliPrepExclusive: false,
+      state: '',
+      schoolName: '',
+      schoolCode: '',
+      schoolLogo: '',
+      phone: '',
+      pin: '',
+      contactPerson: '',
+      secondaryContactPerson: '',
+      secondaryContactPhone: '',
+      schoolDetails: emptySchoolDetails(),
+      accessMode: "unlimited",
+      limitedFeatures: [...SCHOOL_PORTAL_FEATURE_IDS],
+    });
+    setNewProductAssignments([
+      newProductAssignmentRow(
+        catalogProducts[0]?.code || "",
+        catalogProducts[0],
+      ),
+    ]);
+    setShowNewAdminPassword(false);
+    setIsAddDialogOpen(false);
+    toast({
+      title: "Success",
+      description,
+    });
+    if (newSchoolAdminId) {
+      setLocation(`/super-admin/schools/${newSchoolAdminId}`);
+    }
+  };
+
+  const refreshAdminsFromApi = async (token: string) => {
+    const list = await fetch(`${API_BASE_URL}/api/super-admin/admins`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .catch(() => null);
+    if (Array.isArray(list)) {
+      const mapped = list.map(mapAdminState);
+      setAdmins(mapped);
+      return mapped;
+    }
+    if (list?.data && Array.isArray(list.data)) {
+      const mapped = list.data.map(mapAdminState);
+      setAdmins(mapped);
+      return mapped;
+    }
+    return admins;
   };
 
   /**
@@ -560,8 +624,8 @@ export default function AdminManagement() {
   }, []);
 
   const handleAddAdmin = async () => {
-    if (isAddingAdmin) return; // Prevent multiple submissions
-    
+    if (isAddingAdmin || addAdminSubmitLock.current) return;
+
     const sd = newAdmin.schoolDetails;
     const validAssignments = newProductAssignments.filter((r) =>
       isAssignmentRowValid(r, catalogProducts),
@@ -624,6 +688,7 @@ export default function AdminManagement() {
     }
 
     setIsAddingAdmin(true);
+    addAdminSubmitLock.current = true;
     try {
       const token = localStorage.getItem('authToken');
       
@@ -670,58 +735,32 @@ export default function AdminManagement() {
       if (response.ok) {
         const newSchoolAdminId =
           createdJson?.data?.id || createdJson?.data?._id || createdJson?.id;
-        const fetchResponse = await fetch(`${API_BASE_URL}/api/super-admin/admins`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
-        if (fetchResponse.ok) {
-          const fetchData = await fetchResponse.json();
-          if (Array.isArray(fetchData)) {
-            setAdmins(fetchData.map(mapAdminState));
-          } else if (fetchData.data && Array.isArray(fetchData.data)) {
-            setAdmins(fetchData.data.map(mapAdminState));
-          }
+        if (token) {
+          await refreshAdminsFromApi(token);
         }
-        setNewAdmin({
-          name: '',
-          email: '',
-          password: '',
-          primaryProductCode: '',
-          productCodes: [],
-          isAsliPrepExclusive: false,
-          state: '',
-          schoolName: '',
-          schoolCode: '',
-          schoolLogo: '',
-          phone: '',
-          pin: '',
-          contactPerson: '',
-          secondaryContactPerson: '',
-          secondaryContactPhone: '',
-          schoolDetails: emptySchoolDetails(),
-          accessMode: "unlimited",
-          limitedFeatures: [...SCHOOL_PORTAL_FEATURE_IDS],
-        });
-        setNewProductAssignments([
-          newProductAssignmentRow(
-            catalogProducts[0]?.code || "",
-            catalogProducts[0],
-          ),
-        ]);
-        setShowNewAdminPassword(false);
-        setIsAddDialogOpen(false);
-        toast({
-          title: "Success",
-          description: "School added successfully",
-        });
-        if (newSchoolAdminId) {
-          setLocation(`/super-admin/schools/${newSchoolAdminId}`);
-        }
+        completeAddAdminSuccess(newSchoolAdminId);
       } else {
         console.log('API Error Response:', createdJson);
-        throw new Error(createdJson.message || 'Failed to add school');
+        const errorMessage = createdJson.message || 'Failed to add school';
+        const duplicateCode =
+          /school code/i.test(errorMessage) &&
+          (/already used/i.test(errorMessage) || /already exists/i.test(errorMessage));
+
+        if (duplicateCode && token) {
+          const refreshed = await refreshAdminsFromApi(token);
+          const created = refreshed.find(
+            (a) => a?.email?.trim().toLowerCase() === newAdmin.email.trim().toLowerCase(),
+          );
+          if (created?.id) {
+            completeAddAdminSuccess(
+              created.id,
+              "School was created successfully (duplicate submit ignored).",
+            );
+            return;
+          }
+        }
+
+        throw new Error(errorMessage);
       }
     } catch (error) {
       console.error('Error adding admin:', error);
@@ -734,12 +773,6 @@ export default function AdminManagement() {
           description: "Cannot connect to the server. Please check your internet connection and ensure the backend is running.",
           variant: "destructive",
         });
-      } else if (errorMessage.includes('already exists')) {
-        toast({
-          title: "Admin Already Exists",
-          description: "A school with this email already exists. Please use a different email.",
-          variant: "destructive",
-        });
       } else {
         toast({
           title: "Error",
@@ -749,6 +782,7 @@ export default function AdminManagement() {
       }
     } finally {
       setIsAddingAdmin(false);
+      addAdminSubmitLock.current = false;
     }
   };
 

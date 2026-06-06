@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useLocation, Link } from 'wouter';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,13 +7,18 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Eye, EyeOff, Mail, Lock, Loader2 } from 'lucide-react';
 import { API_BASE_URL } from '@/lib/api-config';
 import { abacusLogin, isAbacusLogin } from '@/lib/abacus-api';
-import { abacusDashboardPath, isAbacusUser } from '@/lib/abacus-auth';
+import {
+  abacusDashboardPath,
+  clearAbacusPortalStorage,
+  isAbacusUser,
+} from '@/lib/abacus-auth';
 import { setAuthToken, setUser } from '@/lib/auth-utils';
 import { invalidateAuthSessionCache } from '@/lib/auth-session';
 import { invalidateDashboardBootstrapCache, fetchDashboardBootstrap } from '@/lib/dashboard-bootstrap';
 import { AuthSplitLayout } from '@/components/layout/AuthSplitLayout';
 import { usePageTitle } from '@/hooks/use-page-title';
 import { PRODUCT_NAME } from '@/lib/brand';
+import { isViswamNativeShell } from '@/lib/native-shell';
 
 const Login = () => {
   usePageTitle('Login');
@@ -22,6 +27,16 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [nativeShell] = useState(() => isViswamNativeShell());
+
+  if (nativeShell) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-[var(--background)] px-6">
+        <Loader2 className="h-8 w-8 animate-spin text-[var(--brand-emerald)] mb-3" />
+        <p className="text-sm text-[var(--text-secondary)]">Opening app login…</p>
+      </div>
+    );
+  }
 
   const redirectAfterLogin = (user: { role: string; productLine?: string }, usedAbacusApi = false) => {
     if (user.role === 'super-admin') {
@@ -56,9 +71,24 @@ const Login = () => {
           credentials: 'include',
           body: JSON.stringify(formData),
         });
-        data = await response.json();
+        const raw = await response.text();
+        try {
+          data = raw ? JSON.parse(raw) : {};
+        } catch {
+          const serverDown =
+            response.status === 502 ||
+            response.status === 503 ||
+            response.status === 504 ||
+            /ROUTER_EXTERNAL_TARGET|An error occurred/i.test(raw);
+          setError(
+            serverDown
+              ? 'Server is temporarily unavailable. The production API backend is not reachable — try again shortly or contact your administrator.'
+              : raw.slice(0, 160) || 'Login failed — invalid server response.',
+          );
+          return;
+        }
         if (!response.ok) {
-          setError(data.message || 'Login failed');
+          setError((data as { message?: string }).message || 'Login failed');
           return;
         }
       }
@@ -75,6 +105,9 @@ const Login = () => {
       const userRecord = useAbacusApi
         ? { ...data.user, productLine: 'ABACUS' as const }
         : data.user;
+      if (!useAbacusApi) {
+        clearAbacusPortalStorage();
+      }
       setUser(userRecord);
       localStorage.setItem('userRole', userRecord.role);
       if (userRecord.email) localStorage.setItem('userEmail', userRecord.email);

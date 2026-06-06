@@ -26,10 +26,25 @@ html.viswam-native-shell .sa-premium-shell .flex.min-h-screen.pt-14 {
   padding-top: calc(3.5rem + env(safe-area-inset-top, 0px));
 }
 
+/* School workspace in app WebView — native bar handles back */
+html.viswam-native-shell .viswam-school-workspace-shell .viswam-premium-topnav {
+  display: none !important;
+}
+
+html.viswam-native-shell .viswam-school-workspace-shell .viswam-premium-main {
+  padding-top: 0.5rem;
+}
+
 html.viswam-native-shell .sa-premium-shell .flex.min-h-screen.pb-20 {
   padding-bottom: 0;
 }
 
 html.viswam-native-shell .sa-premium-shell .flex.min-h-screen.pt-14 {
   padding-top: calc(3.5rem + env(safe-area-inset-top, 0px));
+}
+
+/* Student top nav — hidden in app; native tabs own navigation */
+html.viswam-native-shell header.sticky.top-0,
+html.viswam-native-shell nav.fixed.top-0.z-50 {
+  display: none !important;
 }

@@ -10,8 +10,8 @@ export function OttMobileOnlyGate() {
       <h1 className="text-2xl font-bold text-[#1A3557]">Viswam OTT is in the mobile app</h1>
       <p className="mt-3 max-w-md text-sm leading-relaxed text-slate-600">
         Streaming is not available on the website. Students and teachers download videos in the
-        VISWAM LMS app and watch offline — like Netflix downloads. Your school admin sets monthly
-        download limits (GB).
+        VISWAM LMS app and watch offline — like Netflix downloads. The platform super admin sets
+        each school&apos;s monthly download limit (GB); all students share that pool.
       </p>
       <p className="mt-6 text-xs text-slate-500">
         Install the app, sign in with the same account, and open the OTT tab to download content.

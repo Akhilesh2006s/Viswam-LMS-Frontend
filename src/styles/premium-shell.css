@@ -119,6 +119,10 @@
   padding-top: 0;
 }
 
+.viswam-premium-main-cinema:has(.viswam-ott-admin) {
+  padding-bottom: 2rem;
+}
+
 .viswam-premium-mobile-bar {
   position: fixed;
   bottom: 0;
@@ -154,6 +158,16 @@
   flex-direction: row;
   align-items: stretch;
   min-height: calc(100vh - 3.5rem);
+}
+
+/* OTT tab — don't lock main to viewport height; allow full page scroll */
+.viswam-premium-shell--sidebar-right .viswam-premium-body-row:has(.viswam-ott-admin) {
+  align-items: flex-start;
+  min-height: 0;
+}
+
+.viswam-premium-shell--sidebar-right .viswam-premium-main:has(.viswam-ott-admin) {
+  overflow: visible;
 }
 
 .viswam-premium-shell--sidebar-right .viswam-premium-main {

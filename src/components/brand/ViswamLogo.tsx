@@ -15,6 +15,28 @@ const sizeMap = {
   lg: { img: "h-12 w-12", title: "text-lg", sub: "text-sm" },
 };
 
+function LogoMark({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 64 64" className={className} aria-hidden>
+      <defs>
+        <linearGradient id="viswam-logo-grad" x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#10b981" />
+          <stop offset="100%" stopColor="#0ea5e9" />
+        </linearGradient>
+      </defs>
+      <rect width="64" height="64" rx="14" fill="url(#viswam-logo-grad)" />
+      <path
+        d="M18 44V20l14 16 14-16v24"
+        fill="none"
+        stroke="white"
+        strokeWidth="5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 export function ViswamLogo({
   className,
   subtitle,
@@ -32,10 +54,13 @@ export function ViswamLogo({
       <div
         className={cn(
           s.img,
-          "rounded-xl bg-white/10 border border-white/15 flex items-center justify-center overflow-hidden shrink-0"
+          "rounded-xl flex items-center justify-center overflow-hidden shrink-0",
+          variant === "light"
+            ? "bg-white/10 border border-white/15"
+            : "bg-slate-50 border border-slate-200"
         )}
       >
-        <img src="/logo.png" alt={PRODUCT_NAME} className="h-full w-full object-contain" />
+        <LogoMark className="h-full w-full" />
       </div>
       <div className="min-w-0">
         <p className={cn(s.title, "font-bold tracking-tight truncate", titleClass)}>

@@ -250,8 +250,9 @@ function ClassSubjectMultiSelect({
 
   if (!available.length) {
     return (
-      <p className="text-[10px] text-amber-700 leading-snug">
-        No {tagLabel} on Products page for this {isLevelBasedProduct(product) ? "level" : "class"}.
+      <p className="text-[10px] text-violet-700 leading-snug bg-violet-50 border border-violet-100 rounded-md px-2 py-1.5">
+        Add {tagLabel} on the <strong>Products</strong> catalog for this{" "}
+        {isLevelBasedProduct(product) ? "level" : "class"}, then save the school again.
       </p>
     );
   }
@@ -278,11 +279,11 @@ function ClassSubjectMultiSelect({
           className={cn(
             "h-9 w-full justify-between text-left font-normal text-xs",
             fieldClass,
-            selected.length === 0 && "text-slate-500 border-amber-200",
+            selected.length === 0 && "text-slate-500 border-violet-200",
           )}
         >
           <span className="flex items-center gap-1.5 truncate">
-            <BookOpen className="h-3.5 w-3.5 shrink-0 text-[var(--brand-emerald)]" />
+            <BookOpen className="h-3.5 w-3.5 shrink-0 text-violet-600" />
             {summary}
           </span>
           <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-60" />
@@ -416,9 +417,9 @@ export function SchoolProductAssignmentEditor({
           return (
             <div
               key={row.id}
-              className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden"
+              className="rounded-xl border border-slate-200/90 bg-white shadow-sm overflow-hidden"
             >
-              <div className="flex flex-wrap items-center gap-3 border-b border-slate-100 bg-slate-50/80 px-4 py-3">
+              <div className="flex flex-wrap items-center gap-3 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-violet-50/50 px-4 py-3">
                 <div className="flex-1 min-w-[200px] space-y-1">
                   <Label className="text-xs text-slate-500">Product {index + 1}</Label>
                   <Select
@@ -467,10 +468,10 @@ export function SchoolProductAssignmentEditor({
                     {enabledSlots.map((slot) => (
                       <div
                         key={slot.classNumber}
-                        className="rounded-lg border border-slate-200 bg-slate-50/50 p-3 space-y-3"
+                        className="rounded-lg border border-violet-200/60 bg-gradient-to-br from-violet-50/50 to-white p-3 space-y-3"
                       >
                         <div className="flex items-start justify-between gap-2">
-                          <p className="text-sm font-semibold text-[var(--brand-navy)]">
+                          <p className="text-sm font-semibold text-violet-900">
                             {slotLabel(product, slot.classNumber)}
                           </p>
                           <Button

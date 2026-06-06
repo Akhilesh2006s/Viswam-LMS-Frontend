@@ -59,7 +59,10 @@ export default defineConfig({
         target: process.env.VITE_ABACUS_BACKEND_URL || 'http://localhost:5001',
         changeOrigin: true,
         secure: false,
-        rewrite: (path) => path.replace(/^\/abacus-api/, '/api'),
+        rewrite: (path) => {
+          const rest = path.replace(/^\/abacus-api/, '');
+          return rest.startsWith('/api/') ? rest : `/api${rest}`;
+        },
       },
     },
   },

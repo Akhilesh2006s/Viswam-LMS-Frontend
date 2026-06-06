@@ -11,7 +11,24 @@ import { isCdnHostedUrl, resolveMediaUrl } from "./media-url";
 const PRODUCTION_API_PROXY = "";
 const PRODUCTION_ABACUS_PROXY = "/abacus-api";
 
+declare global {
+  interface Window {
+    viswamDesktop?: { apiBaseUrl?: string; isDesktopApp?: boolean };
+  }
+}
+
+/** Desktop bundled shell: same-origin /api via Electron proxy (see viswam-desktop main.cjs). */
+const DESKTOP_DEFAULT_API = "";
+
 function resolveProductionApiBaseUrl(): string {
+  if (typeof window !== "undefined" && window.viswamDesktop?.apiBaseUrl) {
+    return window.viswamDesktop.apiBaseUrl.replace(/\/$/, "");
+  }
+  if (import.meta.env.VITE_DESKTOP_BUILD === "true") {
+    const desktop = import.meta.env.VITE_API_URL_PROD?.trim();
+    if (desktop) return desktop.replace(/\/$/, "");
+    return PRODUCTION_API_PROXY;
+  }
   const fromEnv = import.meta.env.VITE_API_URL_PROD?.trim() ?? "";
   if (fromEnv.startsWith("https://")) return fromEnv.replace(/\/$/, "");
   return PRODUCTION_API_PROXY;
@@ -24,19 +41,30 @@ function resolveProductionAbacusBaseUrl(): string {
   return PRODUCTION_ABACUS_PROXY;
 }
 
-const DEV_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+function resolveDevApiBaseUrl(): string {
+  const raw = import.meta.env.VITE_API_URL?.trim();
+  // Same-origin /api → Vite dev server proxies to localhost:5000 (no CORS).
+  if (raw === "proxy") return "";
+  return (raw || "http://localhost:5000").replace(/\/$/, "");
+}
+
+const DEV_DIRECT_API = (() => {
+  const raw = import.meta.env.VITE_API_URL?.trim();
+  if (raw === "proxy") return "http://localhost:5000";
+  return (raw || "http://localhost:5000").replace(/\/$/, "");
+})();
 
 export const API_BASE_URL =
   import.meta.env.MODE === "production"
     ? resolveProductionApiBaseUrl()
-    : DEV_URL.replace(/\/$/, "");
+    : resolveDevApiBaseUrl();
 
 /**
  * Origin for /uploads/... files (DigitalOcean). API calls may use '' (Vercel /api proxy).
  */
 export const MEDIA_BASE_URL =
   import.meta.env.VITE_MEDIA_BASE_URL?.trim().replace(/\/$/, "") ||
-  DEV_URL.replace(/\/$/, "") ||
+  DEV_DIRECT_API ||
   "http://206.189.179.75:5000";
 
 /** Standalone Abacus API (port 5001 locally). Same DB, separate server. */

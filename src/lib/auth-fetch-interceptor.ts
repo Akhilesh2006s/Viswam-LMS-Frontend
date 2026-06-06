@@ -1,5 +1,6 @@
 import { API_BASE_URL } from "@/lib/api-config";
 import { clearAuthData } from "@/lib/auth-utils";
+import { isViswamNativeShell } from "@/lib/native-shell";
 
 let redirectScheduled = false;
 
@@ -50,6 +51,8 @@ function resolveUrlString(input: RequestInfo | URL, init?: RequestInit): string 
 }
 
 function silentLogoutRedirect(): void {
+  // Native app injects JWT — don't replace WebView with web /signin on API errors.
+  if (isViswamNativeShell()) return;
   if (redirectScheduled) return;
   redirectScheduled = true;
   clearAuthData();

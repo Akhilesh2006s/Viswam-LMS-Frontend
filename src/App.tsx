@@ -17,6 +17,7 @@ const AdminPeriodDetailPage = lazy(() => import("./pages/admin/period-detail"));
 const TimetableManagementPage = lazy(() => import("./pages/admin/timetable"));
 const TeacherDashboard = lazy(() => import("./pages/teacher/dashboard"));
 const TeacherTimetablePage = lazy(() => import("./pages/teacher/timetable"));
+const TeacherPeriodDetailPage = lazy(() => import("./pages/teacher/period-detail"));
 const TeacherSubjectContent = lazy(() => import("./pages/teacher/subject-content"));
 const AsliPrepContentPage = lazy(() => import("./pages/asli-prep-content"));
 const SubjectContent = lazy(() => import("./pages/subject-content"));
@@ -49,8 +50,29 @@ const AbacusAboutPage = lazy(() => import("./pages/abacus/about"));
 
 function RouteFallback() {
   const [location] = useLocation();
+  const isStaffRoute =
+    location.startsWith("/admin") ||
+    location.startsWith("/super-admin") ||
+    location.startsWith("/teacher");
+  if (isStaffRoute) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="h-8 w-8 border-2 border-slate-300 border-t-slate-800 rounded-full animate-spin" />
+      </div>
+    );
+  }
   const isAbacus = location.startsWith("/abacus");
-  return <StudentPageLoader showNavigation={!isAbacus} message="Loading page..." />;
+  const isAuthRoute =
+    location === "/" ||
+    location === "/signin" ||
+    location === "/login" ||
+    location.startsWith("/auth/");
+  return (
+    <StudentPageLoader
+      showNavigation={!isAbacus && !isAuthRoute}
+      message="Loading page..."
+    />
+  );
 }
 
 function Router() {
@@ -58,6 +80,7 @@ function Router() {
     <Suspense fallback={<RouteFallback />}>
       <Switch>
       <Route path="/" component={Login} />
+      <Route path="/login" component={Login} />
       <Route path="/dashboard" component={Dashboard} />
       <Route path="/learning-paths" component={LearningPaths} />
       <Route path="/tests" component={PracticeTests} />
@@ -79,6 +102,7 @@ function Router() {
       <Route path="/admin/subject/:id" component={AdminSubjectContent} />
       <Route path="/admin/timetable" component={TimetableManagementPage} />
       <Route path="/teacher/dashboard" component={TeacherDashboard} />
+      <Route path="/teacher/period/:id" component={TeacherPeriodDetailPage} />
       <Route path="/teacher/timetable" component={TeacherTimetablePage} />
       <Route path="/teacher/subject/:id" component={TeacherSubjectContent} />
       <Route path="/abacus/teacher" component={AbacusTeacherDashboard} />

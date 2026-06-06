@@ -62,9 +62,9 @@ export function ensureRestrictionsShape(raw: OttRestrictionsPayload | null): Ott
   return {
     ...raw,
     delivery: {
-      webStreaming: false,
-      mobileDownloads: true,
       ...raw.delivery,
+      webStreaming: false,
+      mobileDownloads: raw.delivery?.mobileDownloads !== false,
     },
     studentDownloadQuotas: Array.isArray(raw.studentDownloadQuotas) ? raw.studentDownloadQuotas : [],
     contentAccess: {
@@ -75,6 +75,23 @@ export function ensureRestrictionsShape(raw: OttRestrictionsPayload | null): Ott
       hiddenSubjects: [...(raw.contentAccess?.hiddenSubjects || [])],
     },
     rules: Array.isArray(raw.rules) ? raw.rules.map((r) => ({ ...r, enabled: r.enabled !== false })) : [],
+  };
+}
+
+/** Persist school-only download policy (no per-student caps, no web streaming). */
+export function normalizeOttRestrictionsForSave(
+  raw: OttRestrictionsPayload,
+): OttRestrictionsPayload {
+  const base = ensureRestrictionsShape(raw) || raw;
+  return {
+    ...base,
+    limits: { ...base.limits, defaultStudentMonthlyDownloadGB: 0 },
+    studentDownloadQuotas: [],
+    delivery: {
+      ...base.delivery,
+      webStreaming: false,
+      mobileDownloads: base.delivery?.mobileDownloads !== false,
+    },
   };
 }
 

@@ -16,9 +16,37 @@ function readAbacusEmail(user?: AbacusUser | null): string {
   return String(user?.email || localStorage.getItem('userEmail') || '').trim();
 }
 
+/** Active Abacus student/teacher session (not stale keys after LMS staff login). */
+export function isAbacusPortalSession(): boolean {
+  try {
+    if (localStorage.getItem('productLine') !== 'ABACUS') return false;
+    if (!localStorage.getItem('authToken')) return false;
+    const role =
+      localStorage.getItem('userRole') ||
+      (getUser() as AbacusUser | null)?.role ||
+      '';
+    return role === 'student' || role === 'teacher';
+  } catch {
+    return false;
+  }
+}
+
+export function staffDashboardPath(role?: string | null): string | null {
+  if (role === 'super-admin') return '/super-admin/dashboard';
+  if (role === 'admin') return '/admin/dashboard';
+  if (role === 'teacher') return '/teacher/dashboard';
+  return null;
+}
+
+export function clearAbacusPortalStorage(): void {
+  localStorage.removeItem('productLine');
+  localStorage.removeItem('student');
+  localStorage.removeItem('abacusUser');
+}
+
 export function isAbacusUser(user?: AbacusUser | null): boolean {
   try {
-    if (localStorage.getItem('productLine') === 'ABACUS') return true;
+    if (isAbacusPortalSession()) return true;
 
     const stored = getUser() as AbacusUser | null;
     const resolved = user ?? stored;
@@ -26,8 +54,6 @@ export function isAbacusUser(user?: AbacusUser | null): boolean {
 
     const email = readAbacusEmail(resolved);
     if (isAbacusLogin(email)) return true;
-
-    if (localStorage.getItem('student')) return true;
 
     if (typeof window !== 'undefined' && window.location.pathname.startsWith('/abacus')) {
       return true;

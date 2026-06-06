@@ -6,18 +6,48 @@
   }
 
   const userRank = student?.rank || 1;
+  let categoryLoadSeq = 0;
+  let levelLoadSeq = 0;
+  let autoInitDone = false;
+  let levelsInflight = null;
+
+  function uniqueLevels(levels) {
+    const seen = new Set();
+    const out = [];
+    (levels || []).forEach((l) => {
+      const name = l?.level_name;
+      if (!name || seen.has(name)) return;
+      seen.add(name);
+      out.push(l);
+    });
+    return out;
+  }
+
+  function fillLevelDropdown(levelDropdown, levels, selectedLevel) {
+    levelDropdown.innerHTML = '<option value="">Level</option>';
+    uniqueLevels(levels).forEach((l) => {
+      const op = document.createElement('option');
+      op.value = l.level_name;
+      op.textContent = l.Dropdown_names || l.level_name;
+      op.dataset.rank = String(l.rank);
+      levelDropdown.appendChild(op);
+    });
+    if (selectedLevel) levelDropdown.value = selectedLevel;
+  }
 
   async function loadCategories() {
+    const seq = ++categoryLoadSeq;
+    const dropdown = document.getElementById('category');
+    if (!dropdown) return;
     try {
       const json = await AbacusAPI.fetch('/portal/catalog');
+      if (seq !== categoryLoadSeq) return;
       const categories = json.data.categories || [];
-      const dropdown = document.getElementById('category');
-      if (!dropdown) return;
       dropdown.innerHTML = '<option value="">Category</option>';
       categories.forEach((c) => {
         const op = document.createElement('option');
         op.value = c.category;
-        op.text = c.category;
+        op.textContent = c.category;
         dropdown.appendChild(op);
       });
       if (student?.category) {
@@ -30,28 +60,37 @@
   }
 
   async function updateLevels() {
-    const category = document.getElementById('category')?.value;
-    const levelDropdown = document.getElementById('level');
-    if (!levelDropdown) return;
-    levelDropdown.innerHTML = '<option value="">Level</option>';
-    if (!category) return;
-
-    try {
-      const json = await AbacusAPI.fetch('/portal/catalog');
-      const cat = (json.data.categories || []).find((c) => c.category === category);
-      if (!cat) return;
-      cat.levels.forEach((l) => {
-        const op = document.createElement('option');
-        op.value = l.level_name;
-        op.text = l.Dropdown_names || l.level_name;
-        op.dataset.rank = String(l.rank);
-        levelDropdown.appendChild(op);
-      });
-      if (student?.level && student?.category === category) {
-        levelDropdown.value = student.level;
+    if (levelsInflight) return levelsInflight;
+    levelsInflight = (async () => {
+      const category = document.getElementById('category')?.value;
+      const levelDropdown = document.getElementById('level');
+      if (!levelDropdown) return;
+      const seq = ++levelLoadSeq;
+      if (!category) {
+        levelDropdown.replaceChildren();
+        const ph = document.createElement('option');
+        ph.value = '';
+        ph.textContent = 'Level';
+        levelDropdown.appendChild(ph);
+        return;
       }
-    } catch (error) {
-      console.error(error);
+
+      try {
+        const json = await AbacusAPI.fetch('/portal/catalog');
+        if (seq !== levelLoadSeq) return;
+        const cat = (json.data.categories || []).find((c) => c.category === category);
+        if (!cat) return;
+        const selected =
+          student?.level && student?.category === category ? student.level : '';
+        fillLevelDropdown(levelDropdown, cat.levels, selected);
+      } catch (error) {
+        console.error(error);
+      }
+    })();
+    try {
+      await levelsInflight;
+    } finally {
+      levelsInflight = null;
     }
   }
 
@@ -103,10 +142,13 @@
   window.saveCategory = saveCategory;
   window.saveLevel = saveLevel;
 
-  document.addEventListener('DOMContentLoaded', () => {
-    if (document.getElementById('category')) loadCategories();
-  });
-  if (document.readyState !== 'loading' && document.getElementById('category')) {
-    loadCategories();
+  function maybeAutoInit() {
+    if (window.__ABACUS_SPA) return;
+    if (autoInitDone || !document.getElementById('category')) return;
+    autoInitDone = true;
+    void loadCategories();
   }
+
+  document.addEventListener('DOMContentLoaded', maybeAutoInit);
+  if (document.readyState !== 'loading') maybeAutoInit();
 })();

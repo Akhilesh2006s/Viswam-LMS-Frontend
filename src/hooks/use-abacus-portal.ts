@@ -3,7 +3,11 @@ import {
   fetchAbacusPortalMe,
   type AbacusPortalProfile,
 } from '@/lib/abacus-api';
-import { abacusDashboardPath } from '@/lib/abacus-auth';
+import {
+  abacusDashboardPath,
+  isAbacusPortalSession,
+  staffDashboardPath,
+} from '@/lib/abacus-auth';
 import { abacusLogout } from '@/lib/abacus-logout';
 
 type UseAbacusPortalOptions = {
@@ -22,8 +26,9 @@ export function useAbacusPortal({ role, strict = true }: UseAbacusPortalOptions 
 
     async function load() {
       const token = localStorage.getItem('authToken');
-      if (!token || localStorage.getItem('productLine') !== 'ABACUS') {
-        window.location.href = '/auth/login';
+      if (!token || !isAbacusPortalSession()) {
+        const staffPath = staffDashboardPath(localStorage.getItem('userRole'));
+        window.location.href = staffPath || '/auth/login';
         return;
       }
 
@@ -46,6 +51,7 @@ export function useAbacusPortal({ role, strict = true }: UseAbacusPortalOptions 
             category: data.student.category,
             level: data.student.level,
             rank: data.student.rank,
+            accessSummary: data.student.accessSummary,
             role: data.student.role,
           }),
         );

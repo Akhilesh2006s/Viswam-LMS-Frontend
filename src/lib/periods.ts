@@ -137,10 +137,14 @@ export async function setPeriodContents(
 }
 
 export async function fetchStudentPeriods(): Promise<SchoolPeriod[]> {
-  const res = await fetch(`${API_BASE_URL}/api/student/periods`, { headers: authHeaders() });
-  if (!res.ok) return [];
-  const json = await res.json();
-  return json.data || [];
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/student/periods`, { headers: authHeaders() });
+    if (!res.ok) return [];
+    const json = await res.json();
+    return json.data || [];
+  } catch {
+    return [];
+  }
 }
 
 export async function toggleAdminPeriodContent(

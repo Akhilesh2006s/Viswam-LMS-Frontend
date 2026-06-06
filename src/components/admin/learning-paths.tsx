@@ -1,8 +1,6 @@
-import { useState, useEffect, useMemo } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -11,17 +9,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { 
-  BookOpen, 
-  GraduationCap,
-  BarChart3,
-  Target,
-  Zap,
-  ArrowRight,
-  Layers3
-} from 'lucide-react';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { BookOpen, ChevronRight, Loader2 } from 'lucide-react';
 import { useLocation } from 'wouter';
 import { API_BASE_URL } from '@/lib/api-config';
+import { AdminPageShell } from '@/components/admin/admin-ui';
 import { resolveIsAsliPrepExclusive } from '@/lib/school-program';
 import {
   extractPlainSubjectName,
@@ -218,10 +217,8 @@ function consolidateDuplicateSubjectCards(rows: any[]): any[] {
 
 export default function AdminLearningPaths() {
   const [, setLocation] = useLocation();
-  const [subjects, setSubjects] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
   const [subjectsWithContent, setSubjectsWithContent] = useState<any[]>([]);
-  const [isLoadingContent, setIsLoadingContent] = useState(false);
   const [classFilter, setClassFilter] = useState<string>('all');
   const [subjectFilter, setSubjectFilter] = useState<string>('all');
   const [isAsliPrepExclusive, setIsAsliPrepExclusive] = useState(false);
@@ -279,33 +276,38 @@ export default function AdminLearningPaths() {
     });
   }, [subjectsWithContent, classFilter, subjectFilter]);
 
-  const groupedSubjectsByClass = useMemo(() => {
-    const grouped = new Map<string, any[]>();
-    for (const subj of filteredSubjectsWithContent) {
-      const classLabel = getLearningPathClassLabel(subj) || 'Unassigned';
-      if (!grouped.has(classLabel)) grouped.set(classLabel, []);
-      grouped.get(classLabel)!.push(subj);
-    }
-
-    const classKeys = Array.from(grouped.keys()).sort((a, b) => {
-      if (a === 'Unassigned') return 1;
-      if (b === 'Unassigned') return -1;
-      const na = parseInt(a, 10);
-      const nb = parseInt(b, 10);
-      if (!Number.isNaN(na) && !Number.isNaN(nb)) return na - nb;
-      return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
-    });
-
-    return classKeys.map((classKey) => ({
-      classKey,
-      subjects: (grouped.get(classKey) || []).slice().sort((a: any, b: any) =>
-        extractPlainSubjectName(a.name || '').localeCompare(
-          extractPlainSubjectName(b.name || ''),
-          undefined,
-          { sensitivity: 'base' }
-        )
-      ),
-    }));
+  const tableRows = useMemo(() => {
+    return filteredSubjectsWithContent
+      .map((subj: any) => {
+        const classLabel = getLearningPathClassLabel(subj) || 'Unassigned';
+        const displayName = extractPlainSubjectName(subj.name || '');
+        const primaryId = String(subj._id || subj.id);
+        const mergedIds: string[] = Array.isArray(subj.mergedSubjectIds)
+          ? subj.mergedSubjectIds.map(String)
+          : [primaryId];
+        const otherIds = mergedIds.filter((id) => id !== primaryId);
+        const viewHref =
+          otherIds.length > 0
+            ? `/admin/subject/${primaryId}?merge=${encodeURIComponent(otherIds.join(','))}`
+            : `/admin/subject/${primaryId}`;
+        return {
+          key: mergedIds.slice().sort().join('-'),
+          classLabel,
+          displayName,
+          itemCount: subj.totalContent || subj.asliPrepContent?.length || 0,
+          viewHref,
+        };
+      })
+      .sort((a, b) => {
+        const classCmp =
+          a.classLabel === 'Unassigned'
+            ? 1
+            : b.classLabel === 'Unassigned'
+              ? -1
+              : a.classLabel.localeCompare(b.classLabel, undefined, { numeric: true });
+        if (classCmp !== 0) return classCmp;
+        return a.displayName.localeCompare(b.displayName, undefined, { sensitivity: 'base' });
+      });
   }, [filteredSubjectsWithContent]);
 
   const totalContentItemsInView = useMemo(
@@ -321,71 +323,34 @@ export default function AdminLearningPaths() {
     setSubjectFilter('all');
   }, [classFilter]);
 
-  useEffect(() => {
-    fetchSubjects();
-  }, []);
-
-  useEffect(() => {
-    if (isLoading) return;
-    void fetchSubjectsWithContent();
-  }, [subjects, isLoading, isAsliPrepExclusive]);
-
-  const fetchSubjects = async () => {
+  const loadLearningPaths = useCallback(async () => {
+    setLoading(true);
     try {
-      setIsLoading(true);
       const token = localStorage.getItem('authToken');
-      const response = await fetch(`${API_BASE_URL}/api/admin/subjects`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        }
-      });
+      const headers = {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      };
 
-      if (response.ok) {
-        const data = await response.json();
-        // Handle both array and object responses
-        const subjectsArray = Array.isArray(data) ? data : (data.data || data.subjects || []);
-        setSubjects(
-          subjectsArray.filter((s: { name?: string; isActive?: boolean }) =>
-            isActiveCatalogSubject(s)
-          )
+      const [subjectsResponse, contentResponse] = await Promise.all([
+        fetch(`${API_BASE_URL}/api/admin/subjects`, { headers }),
+        fetch(`${API_BASE_URL}/api/admin/learning-paths/content`, { headers }),
+      ]);
+
+      let subjectsArray: any[] = [];
+      if (subjectsResponse.ok) {
+        const data = await subjectsResponse.json();
+        const rows = Array.isArray(data) ? data : data.data || data.subjects || [];
+        subjectsArray = rows.filter((s: { name?: string; isActive?: boolean }) =>
+          isActiveCatalogSubject(s)
         );
       }
-    } catch (error) {
-      console.error('Failed to fetch subjects:', error);
-      setSubjects([]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
-  const fetchSubjectsWithContent = async () => {
-    try {
-      setIsLoadingContent(true);
-      const token = localStorage.getItem('authToken');
-
-      // Assigned learning-path videos only (per class + subject ? same rules as students).
       let allContent: any[] = [];
-      try {
-        const contentResponse = await fetch(
-          `${API_BASE_URL}/api/admin/learning-paths/content`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-              'Content-Type': 'application/json',
-            },
-          }
-        );
-        if (contentResponse.ok) {
-          const contentData = await contentResponse.json();
-          allContent = contentData.data || contentData || [];
-          if (!Array.isArray(allContent)) allContent = [];
-        } else {
-          console.error('learning-paths/content failed:', contentResponse.status);
-        }
-      } catch (e) {
-        console.error('Failed to fetch assigned learning-path content:', e);
-        allContent = [];
+      if (contentResponse.ok) {
+        const contentData = await contentResponse.json();
+        allContent = contentData.data || contentData || [];
+        if (!Array.isArray(allContent)) allContent = [];
       }
 
       const bySubjectId = new Map<string, any[]>();
@@ -400,7 +365,7 @@ export default function AdminLearningPaths() {
       const consumedIds = new Set<string>();
       const merged: any[] = [];
 
-      for (const subject of subjects) {
+      for (const subject of subjectsArray) {
         if (!isActiveCatalogSubject(subject)) continue;
         const subjectId = String(subject._id || subject.id);
         const asliPrepContent = (bySubjectId.get(subjectId) || [])
@@ -462,256 +427,141 @@ export default function AdminLearningPaths() {
       console.error('Failed to fetch subjects with content:', error);
       setSubjectsWithContent([]);
     } finally {
-      setIsLoadingContent(false);
+      setLoading(false);
     }
-  };
+  }, [isAsliPrepExclusive]);
 
-  const getSubjectIcon = (subjectName: string) => {
-    if (subjectName.toLowerCase().includes('math')) return Target;
-    if (subjectName.toLowerCase().includes('science') || subjectName.toLowerCase().includes('physics') || subjectName.toLowerCase().includes('chemistry')) return Zap;
-    if (subjectName.toLowerCase().includes('english')) return BookOpen;
-    return BookOpen;
-  };
+  useEffect(() => {
+    void loadLearningPaths();
+  }, [loadLearningPaths]);
 
-  if (isLoading) {
-    return (
-      <div className="space-y-3 sm:space-y-4 lg:space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:p-4 lg:p-6">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} className="h-64 w-full" />
-          ))}
-        </div>
-      </div>
+  const uniqueClassCount = useMemo(() => {
+    const classes = new Set(
+      filteredSubjectsWithContent.map((subj: any) => getLearningPathClassLabel(subj) || 'Unassigned')
     );
-  }
+    return classes.size;
+  }, [filteredSubjectsWithContent]);
 
   return (
-    <div className="space-y-3 sm:space-y-4 lg:space-y-6">
-      <div className="rounded-2xl border border-sky-100 bg-gradient-to-r from-sky-50 via-white to-teal-50 p-5 sm:p-6">
-        <div className="flex flex-col gap-5">
-          <div className="flex flex-col gap-2">
-            <h2 className="text-xl sm:text-2xl sm:text-3xl font-bold text-gray-900">Learning Paths</h2>
-            <p className="text-gray-600">
-              Textbooks and videos from Content Studio for your licensed classes ? open a subject to view all materials.
-            </p>
+    <AdminPageShell
+      variant="premium"
+      className="max-w-none w-full"
+      title="Learning Paths"
+      description="Textbooks and videos from Content Studio for your licensed classes. Open a subject to view all materials."
+      actions={
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="lp-class-filter" className="text-xs text-slate-500">
+              Class
+            </Label>
+            <Select value={classFilter} onValueChange={setClassFilter}>
+              <SelectTrigger id="lp-class-filter" className="w-[180px] rounded-xl border-slate-200 bg-white">
+                <SelectValue placeholder="All classes" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All classes</SelectItem>
+                {classOptionsFromData.map((c) => (
+                  <SelectItem key={c} value={c}>
+                    Class {c}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <Card className="border-sky-100 shadow-none">
-              <CardContent className="p-4 flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-gray-500">Classes</p>
-                  <p className="text-lg sm:text-xl font-bold text-gray-900">{groupedSubjectsByClass.length}</p>
-                </div>
-                <GraduationCap className="h-4 w-4 sm:h-5 sm:w-5 text-sky-600" />
-              </CardContent>
-            </Card>
-            <Card className="border-sky-100 shadow-none">
-              <CardContent className="p-4 flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-gray-500">Subjects In View</p>
-                  <p className="text-lg sm:text-xl font-bold text-gray-900">{filteredSubjectsWithContent.length}</p>
-                </div>
-                <Layers3 className="h-4 w-4 sm:h-5 sm:w-5 text-teal-600" />
-              </CardContent>
-            </Card>
-            <Card className="border-sky-100 shadow-none">
-              <CardContent className="p-4 flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-gray-500">Content Items</p>
-                  <p className="text-lg sm:text-xl font-bold text-gray-900">{totalContentItemsInView}</p>
-                </div>
-                <BarChart3 className="h-4 w-4 sm:h-5 sm:w-5 text-orange-600" />
-              </CardContent>
-            </Card>
+          <div className="space-y-1.5">
+            <Label htmlFor="lp-subject-filter" className="text-xs text-slate-500">
+              Subject
+            </Label>
+            <Select value={subjectFilter} onValueChange={setSubjectFilter}>
+              <SelectTrigger id="lp-subject-filter" className="w-[200px] rounded-xl border-slate-200 bg-white">
+                <SelectValue placeholder="All subjects" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All subjects</SelectItem>
+                {subjectNameOptions.map((name) => (
+                  <SelectItem key={name} value={name}>
+                    {name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
+      }
+    >
+      <div className="flex flex-wrap gap-2 text-xs text-slate-600">
+        <Badge variant="secondary">{uniqueClassCount} classes</Badge>
+        <Badge variant="secondary">{filteredSubjectsWithContent.length} subjects</Badge>
+        <Badge variant="secondary">{totalContentItemsInView} items</Badge>
       </div>
 
-      {!isLoadingContent && subjectsWithContent.length > 0 && (
-        <Card className="border-sky-100">
-          <CardContent className="p-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
-              <div className="space-y-1.5">
-                <Label htmlFor="lp-class-filter" className="text-xs text-gray-500">
-                  Class
-                </Label>
-                <Select value={classFilter} onValueChange={setClassFilter}>
-                  <SelectTrigger id="lp-class-filter" className="w-full sm:w-[200px] bg-white">
-                    <SelectValue placeholder="All classes" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All classes</SelectItem>
-                    {classOptionsFromData.map((c) => (
-                      <SelectItem key={c} value={c}>
-                        Class {c}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="lp-subject-filter" className="text-xs text-gray-500">
-                  Subject
-                </Label>
-                <Select value={subjectFilter} onValueChange={setSubjectFilter}>
-                  <SelectTrigger id="lp-subject-filter" className="w-full sm:w-[220px] bg-white">
-                    <SelectValue placeholder="All subjects" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All subjects</SelectItem>
-                    {subjectNameOptions.map((name) => (
-                      <SelectItem key={name} value={name}>
-                        {name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {isLoadingContent ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:p-4 lg:p-6">
-          {Array.from({ length: subjects.length }).map((_, i) => (
-            <Skeleton key={i} className="h-64 w-full" />
-          ))}
+      {loading ? (
+        <div className="flex items-center justify-center py-16 text-slate-600">
+          <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+          Loading learning paths…
         </div>
       ) : subjectsWithContent.length === 0 ? (
-        <Card>
-          <CardContent className="p-12 text-center max-w-lg mx-auto">
-            <BookOpen className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-base sm:text-lg font-semibold text-gray-600 mb-2">
-              No learning content yet
-            </h3>
-            <p className="text-gray-500 text-sm leading-relaxed">
-              Content appears here when Super Admin uploads textbooks or videos in Content Studio
-              for your licensed product and classes, and your school has those classes enabled on
-              Home. Check <strong>Home ? Your book products</strong> for licensed classes, then
-              refresh this page.
-            </p>
-          </CardContent>
-        </Card>
-      ) : filteredSubjectsWithContent.length === 0 ? (
-        <Card>
-          <CardContent className="p-12 text-center">
-            <BookOpen className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-base sm:text-lg font-semibold text-gray-600 mb-2">No matches</h3>
-            <p className="text-gray-500">
-              No subjects match the selected class and subject filters. Try choosing &quot;All
-              classes&quot; or &quot;All subjects&quot;.
-            </p>
-          </CardContent>
-        </Card>
+        <div className="rounded-xl border border-slate-200 bg-white p-12 text-center">
+          <BookOpen className="mx-auto mb-4 h-12 w-12 text-slate-300" />
+          <h3 className="text-lg font-semibold text-slate-700">No learning content yet</h3>
+          <p className="mx-auto mt-2 max-w-lg text-sm text-slate-500">
+            Content appears when Super Admin uploads materials in Content Studio for your licensed
+            classes.
+          </p>
+        </div>
+      ) : tableRows.length === 0 ? (
+        <div className="rounded-xl border border-slate-200 bg-white p-12 text-center">
+          <BookOpen className="mx-auto mb-4 h-12 w-12 text-slate-300" />
+          <h3 className="text-lg font-semibold text-slate-700">No matches</h3>
+          <p className="mt-2 text-sm text-slate-500">Try &quot;All classes&quot; or &quot;All subjects&quot;.</p>
+        </div>
       ) : (
-        <div className="space-y-5">
-          {groupedSubjectsByClass.map(({ classKey, subjects }) => {
-            const classContentCount = subjects.reduce(
-              (sum, s) => sum + (s.asliPrepContent?.length || 0),
-              0
-            );
-
-            return (
-              <Card key={classKey} className="border-sky-100 overflow-hidden">
-                <CardHeader className="bg-sky-50/60 border-b border-sky-100">
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="flex items-center gap-2">
-                      <Badge className="bg-sky-600 text-white border-0">
-                        {classKey === 'Unassigned' ? 'Unassigned' : `Class ${classKey}`}
-                      </Badge>
-                      <CardTitle className="text-sm sm:text-base text-gray-900">
-                        {subjects.length} subject{subjects.length === 1 ? '' : 's'}
-                      </CardTitle>
-                    </div>
-                    <p className="text-xs text-gray-600">
-                      {classContentCount} content item{classContentCount === 1 ? '' : 's'}
-                    </p>
-                  </div>
-                </CardHeader>
-                <CardContent className="p-4 sm:p-5">
-                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                    {subjects.map((subject: any) => {
-                      const Icon = getSubjectIcon(subject.name);
-                      const displayName = extractPlainSubjectName(subject.name || '');
-                      const primaryId = String(subject._id || subject.id);
-                      const mergedIds: string[] = Array.isArray(subject.mergedSubjectIds)
-                        ? subject.mergedSubjectIds.map(String)
-                        : [primaryId];
-                      const otherIds = mergedIds.filter((id) => id !== primaryId);
-                      const viewHref =
-                        otherIds.length > 0
-                          ? `/admin/subject/${primaryId}?merge=${encodeURIComponent(otherIds.join(','))}`
-                          : `/admin/subject/${primaryId}`;
-
-                      return (
-                        <Card
-                          key={mergedIds.slice().sort().join('-')}
-                          className="border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 h-full"
-                        >
-                          <CardContent className="p-4 h-full flex flex-col gap-3">
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="flex items-center gap-2 min-w-0">
-                                <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-sky-400 to-teal-500 flex items-center justify-center shrink-0">
-                                  <Icon className="w-3 h-3 sm:w-4 sm:h-4 text-white" />
-                                </div>
-                                <h3 className="font-semibold text-gray-900 truncate">{displayName}</h3>
-                              </div>
-                              <Badge variant="secondary" className="text-xs shrink-0">
-                                {subject.totalContent || 0}
-                              </Badge>
-                            </div>
-
-                            <p className="text-xs text-gray-600 line-clamp-2">
-                              {subject.description ||
-                                `Structured content for ${displayName} in ${
-                                  classKey === 'Unassigned' ? 'unassigned class' : `Class ${classKey}`
-                                }.`}
-                            </p>
-
-                            <div className="space-y-1.5 min-h-[52px] max-h-40 overflow-y-auto">
-                              {subject.asliPrepContent?.map((content: any, idx: number) => (
-                                <div
-                                  key={content._id || idx}
-                                  className="rounded-md bg-gray-50 border border-gray-100 px-2 py-1"
-                                >
-                                  <p className="text-xs text-gray-800 font-medium truncate">
-                                    {content.title || 'Untitled'}
-                                  </p>
-                                  <p className="text-[11px] text-gray-500 truncate">
-                                    {content.type === 'TextBook'
-                                      ? 'Textbook'
-                                      : content.contentChannel === 'ott'
-                                        ? 'Viswam OTT'
-                                        : content.contentChannel === 'learning_path' ||
-                                            String(content.type || '').toLowerCase() === 'video'
-                                          ? 'Video'
-                                          : content.type || 'Content'}
-                                  </p>
-                                </div>
-                              ))}
-                            </div>
-
-                            <Button
-                              className="w-full mt-auto bg-gradient-to-r from-sky-400 to-teal-500 hover:from-sky-500 hover:to-teal-600 text-white"
-                              onClick={() => setLocation(viewHref)}
-                            >
-                              View Content
-                              <ArrowRight className="w-3 h-3 sm:w-4 sm:h-4 ml-2" />
-                            </Button>
-                          </CardContent>
-                        </Card>
-                      );
-                    })}
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
+        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-[120px]">Class</TableHead>
+                <TableHead>Subject</TableHead>
+                <TableHead className="w-[100px] text-right">Items</TableHead>
+                <TableHead className="w-[140px] text-right">Action</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {tableRows.map((row) => (
+                <TableRow
+                  key={row.key}
+                  className="cursor-pointer hover:bg-slate-50"
+                  onClick={() => setLocation(row.viewHref)}
+                >
+                  <TableCell>
+                    <Badge variant="outline" className="font-medium">
+                      {row.classLabel === 'Unassigned' ? 'Unassigned' : `Class ${row.classLabel}`}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="font-medium text-slate-900">{row.displayName}</TableCell>
+                  <TableCell className="text-right text-slate-600">{row.itemCount}</TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="text-sky-700 hover:text-sky-900"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setLocation(row.viewHref);
+                      }}
+                    >
+                      View
+                      <ChevronRight className="ml-1 h-4 w-4" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </div>
       )}
-    </div>
+    </AdminPageShell>
   );
 }
 

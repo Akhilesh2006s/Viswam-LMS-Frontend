@@ -104,10 +104,6 @@ export default function SuperAdminDashboard() {
   const [isLoadingStats, setIsLoadingStats] = useState(true);
   const [realtimeAnalytics, setRealtimeAnalytics] = useState<any>(null);
   const [isLoadingAnalytics, setIsLoadingAnalytics] = useState(false);
-  const [selectedBoard, setSelectedBoard] = useState<string | null>(null);
-  const [boardData, setBoardData] = useState<any>(null);
-  const [isLoadingBoard, setIsLoadingBoard] = useState(false);
-  const [boardError, setBoardError] = useState<string | null>(null);
   const [systemSettingsOpen, setSystemSettingsOpen] = useState(false);
   useEffect(() => {
     const restore =
@@ -219,96 +215,21 @@ export default function SuperAdminDashboard() {
     }
   };
 
-  const fetchBoardDashboard = async (
-    boardCode: string,
-    showToast = true,
-    switchView: boolean = true
-  ) => {
-    setIsLoadingBoard(true);
-    setBoardError(null);
-    try {
-      const token = localStorage.getItem('authToken');
-      console.log('📊 Fetching board dashboard for:', boardCode);
-      const response = await fetch(`${API_BASE_URL}/api/super-admin/boards/${boardCode}/dashboard`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      console.log('Board dashboard response status:', response.status);
-
-      if (response.ok) {
-        const data = await response.json();
-        console.log('Board dashboard data received:', data);
-        if (data.success) {
-          console.log('Setting board data:', data.data);
-          console.log('Schools found:', data.data.schoolParticipation?.length || 0);
-          setBoardData(data.data);
-          setSelectedBoard(boardCode);
-          if (switchView) {
-            setCurrentView('board');
-          }
-        } else {
-          console.error('API returned success: false:', data.message);
-          setBoardData(null);
-          setSelectedBoard(boardCode);
-          setBoardError(data.message || 'Failed to fetch board data');
-          if (showToast) {
-            toast({
-              title: 'Error',
-              description: data.message || 'Failed to fetch board data',
-              variant: 'destructive'
-            });
-          }
-        }
-      } else {
-        const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
-        console.error('API error response:', errorData);
-        setBoardData(null);
-        setSelectedBoard(boardCode);
-        setBoardError(errorData.message || `Failed to fetch board dashboard (${response.status})`);
-        if (showToast) {
-          toast({
-            title: 'Error',
-            description: errorData.message || `Failed to fetch board dashboard (${response.status})`,
-            variant: 'destructive'
-          });
-        }
-      }
-    } catch (error) {
-      console.error('Error fetching board dashboard:', error);
-      setBoardData(null);
-      setSelectedBoard(boardCode);
-      setBoardError('Failed to fetch board dashboard. Please check your connection.');
-      if (showToast) {
-        toast({
-          title: 'Error',
-          description: 'Failed to fetch board dashboard. Please check your connection.',
-          variant: 'destructive'
-        });
-      }
-    } finally {
-      setIsLoadingBoard(false);
-    }
-  };
-
   /** Same page as sidebar “Subject & Content” (current design). */
   const openSubjectAndContent = () => {
-    setSelectedBoard(null);
     setCurrentView("subjects-and-content");
     clearSuperAdminDashboardQueryFromUrl();
   };
 
   const openAnalytics = () => {
-    setSelectedBoard(null);
     setCurrentView("analytics");
     clearSuperAdminDashboardQueryFromUrl();
-    void fetchRealtimeAnalytics();
   };
 
-  const openAsliExclusiveBoard = () => {
-    void fetchBoardDashboard("ASLI_EXCLUSIVE_SCHOOLS");
+  const openStudentAnalytics = () => {
+    setCurrentView("student-analytics");
+    clearSuperAdminDashboardQueryFromUrl();
+    void fetchRealtimeAnalytics();
   };
 
   // Chart data - will be populated from real analytics when available
@@ -320,10 +241,6 @@ export default function SuperAdminDashboard() {
   const [studentsPerAdminData, setStudentsPerAdminData] = useState<Array<{[key: string]: string | number}>>([]);
 
   const renderDashboardContent = () => {
-    if (selectedBoard && currentView === 'board') {
-      return renderBoardDashboard();
-    }
-
     return (
     <div className="sa-premium-scope space-y-6 overflow-x-hidden">
         <SuperAdminPageHeader
@@ -386,7 +303,6 @@ export default function SuperAdminDashboard() {
             icon={Users2}
             variant="navy"
             onClick={() => {
-              setSelectedBoard(null);
               setCurrentView("products");
               clearSuperAdminDashboardQueryFromUrl();
             }}
@@ -411,7 +327,7 @@ export default function SuperAdminDashboard() {
 
         <button
           type="button"
-          onClick={() => setCurrentView("analytics")}
+          onClick={openStudentAnalytics}
           className="w-full rounded-2xl border border-slate-200/80 bg-white p-5 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md sm:p-6"
         >
           <div className="mb-4 flex items-center justify-between">
@@ -649,84 +565,6 @@ export default function SuperAdminDashboard() {
     );
   };
 
-  // Auto-load board data when entering Board Management
-  useEffect(() => {
-    if (currentView !== 'board') return;
-    if (isLoadingBoard) return;
-    if (boardData) return;
-    if (boardError) return;
-
-    const boardCode = selectedBoard || 'ASLI_EXCLUSIVE_SCHOOLS';
-    console.log('🔄 Auto-loading board dashboard for:', boardCode);
-    fetchBoardDashboard(boardCode, false); // Don't show toast on auto-load
-    // Intentionally include dependencies so it runs on mount/view change and doesn't rely on manual refresh.
-  }, [currentView, selectedBoard, isLoadingBoard, boardData, boardError]);
-
-  const renderBoardDashboard = () => {
-    if (boardError) {
-      return (
-        <div className="text-center py-12">
-          <p className="text-gray-600">{boardError}</p>
-          <Button onClick={() => fetchBoardDashboard(selectedBoard || 'ASLI_EXCLUSIVE_SCHOOLS')} className="mt-4">
-            Retry
-          </Button>
-        </div>
-      );
-    }
-
-    // Use cached data when available; otherwise fall back to safe defaults
-    const stats = boardData?.stats || {};
-    let boardName = boardData?.board?.name || selectedBoard || 'Board';
-    // Format board name to title case
-    if (boardName === 'ASLI EXCLUSIVE SCHOOLS' || boardName === 'ASLI_EXCLUSIVE_SCHOOLS') {
-      boardName = 'VISWAM Exclusive Schools';
-    }
-    
-    return (
-      <div className="sa-premium-scope space-y-6">
-        <SuperAdminPageHeader
-          title={boardName}
-          description="Manage content, exams, subjects, and board-level analytics."
-          icon={Users2}
-          actions={
-            <Button
-              type="button"
-              variant="outline"
-              className="rounded-xl"
-              onClick={() => {
-                setSelectedBoard(null);
-                setCurrentView("dashboard");
-              }}
-            >
-              ← Command center
-            </Button>
-          }
-        />
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <SuperAdminStatCard label="Students" value={typeof stats.students === "number" ? stats.students : 0} icon={GraduationCap} accent="emerald" />
-          <SuperAdminStatCard label="Teachers" value={typeof stats.teachers === "number" ? stats.teachers : 0} icon={Users} accent="sky" />
-          <SuperAdminStatCard label="Exams" value={typeof stats.exams === "number" ? stats.exams : 0} icon={FileTextIcon} accent="gold" />
-          <SuperAdminStatCard
-            label="Avg score"
-            value={
-              typeof stats.averageScore === "number" || typeof stats.averageScore === "string"
-                ? `${stats.averageScore}%`
-                : "0%"
-            }
-            icon={TrendingUp}
-            accent="navy"
-          />
-        </div>
-        <div className="sa-premium-panel">
-          <h2 className="mb-4 text-lg font-bold text-slate-900">Board performance comparison</h2>
-          <Suspense fallback={lazySectionFallback}>
-            <BoardComparisonCharts />
-          </Suspense>
-        </div>
-      </div>
-    );
-  };
-
   const renderAdminsContent = () => (
     <Suspense fallback={lazySectionFallback}>
       <AdminManagement />
@@ -739,10 +577,176 @@ export default function SuperAdminDashboard() {
     </Suspense>
   );
 
-  const renderBoardComparisonContent = () => (
-    <Suspense fallback={lazySectionFallback}>
-      <BoardComparisonCharts />
-    </Suspense>
+  const renderStudentAnalyticsContent = () => (
+    <div className="sa-premium-scope space-y-6 overflow-x-hidden">
+      <SuperAdminPageHeader
+        title="Student analytics"
+        description="Engagement, assessments, and learner activity across all schools."
+        icon={Users}
+        badge="Live"
+        actions={
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="rounded-xl border-slate-200"
+            onClick={() => void fetchRealtimeAnalytics()}
+            disabled={isLoadingAnalytics}
+          >
+            <RefreshCw className={cn("mr-2 h-4 w-4", isLoadingAnalytics && "animate-spin")} />
+            Sync
+          </Button>
+        }
+      />
+
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <SuperAdminStatCard
+          label="Total students"
+          value={isLoadingStats ? "…" : (stats.totalStudents || 0).toLocaleString()}
+          icon={GraduationCap}
+          accent="emerald"
+        />
+        <SuperAdminStatCard
+          label="Active students"
+          value={isLoadingStats ? "…" : (stats.activeStudents || 0).toLocaleString()}
+          icon={Activity}
+          accent="sky"
+        />
+        <SuperAdminStatCard
+          label="Avg exams / student"
+          value={isLoadingStats ? "…" : (Number(stats.avgExamsPerStudent) || 0).toFixed(1)}
+          icon={FileTextIcon}
+          accent="gold"
+        />
+        <SuperAdminStatCard
+          label="Content engagement"
+          value={isLoadingStats ? "…" : `${(stats.contentEngagement || 0).toFixed(0)}%`}
+          icon={TrendingUp}
+          accent="navy"
+        />
+      </div>
+
+      {isLoadingAnalytics ? (
+        <div className="sa-premium-loading">
+          <BarChart3Icon className="h-10 w-10 animate-pulse text-[var(--brand-emerald)]" />
+          <p className="text-sm text-slate-600">Loading live analytics…</p>
+        </div>
+      ) : realtimeAnalytics ? (
+        <div className="space-y-5">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <SuperAdminStatCard
+              label="Total students"
+              value={stats.totalStudents || realtimeAnalytics.overallMetrics?.totalStudents || 0}
+              icon={GraduationCap}
+              accent="emerald"
+            />
+            <SuperAdminStatCard
+              label="Total exams"
+              value={realtimeAnalytics.overallMetrics?.totalExams || 0}
+              icon={FileTextIcon}
+              accent="sky"
+            />
+            <SuperAdminStatCard
+              label="Exam results"
+              value={realtimeAnalytics.overallMetrics?.totalExamResults || 0}
+              icon={ClipboardCheck}
+              accent="gold"
+            />
+            <SuperAdminStatCard
+              label="Overall average"
+              value={`${realtimeAnalytics.overallMetrics?.overallAverage || 0}%`}
+              icon={TrendingUp}
+              accent="navy"
+            />
+          </div>
+
+          {realtimeAnalytics.topScorersByExam && realtimeAnalytics.topScorersByExam.length > 0 && (
+            <Card className="rounded-2xl border-slate-200/80 shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-lg font-bold text-slate-900">Top scorers by exam</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {realtimeAnalytics.topScorersByExam.slice(0, 3).map((exam: any, examIdx: number) => {
+                    const colorSchemes = [
+                      { bg: 'from-orange-300 to-orange-400', border: 'border-orange-200' },
+                      { bg: 'from-sky-300 to-sky-400', border: 'border-sky-200' },
+                      { bg: 'from-teal-400 to-teal-500', border: 'border-teal-200' },
+                    ];
+                    const colorScheme = colorSchemes[examIdx % 3];
+
+                    return (
+                      <div
+                        key={`${exam.examId || exam.examTitle || 'exam'}-${examIdx}`}
+                        className={`border-2 ${colorScheme.border} rounded-lg p-4 bg-gradient-to-br ${colorScheme.bg} text-white`}
+                      >
+                        <h4 className="font-semibold text-white mb-3">{exam.examTitle}</h4>
+                        <div className="space-y-2">
+                          {exam.topScorers.slice(0, 5).map((scorer: any, idx: number) => (
+                            <div
+                              key={`${scorer.studentId || scorer.studentEmail || scorer.studentName || 'scorer'}-${idx}`}
+                              className="flex items-center justify-between p-2 bg-white/90 backdrop-blur-sm rounded border border-white/50 shadow-sm"
+                            >
+                              <div>
+                                <p className="font-medium text-gray-900">{scorer.studentName}</p>
+                                <p className="text-xs text-gray-600">{scorer.studentEmail}</p>
+                              </div>
+                              <div className="text-right">
+                                <p className="font-bold text-orange-600">{scorer.percentage?.toFixed(1)}%</p>
+                                <p className="text-xs text-gray-600">
+                                  {scorer.marks}/{scorer.totalMarks} marks
+                                </p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      ) : (
+        <div className="sa-premium-loading">
+          <BarChart3Icon className="h-10 w-10 text-slate-300" />
+          <p className="text-sm text-slate-600">No student analytics data available yet</p>
+        </div>
+      )}
+
+      {realtimeAnalytics?.insights && realtimeAnalytics.insights.length > 0 ? (
+        <div className="space-y-4">
+          <h2 className="text-sm font-bold uppercase tracking-wide text-slate-500">Platform insights</h2>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            {realtimeAnalytics.insights.slice(0, 2).map((insight: any, index: number) => (
+              <Card
+                key={`${insight.id || insight.title || insight.description || 'insight'}-${index}`}
+                className="rounded-2xl border-slate-200/80 shadow-sm"
+              >
+                <CardContent className="p-5">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--brand-emerald)]/10">
+                      <BarChart3Icon className="h-5 w-5 text-[var(--brand-emerald)]" />
+                    </div>
+                    <div>
+                      <p className="text-xs sm:text-sm font-medium text-gray-900">
+                        {insight.title || insight.description || 'Insight'}
+                      </p>
+                      <p className="text-xs text-gray-600">
+                        {insight.generatedAt
+                          ? new Date(insight.generatedAt).toLocaleString()
+                          : 'Recently generated'}
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </div>
   );
 
   const renderSubscriptionsContent = () => (
@@ -852,6 +856,9 @@ export default function SuperAdminDashboard() {
         break;
       case "analytics":
         body = renderAnalyticsContent();
+        break;
+      case "student-analytics":
+        body = renderStudentAnalyticsContent();
         break;
       case "subscriptions":
         body = renderSubscriptionsContent();

@@ -8,19 +8,35 @@ import { useAbacusPortal } from '@/hooks/use-abacus-portal';
 import { usePageTitle } from '@/hooks/use-page-title';
 import { ABACUS_ROUTES } from '@/lib/abacus-routes';
 import { installAbacusBrowserApi } from '@/lib/abacus-browser-api';
+import { validateTeacherQuestionForLevel } from '@/lib/abacus-teacher-question-level';
 import { ABACUS_THEME } from '@/lib/abacus-theme';
+import type { AbacusPortalProfile } from '@/lib/abacus-api';
 import '@/styles/abacus-teacher-tool.css';
 
-function AbacusTeacherToolContent() {
+declare global {
+  interface Window {
+    validateTeacherQuestionForLevel?: typeof validateTeacherQuestionForLevel;
+  }
+}
+
+type TeacherToolContentProps = {
+  profile: AbacusPortalProfile;
+};
+
+function AbacusTeacherToolContent({ profile }: TeacherToolContentProps) {
   useAbacusStylesheet();
   const [, setLocation] = useLocation();
 
   useEffect(() => {
     installAbacusBrowserApi();
+    window.validateTeacherQuestionForLevel = validateTeacherQuestionForLevel;
     void window.AbacusAPI?.ensureSession().then(() => {
       const student = JSON.parse(localStorage.getItem('student') || '{}');
       if (student.role !== 'teacher') setLocation(ABACUS_ROUTES.home);
     });
+    return () => {
+      delete window.validateTeacherQuestionForLevel;
+    };
   }, [setLocation]);
 
   const { loaded, error } = useAbacusLegacyScripts({
@@ -94,7 +110,9 @@ function AbacusTeacherToolContent() {
           <section className="att-card att-question-card" aria-label="Question workspace">
             <div className="att-card-head">
               <h2>Write your question</h2>
-              <span>Use + − × ÷ or words</span>
+              <span>
+                Level: {profile.user.category} · {profile.user.level}
+              </span>
             </div>
 
             <div id="errorBox" className="att-error" role="alert" />
@@ -155,7 +173,7 @@ function AbacusTeacherToolContent() {
 
 export default function AbacusTeacherToolPage() {
   usePageTitle('Teacher Tool');
-  const { loading, error } = useAbacusPortal({ role: 'teacher', strict: true });
+  const { loading, profile, error } = useAbacusPortal({ role: 'teacher', strict: true });
 
   if (loading) {
     return (
@@ -165,17 +183,17 @@ export default function AbacusTeacherToolPage() {
     );
   }
 
-  if (error) {
+  if (error || !profile) {
     return (
       <div className="flex min-h-screen items-center justify-center p-6 text-sm text-red-600">
-        {error}
+        {error || 'Unable to load abacus session'}
       </div>
     );
   }
 
   return (
     <AbacusModuleLayout page="teacher" title="Teacher Tool" wide requiredRole="teacher">
-      <AbacusTeacherToolContent />
+      <AbacusTeacherToolContent profile={profile} />
     </AbacusModuleLayout>
   );
 }

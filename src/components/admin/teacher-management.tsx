@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,8 +10,26 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { API_BASE_URL } from '@/lib/api-config';
+import { useToast } from '@/hooks/use-toast';
 import { schoolAdminApiUrl } from '@/lib/school-admin-api';
-import { fetchAdminProductWorkspace } from '@/lib/products';
+import {
+  fetchAdminProductWorkspace,
+  fetchProducts,
+  fetchSchoolLicenseAssignments,
+  productLabel,
+  type Product,
+  type ProductWorkspace,
+  type SchoolProductAssignment,
+} from '@/lib/products';
+import {
+  TeacherProductAssignmentEditor,
+  teacherRowsFromApi,
+  teacherAssignmentToApi,
+  isTeacherRowValid,
+  newTeacherProductRow,
+  type TeacherProductRow,
+} from '@/components/admin/TeacherProductAssignmentEditor';
+import { saveTeacherProductAssignments } from '@/lib/teacher-api';
 import {
   AdminPageShell,
   AdminStatGrid,
@@ -19,6 +37,7 @@ import {
   adminPrimaryBtn,
 } from '@/components/admin/admin-ui';
 import {
+  dedupeSubjectsForPicker,
   formatSubjectDisplayLabel,
   normalizeSubjectDisplayKey,
 } from '@/lib/subject-names';
@@ -40,9 +59,15 @@ import {
   FileSpreadsheet,
   Loader2,
   Eye,
-  EyeOff
+  EyeOff,
+  Layers,
 } from 'lucide-react';
 import { AdminTeacherDailyDialog } from '@/components/admin/AdminTeacherDailyDialog';
+import {
+  formatPhoneInputValue,
+  isValidOptionalPhoneTenDigits,
+  normalizePhoneTenDigits,
+} from '@/lib/phone';
 
 interface Teacher {
   id: string;
@@ -53,6 +78,10 @@ interface Teacher {
   qualifications?: string;
   subjects: Subject[];
   assignedClassIds?: string[];
+  productAssignments?: {
+    productCode: string;
+    classLicenses?: { classNumber: string; subjects?: string[] }[];
+  }[];
   isActive: boolean;
   createdAt: string;
   lastLogin?: string;
@@ -228,6 +257,11 @@ function mapTeacherFromApi(
     qualifications: t.qualifications,
     subjects,
     assignedClassIds,
+    productAssignments: Array.isArray(
+      (t as Teacher & { productAssignments?: Teacher['productAssignments'] }).productAssignments,
+    )
+      ? (t as Teacher & { productAssignments?: Teacher['productAssignments'] }).productAssignments
+      : [],
     isActive: t.isActive !== false,
     createdAt: t.createdAt || new Date().toISOString(),
     lastLogin: t.lastLogin,
@@ -276,6 +310,7 @@ type TeacherManagementProps = {
 };
 
 const TeacherManagement = ({ schoolAdminId }: TeacherManagementProps = {}) => {
+  const { toast } = useToast();
   const uiVariant = schoolAdminId ? ('premium' as const) : ('default' as const);
   const adminApi = (path: string) => schoolAdminApiUrl(path, schoolAdminId);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
@@ -284,19 +319,21 @@ const TeacherManagement = ({ schoolAdminId }: TeacherManagementProps = {}) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
-  const [isAssignClassDialogOpen, setIsAssignClassDialogOpen] = useState(false);
+  const [isProductAssignOpen, setIsProductAssignOpen] = useState(false);
+  const [productWorkspace, setProductWorkspace] = useState<ProductWorkspace | null>(null);
+  const [schoolLicenseRows, setSchoolLicenseRows] = useState<SchoolProductAssignment[]>([]);
+  const [loadingLicenses, setLoadingLicenses] = useState(false);
+  const [catalogProducts, setCatalogProducts] = useState<Product[]>([]);
+  const [productAssignRows, setProductAssignRows] = useState<TeacherProductRow[]>([]);
+  const [savingProductAssign, setSavingProductAssign] = useState(false);
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [showNewTeacherPassword, setShowNewTeacherPassword] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [editingTeacher, setEditingTeacher] = useState<Teacher | null>(null);
-  const [assigningTeacher, setAssigningTeacher] = useState<Teacher | null>(null);
-  const [assigningClassTeacher, setAssigningClassTeacher] = useState<Teacher | null>(null);
+  const [assigningProductsTeacher, setAssigningProductsTeacher] = useState<Teacher | null>(null);
   const [dailyDialogTeacher, setDailyDialogTeacher] = useState<Teacher | null>(null);
-  const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
-  const [selectedClasses, setSelectedClasses] = useState<string[]>([]);
   const [newTeacher, setNewTeacher] = useState({
     fullName: '',
     email: '',
@@ -304,15 +341,48 @@ const TeacherManagement = ({ schoolAdminId }: TeacherManagementProps = {}) => {
     phone: '',
     department: '',
     qualifications: '',
-    subjects: [] as string[]
   });
+  const [newTeacherProductRows, setNewTeacherProductRows] = useState<TeacherProductRow[]>([]);
+
+  const refreshSchoolLicenses = async () => {
+    if (!schoolAdminId) {
+      setSchoolLicenseRows([]);
+      return { licenses: [] as SchoolProductAssignment[], products: [] as Product[] };
+    }
+    setLoadingLicenses(true);
+    try {
+      const [workspace, products, licenses] = await Promise.all([
+        fetchAdminProductWorkspace(schoolAdminId),
+        fetchProducts(),
+        fetchSchoolLicenseAssignments(schoolAdminId),
+      ]);
+      setProductWorkspace(workspace);
+      setCatalogProducts(products);
+      const rows =
+        licenses.length > 0
+          ? licenses
+          : (workspace?.admin?.productAssignments as SchoolProductAssignment[]) || [];
+      setSchoolLicenseRows(rows);
+      return { licenses: rows, products };
+    } finally {
+      setLoadingLicenses(false);
+    }
+  };
+
+  const findCatalogProduct = (productCode: string, products: Product[]) =>
+    products.find(
+      (p) =>
+        p.code === productCode || p.code.toUpperCase() === productCode.toUpperCase(),
+    );
 
   useEffect(() => {
-    fetchAdminProductWorkspace(schoolAdminId);
+    void refreshSchoolLicenses();
     fetchTeachers();
     fetchSubjects();
     fetchClasses();
   }, [schoolAdminId]);
+
+  const subjectsForPicker = useMemo(() => dedupeSubjectsForPicker(subjects), [subjects]);
 
   const fetchTeachers = async () => {
     try {
@@ -415,13 +485,21 @@ const TeacherManagement = ({ schoolAdminId }: TeacherManagementProps = {}) => {
         subjectsArray = [];
       }
       
+      const seenRawIds = new Set<string>();
       const mappedSubjects: Subject[] = [];
       for (const item of subjectsArray) {
+        const raw = item as { id?: string; _id?: string };
+        const rawId = String(raw.id || raw._id || '').trim();
+        if (rawId) {
+          const norm = rawId.length === 24 ? rawId.toLowerCase() : rawId;
+          if (seenRawIds.has(norm)) continue;
+          seenRawIds.add(norm);
+        }
         const mapped = mapSubjectFromApi(item);
         if (mapped) mappedSubjects.push(mapped);
       }
 
-      setSubjects(mappedSubjects);
+      setSubjects(dedupeSubjectsForPicker(mappedSubjects));
     } catch (error) {
       console.error('Failed to fetch subjects:', error);
       setSubjects([
@@ -479,15 +557,55 @@ const TeacherManagement = ({ schoolAdminId }: TeacherManagementProps = {}) => {
 
   const handleAddTeacher = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Validate required fields
-    if (!newTeacher.fullName || !newTeacher.email || !newTeacher.password || !newTeacher.department || newTeacher.subjects.length === 0) {
-      alert('Please fill in all required fields: Name, Email, Password, Department, and at least one subject.');
+    if (!schoolAdminId) {
+      toast({
+        title: 'Super admin only',
+        description: 'Teachers can only be created from the super admin school workspace.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const validProductRows = newTeacherProductRows.filter((r) => isTeacherRowValid(r));
+    const productName =
+      newTeacher.department.trim() ||
+      (validProductRows[0]
+        ? productLabel(validProductRows[0].productCode, catalogProducts)
+        : '');
+    if (!newTeacher.fullName || !newTeacher.email || !newTeacher.password || !productName) {
+      toast({
+        title: 'Missing required fields',
+        description: 'Name, email, password, and product name are required.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!validProductRows.length) {
+      toast({
+        title: 'Assign products',
+        description:
+          'Enable at least one class or level per product and pick subjects or categories.',
+        variant: 'destructive',
+      });
       return;
     }
 
     if (newTeacher.password.length < 6) {
-      alert('Password must be at least 6 characters long.');
+      toast({
+        title: 'Password too short',
+        description: 'Password must be at least 6 characters.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!isValidOptionalPhoneTenDigits(newTeacher.phone)) {
+      toast({
+        title: 'Invalid phone',
+        description: 'Phone must be exactly 10 digits, or leave empty.',
+        variant: 'destructive',
+      });
       return;
     }
     
@@ -499,7 +617,15 @@ const TeacherManagement = ({ schoolAdminId }: TeacherManagementProps = {}) => {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json' 
         },
-        body: JSON.stringify(newTeacher)
+        body: JSON.stringify({
+          ...newTeacher,
+          department: productName,
+          phone: normalizePhoneTenDigits(newTeacher.phone),
+          subjects: [],
+          productAssignments: validProductRows
+            .map(teacherAssignmentToApi)
+            .filter((r): r is NonNullable<ReturnType<typeof teacherAssignmentToApi>> => !!r),
+        }),
       });
 
       let responseData;
@@ -508,25 +634,47 @@ const TeacherManagement = ({ schoolAdminId }: TeacherManagementProps = {}) => {
       } catch (jsonError) {
         const text = await response.text();
         console.error('Failed to parse JSON response:', text);
-        alert(`Failed to add teacher: Server returned invalid response. Status: ${response.status}`);
+        toast({
+          title: 'Could not add teacher',
+          description: `Server returned an invalid response (status ${response.status}).`,
+          variant: 'destructive',
+        });
         return;
       }
       
       if (response.ok && (responseData.success === true || responseData.success === undefined)) {
-        setNewTeacher({ fullName: '', email: '', password: '', phone: '', department: '', qualifications: '', subjects: [] });
+        const addedName = newTeacher.fullName.trim();
+        setNewTeacher({ fullName: '', email: '', password: '', phone: '', department: '', qualifications: '' });
+        setNewTeacherProductRows([]);
         setShowNewTeacherPassword(false);
         setIsAddDialogOpen(false);
-        fetchTeachers();
-        alert('Teacher added successfully!');
+        await Promise.all([fetchTeachers(), fetchClasses()]);
+        toast({
+          title: 'Teacher added',
+          description: `${addedName} was created. Classes are ready — you can add students next.`,
+        });
       } else {
         const errorMsg = responseData.message || responseData.error || 'Unknown error occurred';
         console.error('Error response:', responseData);
-        alert(`Failed to add teacher: ${errorMsg}`);
+        const legacyApi =
+          /department/i.test(errorMsg) &&
+          (/at least one subject/i.test(errorMsg) || /subjects are required/i.test(errorMsg));
+        toast({
+          title: 'Could not add teacher',
+          description: legacyApi
+            ? `The server at ${API_BASE_URL} is running old backend code. Restart the backend after pulling latest code, or redeploy to production (206.189.179.75).`
+            : errorMsg,
+          variant: 'destructive',
+        });
       }
     } catch (error: any) {
       console.error('Failed to add teacher:', error);
       const errorMsg = error.message || 'Network error. Please check your connection and try again.';
-      alert(`Failed to add teacher: ${errorMsg}`);
+      toast({
+        title: 'Could not add teacher',
+        description: errorMsg,
+        variant: 'destructive',
+      });
     }
   };
 
@@ -534,10 +682,23 @@ const TeacherManagement = ({ schoolAdminId }: TeacherManagementProps = {}) => {
     e.preventDefault();
     if (!editingTeacher) return;
 
+    if (!isValidOptionalPhoneTenDigits(editingTeacher.phone || '')) {
+      toast({
+        title: 'Invalid phone',
+        description: 'Phone must be exactly 10 digits, or leave empty.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     try {
       const token = localStorage.getItem('authToken');
       if (!token) {
-        alert('Authentication token not found. Please log in again.');
+        toast({
+          title: 'Session expired',
+          description: 'Please log in again.',
+          variant: 'destructive',
+        });
         return;
       }
 
@@ -547,21 +708,35 @@ const TeacherManagement = ({ schoolAdminId }: TeacherManagementProps = {}) => {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify(editingTeacher)
+        body: JSON.stringify({
+          ...editingTeacher,
+          phone: normalizePhoneTenDigits(editingTeacher.phone || ''),
+        }),
       });
 
       if (response.ok) {
         setEditingTeacher(null);
         setIsEditDialogOpen(false);
         fetchTeachers();
-        alert('Teacher updated successfully!');
+        toast({
+          title: 'Teacher updated',
+          description: 'Changes were saved successfully.',
+        });
       } else {
         const errorData = await response.json();
-        alert(`Failed to update teacher: ${errorData.message || 'Unknown error'}`);
+        toast({
+          title: 'Could not update teacher',
+          description: errorData.message || 'Unknown error',
+          variant: 'destructive',
+        });
       }
     } catch (error) {
       console.error('Failed to update teacher:', error);
-      alert('Failed to update teacher. Please try again.');
+      toast({
+        title: 'Could not update teacher',
+        description: 'Please try again.',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -570,7 +745,11 @@ const TeacherManagement = ({ schoolAdminId }: TeacherManagementProps = {}) => {
       try {
         const token = localStorage.getItem('authToken');
         if (!token) {
-          alert('Authentication token not found. Please log in again.');
+          toast({
+            title: 'Session expired',
+            description: 'Please log in again.',
+            variant: 'destructive',
+          });
           return;
         }
 
@@ -583,21 +762,40 @@ const TeacherManagement = ({ schoolAdminId }: TeacherManagementProps = {}) => {
 
         if (response.ok) {
           fetchTeachers();
-          alert(`${teacherName} has been deleted successfully.`);
+          toast({
+            title: 'Teacher deleted',
+            description: `${teacherName} was removed.`,
+          });
         } else {
           const errorData = await response.json();
-          alert(`Failed to delete teacher: ${errorData.message || 'Unknown error'}`);
+          toast({
+            title: 'Could not delete teacher',
+            description: errorData.message || 'Unknown error',
+            variant: 'destructive',
+          });
         }
       } catch (error) {
         console.error('Failed to delete teacher:', error);
-        alert('Failed to delete teacher. Please try again.');
+        toast({
+          title: 'Could not delete teacher',
+          description: 'Please try again.',
+          variant: 'destructive',
+        });
       }
     }
   };
 
   const handleCSVUpload = async (file: File) => {
     if (isUploading) return;
-    
+    if (!schoolAdminId) {
+      toast({
+        title: 'Super admin only',
+        description: 'Bulk teacher import is only available in the super admin school workspace.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setIsUploading(true);
     const formData = new FormData();
     formData.append('file', file);
@@ -609,7 +807,11 @@ const TeacherManagement = ({ schoolAdminId }: TeacherManagementProps = {}) => {
     try {
       const token = localStorage.getItem('authToken');
       if (!token) {
-        alert('You are not authenticated. Please log in again.');
+        toast({
+          title: 'Session expired',
+          description: 'Please log in again.',
+          variant: 'destructive',
+        });
         setIsUploading(false);
         return;
       }
@@ -643,14 +845,19 @@ const TeacherManagement = ({ schoolAdminId }: TeacherManagementProps = {}) => {
           message += `\n${newSubjects} new subject(s) added to Subject Management.`;
         }
 
+        let description = message.replace(/\n/g, ' ');
         if (result.errors && result.errors.length > 0) {
-          message += `\n\nErrors:\n${result.errors.slice(0, 10).join('\n')}`;
-          if (result.errors.length > 10) {
-            message += `\n... and ${result.errors.length - 10} more errors`;
+          const errPreview = result.errors.slice(0, 3).join(' · ');
+          description += ` Some rows failed: ${errPreview}`;
+          if (result.errors.length > 3) {
+            description += ` (+${result.errors.length - 3} more)`;
           }
         }
-        
-        alert(message);
+
+        toast({
+          title: 'CSV uploaded',
+          description,
+        });
       } else {
         let errorData;
         try {
@@ -667,7 +874,11 @@ const TeacherManagement = ({ schoolAdminId }: TeacherManagementProps = {}) => {
         const errorMessage = errorData.message || 'Unknown error';
         const errorHint = errorData.hint ? `\n\nHint: ${errorData.hint}` : '';
         const fullError = errorData.error ? `${errorMessage}\n\nError details: ${errorData.error}${errorHint}` : `${errorMessage}${errorHint}`;
-        alert(`Failed to upload CSV: ${fullError}`);
+        toast({
+          title: 'CSV upload failed',
+          description: fullError.replace(/\n/g, ' ').slice(0, 280),
+          variant: 'destructive',
+        });
       }
     } catch (error) {
       console.error('Failed to upload CSV:', error);
@@ -679,12 +890,16 @@ const TeacherManagement = ({ schoolAdminId }: TeacherManagementProps = {}) => {
       
       let errorMessage = 'Network error';
       if (error instanceof TypeError && error.message.includes('fetch')) {
-        errorMessage = `Cannot connect to server at ${API_BASE_URL}\n\nPlease check:\n1. The backend server is running\n2. The API_BASE_URL is correct\n3. CORS is properly configured`;
+        errorMessage = `Cannot connect to server at ${API_BASE_URL}. Check that the backend is running.`;
       } else if (error instanceof Error) {
         errorMessage = error.message;
       }
       
-      alert(`Failed to upload CSV: ${errorMessage}\n\nPlease check:\n1. Your admin account has a board assigned\n2. The CSV file format is correct\n3. Your internet connection is stable\n4. The backend server is running at ${API_BASE_URL}`);
+      toast({
+        title: 'CSV upload failed',
+        description: errorMessage,
+        variant: 'destructive',
+      });
     } finally {
       setIsUploading(false);
     }
@@ -706,256 +921,72 @@ Jane Smith,jane.smith@school.edu,TeacherPass2,1234567891,Science,MSc in Chemistr
     document.body.removeChild(link);
   };
 
-  const handleAssignClasses = async (teacherId: string, classIds: string[]) => {
-    if (!teacherId) {
-      alert('Invalid teacher ID');
-      return;
-    }
-
-    console.log('Assigning classes:', { teacherId, classIds });
-
-    try {
-      const token = localStorage.getItem('authToken');
-      if (!token) {
-        alert('Authentication token not found. Please log in again.');
-        return;
-      }
-
-      const response = await fetch(`${adminApi('')}/teachers/${teacherId}/assign-classes`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ classIds })
-      });
-
-      const responseData = await response.json();
-      console.log('Class assignment response:', responseData);
-      console.log('Response status:', response.status);
-      console.log('Response ok:', response.ok);
-
-      if (response.ok) {
-        console.log('Classes assigned successfully, refreshing teacher data...');
-        console.log('Response data:', responseData.data);
-        console.log('Response data assignedClassIds:', responseData.data?.assignedClassIds);
-        
-        // Update UI immediately with optimistic update
-        if (assigningClassTeacher) {
-          const updatedTeacher = { ...assigningClassTeacher, assignedClassIds: classIds };
-          
-          // Save to localStorage for persistence across reloads
-          const savedAssignments = readSavedClassAssignments();
-          savedAssignments[assigningClassTeacher.id] = classIds;
-          localStorage.setItem('teacherClassAssignments', JSON.stringify(savedAssignments));
-          
-          setTeachers(prev => prev.map(teacher => 
-            teacher.id === assigningClassTeacher.id 
-              ? updatedTeacher
-              : teacher
-          ));
-        }
-        
-        await fetchTeachers();
-        
-        setIsAssignClassDialogOpen(false);
-        setAssigningClassTeacher(null);
-        setSelectedClasses([]);
-        alert('Classes assigned successfully!');
-      } else {
-        alert(`Failed to assign classes: ${responseData.message || 'Unknown error'}`);
-      }
-    } catch (error) {
-      console.error('Failed to assign classes:', error);
-      alert('Failed to assign classes. Please try again.');
-    }
+  const openProductAssignDialog = async (teacher: Teacher) => {
+    const { licenses: refreshed, products } = await refreshSchoolLicenses();
+    const licenseRows = refreshed.length ? refreshed : schoolLicenseRows;
+    const productsForPicker = products.length ? products : catalogProducts;
+    setAssigningProductsTeacher(teacher);
+    const assignRows = teacherRowsFromApi(
+      teacher.productAssignments,
+      licenseRows,
+      productsForPicker,
+    );
+    setProductAssignRows(
+      assignRows.length
+        ? assignRows
+        : licenseRows.length
+          ? [
+              newTeacherProductRow(
+                licenseRows[0].productCode,
+                findCatalogProduct(licenseRows[0].productCode, productsForPicker),
+                licenseRows[0],
+              ),
+            ]
+          : [],
+    );
+    setIsProductAssignOpen(true);
   };
 
-  const handleAssignSubjects = async (teacherId: string, subjectIds: string[]) => {
-    if (!teacherId) {
-      alert('Invalid teacher ID');
-      return;
-    }
-
-    console.log('Assigning subjects:', { teacherId, subjectIds });
-    console.log('Subject IDs type:', typeof subjectIds, 'Length:', subjectIds.length);
-    console.log('Subject IDs details:', subjectIds);
-
-    try {
-      const token = localStorage.getItem('authToken');
-      if (!token) {
-        alert('Authentication token not found. Please log in again.');
-        return;
-      }
-
-      const response = await fetch(`${adminApi('')}/teachers/${teacherId}/assign-subjects`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ subjectIds })
-      });
-
-      const responseData = await response.json();
-      console.log('Assignment response:', responseData);
-
-      if (response.ok) {
-        console.log('Subjects assigned successfully, refreshing teacher data...');
-
-        // 1) Optimistic update (keep until server confirms)
-        if (assigningTeacher) {
-          const updatedSubjects: Subject[] = subjectIds
-            .map((id) => {
-              const subject = subjects.find((s) => getSubjectRecordId(s) === id);
-              return subject ? mapSubjectFromApi(subject) : null;
-            })
-            .filter((s): s is Subject => s != null);
-
-          setTeachers((prevTeachers) =>
-            prevTeachers.map((teacher) =>
-              teacher.id === assigningTeacher.id
-                ? { ...assigningTeacher, subjects: updatedSubjects }
-                : teacher
-            )
-          );
-        }
-
-        // 2) Poll the server a few times to avoid flicker from eventual consistency
-        const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
-        let serverConfirmed = false;
-        for (let attempt = 1; attempt <= 3; attempt++) {
-          await delay(600); // give backend time to persist
-          try {
-            const token2 = localStorage.getItem('authToken');
-            const resp2 = await fetch(`${adminApi('')}/teachers`, {
-              headers: {
-                'Authorization': `Bearer ${token2}`,
-                'Content-Type': 'application/json'
-              }
-            });
-            if (!resp2.ok) throw new Error(`Refresh status ${resp2.status}`);
-            const raw = await resp2.json();
-            const arr: unknown[] = Array.isArray(raw)
-              ? raw
-              : Array.isArray(raw?.data)
-                ? raw.data
-                : Array.isArray(raw?.teachers)
-                  ? raw.teachers
-                  : [];
-
-            const savedAssignments = readSavedClassAssignments();
-            const mapped: Teacher[] = arr
-              .map((t) => mapTeacherFromApi(t, savedAssignments))
-              .filter((t): t is Teacher => t != null);
-
-            const refreshed = mapped.find((t: Teacher) => t.id === teacherId);
-            const ok = refreshed && Array.isArray(refreshed.subjects) && refreshed.subjects.length >= subjectIds.length;
-            console.log(`Refresh attempt ${attempt} → confirmed:`, ok, refreshed?.subjects);
-
-            if (ok) {
-              setTeachers(mapped);
-              serverConfirmed = true;
-              break;
-            }
-          } catch (e) {
-            console.warn('Refresh attempt failed:', e);
-          }
-        }
-
-        if (!serverConfirmed) {
-          console.warn('Server did not confirm assignment yet; keeping optimistic UI state.');
-        }
-
-        alert('Subjects assigned successfully!');
-      } else {
-        console.error('Assignment failed:', responseData);
-        alert(`Failed to assign subjects: ${responseData.message || 'Unknown error'}`);
-      }
-    } catch (error) {
-      console.error('Failed to assign subjects:', error);
-      alert('Failed to assign subjects. Please try again.');
-    }
-  };
-
-  const openAssignDialog = (teacher: Teacher) => {
-    console.log('Opening assign dialog for teacher:', teacher);
-    console.log('Teacher subjects:', teacher.subjects);
-    
-    setAssigningTeacher(teacher);
-    
-    // Map existing subjects to their IDs properly
-    const existingSubjectIds = (teacher.subjects ?? [])
-      .map((subject) => getSubjectRecordId(subject))
-      .filter(Boolean);
-    
-    console.log('Existing subject IDs:', existingSubjectIds);
-    setSelectedSubjects(existingSubjectIds);
-    setIsAssignDialogOpen(true);
-  };
-
-  const openAssignClassDialog = (teacher: Teacher) => {
-    console.log('Opening assign class dialog for teacher:', teacher);
-    setAssigningClassTeacher(teacher);
-    setSelectedClasses(teacher.assignedClassIds || []);
-    setIsAssignClassDialogOpen(true);
-  };
-
-  const handleAssignClassDialogSubmit = async (e: React.FormEvent) => {
+  const handleSaveProductAssignments = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!assigningClassTeacher) {
-      alert('Invalid teacher selected');
+    if (!assigningProductsTeacher) return;
+
+    const valid = productAssignRows.filter((r) => isTeacherRowValid(r));
+    if (!valid.length) {
+      toast({
+        title: 'Incomplete assignment',
+        description:
+          'Enable at least one class/level per product and pick subjects or categories.',
+        variant: 'destructive',
+      });
       return;
     }
 
-    console.log('Dialog submit - assigningClassTeacher:', assigningClassTeacher);
-    console.log('Selected classes:', selectedClasses);
+    const payload = valid
+      .map(teacherAssignmentToApi)
+      .filter((r): r is NonNullable<ReturnType<typeof teacherAssignmentToApi>> => !!r);
 
-    try {
-      const teacherId = assigningClassTeacher.id || (assigningClassTeacher as any)._id;
-      console.log('Teacher ID for assignment:', teacherId);
+    const teacherId = assigningProductsTeacher.id;
+    setSavingProductAssign(true);
+    const res = await saveTeacherProductAssignments(teacherId, payload, schoolAdminId);
+    setSavingProductAssign(false);
 
-      if (!teacherId) {
-        alert('Invalid teacher ID');
-        return;
-      }
-
-      await handleAssignClasses(teacherId, selectedClasses);
-    } catch (error) {
-      console.error('Failed to assign classes:', error);
-      alert('Failed to assign classes. Please try again.');
-    }
-  };
-
-  const handleAssignDialogSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!assigningTeacher) {
-      alert('Invalid teacher selected');
+    if (!res.ok) {
+      toast({
+        title: 'Could not save',
+        description: res.message || 'Try again.',
+        variant: 'destructive',
+      });
       return;
     }
 
-    console.log('Dialog submit - assigningTeacher:', assigningTeacher);
-    console.log('Dialog submit - selectedSubjects:', selectedSubjects);
-
-    // Use _id if id is not available (backend returns _id)
-    const teacherId = assigningTeacher.id || (assigningTeacher as any)._id;
-    if (!teacherId) {
-      alert('Invalid teacher ID');
-      return;
-    }
-
-    console.log('Final teacher ID:', teacherId);
-    console.log('Final selected subjects:', selectedSubjects);
-
-    try {
-      await handleAssignSubjects(teacherId, selectedSubjects);
-      setIsAssignDialogOpen(false);
-      setAssigningTeacher(null);
-      setSelectedSubjects([]);
-    } catch (error) {
-      console.error('Failed to assign subjects:', error);
-      alert('Failed to assign subjects. Please try again.');
-    }
+    toast({
+      title: 'Products assigned',
+      description: `${assigningProductsTeacher.fullName} can now see scoped content in their portal.`,
+    });
+    setIsProductAssignOpen(false);
+    setAssigningProductsTeacher(null);
+    await Promise.all([fetchTeachers(), fetchClasses()]);
   };
 
   const filteredTeachers = teachers.filter((teacher) => {
@@ -975,7 +1006,7 @@ Jane Smith,jane.smith@school.edu,TeacherPass2,1234567891,Science,MSc in Chemistr
     <AdminPageShell
       variant={uiVariant}
       title="Teachers"
-      description="Add teachers and assign them to classes and subjects for your licensed products."
+      description="Add teachers and assign book products — pick classes or levels and subjects/categories from the school license."
     >
       <AdminStatGrid
         variant={uiVariant}
@@ -1004,7 +1035,15 @@ Jane Smith,jane.smith@school.edu,TeacherPass2,1234567891,Science,MSc in Chemistr
             </Button>
           </div>
           
+          <div className="flex flex-col items-end gap-2">
+            {!schoolAdminId ? (
+              <p className="text-xs text-slate-600 max-w-md text-right">
+                Teacher accounts are created by the platform super admin. You can assign subjects and
+                classes to existing teachers.
+              </p>
+            ) : null}
           <div className="flex gap-3">
+            {schoolAdminId ? (
             <Dialog open={isUploadDialogOpen} onOpenChange={setIsUploadDialogOpen}>
               <DialogTrigger asChild>
                 <Button variant="outline" className="border-orange-200 text-orange-700 hover:bg-orange-50 rounded-xl">
@@ -1114,11 +1153,40 @@ Jane Smith,jane.smith@school.edu,TeacherPass2,1234567891,Science,MSc in Chemistr
                 </div>
               </DialogContent>
             </Dialog>
+            ) : null}
+            {schoolAdminId ? (
             <Dialog
               open={isAddDialogOpen}
               onOpenChange={(open) => {
                 setIsAddDialogOpen(open);
-                if (!open) setShowNewTeacherPassword(false);
+                if (!open) {
+                  setShowNewTeacherPassword(false);
+                  return;
+                }
+                void (async () => {
+                  const { licenses: refreshed, products } = await refreshSchoolLicenses();
+                  const licenseRows = refreshed.length ? refreshed : schoolLicenseRows;
+                  const productsForPicker = products.length ? products : catalogProducts;
+                  if (licenseRows.length) {
+                    const primaryName = productLabel(
+                      licenseRows[0].productCode,
+                      productsForPicker,
+                    );
+                    setNewTeacher((prev) => ({
+                      ...prev,
+                      department: prev.department || primaryName,
+                    }));
+                    setNewTeacherProductRows([
+                      newTeacherProductRow(
+                        licenseRows[0].productCode,
+                        findCatalogProduct(licenseRows[0].productCode, productsForPicker),
+                        licenseRows[0],
+                      ),
+                    ]);
+                  } else {
+                    setNewTeacherProductRows([]);
+                  }
+                })();
               }}
             >
               <DialogTrigger asChild>
@@ -1127,11 +1195,14 @@ Jane Smith,jane.smith@school.edu,TeacherPass2,1234567891,Science,MSc in Chemistr
                   Add Teacher
                 </Button>
               </DialogTrigger>
-            <DialogContent className="max-w-2xl max-h-[90vh] bg-white/95 border-orange-200 backdrop-blur-xl flex flex-col">
-              <DialogHeader className="flex-shrink-0">
-                <DialogTitle className="text-lg sm:text-xl font-bold bg-gradient-to-r from-orange-600 to-orange-400 bg-clip-text text-transparent">Add New Teacher</DialogTitle>
-                <DialogDescription className="text-gray-600 text-xs sm:text-sm">
-                  Create a new teacher account and assign subjects.
+            <DialogContent className="max-w-3xl max-h-[90vh] bg-gradient-to-b from-white to-slate-50/80 border border-slate-200/80 shadow-2xl flex flex-col rounded-2xl">
+              <DialogHeader className="flex-shrink-0 pb-2 border-b border-slate-100">
+                <DialogTitle className="text-lg sm:text-xl font-bold bg-gradient-to-r from-emerald-700 via-teal-600 to-cyan-600 bg-clip-text text-transparent">
+                  Add New Teacher
+                </DialogTitle>
+                <DialogDescription className="text-slate-600 text-xs sm:text-sm">
+                  Create a teacher account and assign book products. Classes are created automatically
+                  from your selections — add students to those classes afterward.
                 </DialogDescription>
               </DialogHeader>
               <div className="flex-1 overflow-y-auto pr-2">
@@ -1143,41 +1214,82 @@ Jane Smith,jane.smith@school.edu,TeacherPass2,1234567891,Science,MSc in Chemistr
                       id="fullName"
                       value={newTeacher.fullName}
                       onChange={(e) => setNewTeacher({ ...newTeacher, fullName: e.target.value })}
-                      className="border-orange-200 focus:border-orange-400 rounded-xl"
+                      className="border-slate-200 focus:border-emerald-500 focus:ring-emerald-500/20 rounded-xl bg-white"
                       required
                     />
                   </div>
                   <div>
-                    <Label htmlFor="email" className="text-gray-700 font-medium">Email</Label>
+                    <Label htmlFor="email" className="text-slate-700 font-medium">Email</Label>
                     <Input
                       id="email"
                       type="email"
                       value={newTeacher.email}
                       onChange={(e) => setNewTeacher({ ...newTeacher, email: e.target.value })}
-                      className="border-orange-200 focus:border-orange-400 rounded-xl"
+                      className="border-slate-200 focus:border-emerald-500 focus:ring-emerald-500/20 rounded-xl bg-white"
                       required
                     />
                   </div>
                   <div>
-                    <Label htmlFor="phone" className="text-gray-700 font-medium">Phone</Label>
-                    <Input
-                      id="phone"
-                      value={newTeacher.phone}
-                      onChange={(e) => setNewTeacher({ ...newTeacher, phone: e.target.value })}
-                      className="border-orange-200 focus:border-orange-400 rounded-xl"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="department" className="text-gray-700 font-medium">
-                      Department <span className="text-red-500">*</span>
+                    <Label htmlFor="phone" className="text-gray-700 font-medium">
+                      Phone <span className="text-slate-500 font-normal">(10 digits, optional)</span>
                     </Label>
                     <Input
-                      id="department"
-                      value={newTeacher.department}
-                      onChange={(e) => setNewTeacher({ ...newTeacher, department: e.target.value })}
-                      className="border-orange-200 focus:border-orange-400 rounded-xl"
-                      required
+                      id="phone"
+                      type="tel"
+                      inputMode="numeric"
+                      autoComplete="tel"
+                      maxLength={10}
+                      placeholder="10-digit mobile number"
+                      value={newTeacher.phone}
+                      onChange={(e) =>
+                        setNewTeacher({
+                          ...newTeacher,
+                          phone: formatPhoneInputValue(e.target.value),
+                        })
+                      }
+                      className="border-slate-200 focus:border-emerald-500 focus:ring-emerald-500/20 rounded-xl bg-white"
                     />
+                  </div>
+                  <div>
+                    <Label htmlFor="department" className="text-slate-700 font-medium">
+                      Product Name <span className="text-red-500">*</span>
+                    </Label>
+                    {schoolLicenseRows.length > 0 ? (
+                      <Select
+                        value={newTeacher.department || undefined}
+                        onValueChange={(value) =>
+                          setNewTeacher({ ...newTeacher, department: value })
+                        }
+                      >
+                        <SelectTrigger
+                          id="department"
+                          className="border-slate-200 focus:border-emerald-500 focus:ring-emerald-500/20 rounded-xl bg-white"
+                        >
+                          <SelectValue placeholder="Select product name" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {schoolLicenseRows.map((row) => {
+                            const name = productLabel(row.productCode, catalogProducts);
+                            return (
+                              <SelectItem key={row.productCode} value={name}>
+                                {name}
+                              </SelectItem>
+                            );
+                          })}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Input
+                        id="department"
+                        value={newTeacher.department}
+                        onChange={(e) =>
+                          setNewTeacher({ ...newTeacher, department: e.target.value })
+                        }
+                        placeholder="Assign school products first"
+                        className="border-slate-200 rounded-xl bg-slate-50"
+                        disabled
+                      />
+                    )}
                   </div>
                   <div className="md:col-span-2">
                     <Label htmlFor="password" className="text-gray-700 font-medium">
@@ -1189,7 +1301,7 @@ Jane Smith,jane.smith@school.edu,TeacherPass2,1234567891,Science,MSc in Chemistr
                         type={showNewTeacherPassword ? 'text' : 'password'}
                         value={newTeacher.password}
                         onChange={(e) => setNewTeacher({ ...newTeacher, password: e.target.value })}
-                        className="border-orange-200 focus:border-orange-400 rounded-xl px-0 pl-3 pr-10 sm:pr-12"
+                        className="border-slate-200 focus:border-emerald-500 focus:ring-emerald-500/20 rounded-xl px-0 pl-3 pr-10 sm:pr-12 bg-white"
                         placeholder="Minimum 6 characters"
                         minLength={6}
                         required
@@ -1216,99 +1328,35 @@ Jane Smith,jane.smith@school.edu,TeacherPass2,1234567891,Science,MSc in Chemistr
                     id="qualifications"
                     value={newTeacher.qualifications}
                     onChange={(e) => setNewTeacher({ ...newTeacher, qualifications: e.target.value })}
-                    className="border-orange-200 focus:border-orange-400 rounded-xl"
+                    className="border-slate-200 focus:border-emerald-500 focus:ring-emerald-500/20 rounded-xl bg-white"
                     rows={2}
                   />
                 </div>
-                <div>
-                  <Label className="text-gray-700 font-medium mb-3 block">
-                    Assign Subjects <span className="text-red-500">*</span>
+                <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm">
+                  <Label className="text-slate-800 font-semibold mb-1 block">
+                    Assign Products <span className="text-red-500">*</span>
                   </Label>
-                  {subjects.length === 0 ? (
-                    <div className="text-xs sm:text-sm text-gray-500 p-4 bg-gray-50 rounded-xl border border-gray-200">
-                      No subjects available. Please add subjects first.
+                  <p className="text-xs text-slate-500 mb-3">
+                    Products licensed to this school in School Management appear below.
+                  </p>
+                  {loadingLicenses ? (
+                    <div className="flex items-center gap-2 text-sm text-slate-600 py-6 justify-center">
+                      <Loader2 className="h-4 w-4 animate-spin text-emerald-600" />
+                      Loading school products…
+                    </div>
+                  ) : schoolLicenseRows.length === 0 ? (
+                    <div className="text-xs sm:text-sm text-violet-800 p-4 bg-violet-50 rounded-xl border border-violet-200">
+                      No licensed products found for this school. Open{' '}
+                      <strong>School Management → Edit School</strong> and assign book products, then
+                      return here.
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 max-h-48 overflow-y-auto p-2 border border-orange-200 rounded-xl bg-gray-50">
-                      {subjects.map(subject => {
-                        const subjectId = getSubjectRecordId(subject);
-                        const isSelected = newTeacher.subjects.includes(subjectId);
-                        return (
-                          <Card
-                            key={subjectId}
-                            className={`cursor-pointer transition-all duration-200 hover:shadow-md ${
-                              isSelected
-                                ? 'bg-gradient-to-r from-orange-500 to-orange-400 text-white border-orange-500 shadow-lg'
-                                : 'bg-white border-gray-200 hover:border-purple-300'
-                            }`}
-                            onClick={() => {
-                              if (isSelected) {
-                                setNewTeacher({
-                                  ...newTeacher,
-                                  subjects: newTeacher.subjects.filter(id => id !== subjectId)
-                                });
-                              } else {
-                                setNewTeacher({
-                                  ...newTeacher,
-                                  subjects: [...newTeacher.subjects, subjectId]
-                                });
-                              }
-                            }}
-                          >
-                            <CardContent className="p-2">
-                              <div className="flex items-center justify-between">
-                                <div className="flex-1 min-w-0">
-                                  <p className={`font-semibold text-xs truncate ${isSelected ? 'text-white' : 'text-gray-900'}`}>
-                                    {subject.name}
-                                  </p>
-                                  {subject.code && (
-                                    <p className={`text-xs mt-0.5 truncate ${isSelected ? 'text-purple-100' : 'text-gray-600'}`}>
-                                      {subject.code}
-                                    </p>
-                                  )}
-                                </div>
-                                {isSelected && (
-                                  <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4 text-white ml-1 flex-shrink-0" />
-                                )}
-                              </div>
-                            </CardContent>
-                          </Card>
-                        );
-                      })}
-                    </div>
-                  )}
-                  {newTeacher.subjects.length > 0 && (
-                    <div className="mt-2">
-                      <p className="text-xs text-gray-600 mb-1">
-                        Selected ({newTeacher.subjects.length}):
-                      </p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {newTeacher.subjects.map(subjectId => {
-                          const subject = subjects.find((s) => getSubjectRecordId(s) === subjectId);
-                          return subject ? (
-                            <Badge key={subjectId} className="bg-gradient-to-r from-purple-100 to-pink-100 text-purple-800 border-orange-200 rounded-lg px-3 py-1">
-                              {subject.name}
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setNewTeacher({ 
-                                    ...newTeacher, 
-                                    subjects: newTeacher.subjects.filter(id => id !== subjectId) 
-                                  });
-                                }}
-                                className="ml-2 text-orange-600 hover:text-purple-800 font-bold"
-                              >
-                                ×
-                              </button>
-                            </Badge>
-                          ) : null;
-                        })}
-                      </div>
-                    </div>
-                  )}
-                  {newTeacher.subjects.length === 0 && (
-                    <p className="text-xs sm:text-sm text-red-500 mt-2">Please select at least one subject</p>
+                    <TeacherProductAssignmentEditor
+                      rows={newTeacherProductRows}
+                      onChange={setNewTeacherProductRows}
+                      catalogProducts={catalogProducts}
+                      schoolAssignments={schoolLicenseRows}
+                    />
                   )}
                 </div>
                 </form>
@@ -1317,12 +1365,14 @@ Jane Smith,jane.smith@school.edu,TeacherPass2,1234567891,Science,MSc in Chemistr
                 <Button type="button" variant="outline" onClick={() => setIsAddDialogOpen(false)} className="rounded-xl">
                   Cancel
                 </Button>
-                <Button type="submit" form="add-teacher-form" className="bg-gradient-to-r from-orange-600 to-orange-400 hover:from-orange-700 hover:to-orange-600 rounded-xl">
+                <Button type="submit" form="add-teacher-form" className="bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-700 hover:to-teal-600 text-white rounded-xl shadow-md">
                   Add Teacher
                 </Button>
               </div>
             </DialogContent>
           </Dialog>
+            ) : null}
+          </div>
           </div>
         </div>
         </AdminPanel>
@@ -1386,24 +1436,41 @@ Jane Smith,jane.smith@school.edu,TeacherPass2,1234567891,Science,MSc in Chemistr
                     </div>
                   </div>
 
-                  {/* Subjects — fixed block height */}
+                  {/* Licensed products */}
                   <div className="mb-4 min-h-[4.25rem]">
-                    <h4 className="font-bold text-gray-900 text-xs sm:text-sm mb-2">Subjects:</h4>
+                    <h4 className="font-bold text-gray-900 text-xs sm:text-sm mb-2">Products:</h4>
                     <div className="flex flex-wrap gap-2 min-h-[1.75rem] items-start">
-                      {dedupeSubjectsForDisplay(teacherSubjects).map((subject) => (
-                        <Badge key={subject.id} className={`bg-gradient-to-r ${gradient} text-white border-0 rounded-lg px-3 py-1 text-xs font-medium`}>
-                          {subject.label}
+                      {(teacher.productAssignments || []).map((row) => (
+                        <Badge
+                          key={row.productCode}
+                          className={`bg-gradient-to-r ${gradient} text-white border-0 rounded-lg px-3 py-1 text-xs font-medium`}
+                        >
+                          {row.productCode}
+                          {row.classLicenses?.length
+                            ? ` · ${row.classLicenses.length} slots`
+                            : ''}
                         </Badge>
                       ))}
-                      {teacherSubjects.length === 0 && (
-                        <span className="text-xs text-gray-500 bg-gray-100 rounded-lg px-3 py-1">No subjects assigned</span>
+                      {!(teacher.productAssignments || []).length && (
+                        <span className="text-xs text-gray-500 bg-gray-100 rounded-lg px-3 py-1">
+                          No products assigned
+                        </span>
                       )}
                     </div>
                   </div>
 
                   {/* Assigned classes — equal scroll area on all cards */}
                   <div className="mb-4 flex flex-col flex-1 min-h-[8rem]">
-                    <h4 className="font-bold text-gray-900 text-xs sm:text-sm mb-2">Assigned Classes:</h4>
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <h4 className="font-bold text-gray-900 text-xs sm:text-sm">Assigned Classes:</h4>
+                      <button
+                        type="button"
+                        className="text-[11px] font-semibold text-emerald-700 hover:text-emerald-900 underline-offset-2 hover:underline shrink-0"
+                        onClick={() => openProductAssignDialog(teacher)}
+                      >
+                        Edit subjects
+                      </button>
+                    </div>
                     <div className="space-y-2 flex-1 overflow-y-auto max-h-48 pr-0.5">
                       {assignedClassIds.length > 0 ? (
                         assignedClassIds.map((classId) => {
@@ -1442,26 +1509,17 @@ Jane Smith,jane.smith@school.edu,TeacherPass2,1234567891,Science,MSc in Chemistr
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between pt-4 border-t border-gray-200 mt-auto">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pt-4 border-t border-gray-200 mt-auto">
+                    <Button
+                      size="sm"
+                      className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl px-4"
+                      onClick={() => openProductAssignDialog(teacher)}
+                      title="Edit classes, levels, and subjects for this teacher"
+                    >
+                      <Layers className="w-4 h-4 mr-2" />
+                      Edit subjects &amp; products
+                    </Button>
                     <div className="flex items-center space-x-2">
-                      <Button 
-                        size="sm" 
-                        variant="outline" 
-                        className="border-orange-200 text-orange-700 hover:bg-orange-50 rounded-xl"
-                        onClick={() => openAssignClassDialog(teacher)}
-                        title="Assign Class"
-                      >
-                        <Users className="w-3 h-3 sm:w-4 sm:h-4" />
-                      </Button>
-                      <Button 
-                        size="sm" 
-                        variant="outline" 
-                        className="border-emerald-200 text-emerald-700 hover:bg-emerald-50 rounded-xl"
-                        onClick={() => openAssignDialog(teacher)}
-                        title="Assign subjects"
-                      >
-                        <BookOpen className="w-3 h-3 sm:w-4 sm:h-4" />
-                      </Button>
                       <Button
                         size="sm"
                         variant="outline"
@@ -1476,6 +1534,7 @@ Jane Smith,jane.smith@school.edu,TeacherPass2,1234567891,Science,MSc in Chemistr
                         variant="outline" 
                         className="border-red-200 text-red-700 hover:bg-red-50 rounded-xl"
                         onClick={() => handleDeleteTeacher(teacher.id, teacher.fullName)}
+                        title="Delete teacher"
                       >
                         <Trash2 className="w-3 h-3 sm:w-4 sm:h-4" />
                       </Button>
@@ -1497,114 +1556,48 @@ Jane Smith,jane.smith@school.edu,TeacherPass2,1234567891,Science,MSc in Chemistr
           </div>
         )}
 
-        {/* Subject Assignment Dialog */}
-        <Dialog open={isAssignDialogOpen} onOpenChange={setIsAssignDialogOpen}>
-          <DialogContent className="max-w-2xl bg-white/95 border-orange-200 backdrop-blur-xl">
-            <DialogHeader>
-              <DialogTitle className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-orange-600 to-orange-400 bg-clip-text text-transparent">
-                Assign Subjects to {assigningTeacher?.fullName}
+        <Dialog open={isProductAssignOpen} onOpenChange={setIsProductAssignOpen}>
+          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto bg-gradient-to-b from-white to-slate-50/80 border-slate-200 rounded-2xl">
+            <DialogHeader className="border-b border-slate-100 pb-3">
+              <DialogTitle className="text-xl font-bold bg-gradient-to-r from-emerald-700 to-teal-600 bg-clip-text text-transparent">
+                Edit subjects &amp; products — {assigningProductsTeacher?.fullName}
               </DialogTitle>
-              <DialogDescription className="text-gray-600 text-base sm:text-lg">
-                Select the subjects this teacher will teach.
+              <DialogDescription className="text-slate-600">
+                Enable each class or level, then pick which subjects (class-based) or categories
+                (level-based) this teacher teaches. Save to update their portal content and classes.
               </DialogDescription>
             </DialogHeader>
-            <form onSubmit={handleAssignDialogSubmit} className="space-y-3 sm:space-y-4 lg:space-y-6">
-              <div>
-                <Label className="text-gray-700 font-medium text-base sm:text-lg">Available Subjects</Label>
-                <div className="mt-3 space-y-3 max-h-60 overflow-y-auto">
-                  {subjects.map(subject => {
-                    const subjectId = getSubjectRecordId(subject);
-                    return (
-                      <div key={subjectId} className="flex items-center space-x-4 p-4 bg-gradient-to-r from-orange-50 to-orange-100 rounded-xl border border-purple-100 hover:border-orange-200 transition-colors">
-                        <input
-                          type="checkbox"
-                          id={`subject-${subjectId}`}
-                          checked={selectedSubjects.includes(subjectId)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setSelectedSubjects([...selectedSubjects, subjectId]);
-                            } else {
-                              setSelectedSubjects(selectedSubjects.filter(id => id !== subjectId));
-                            }
-                          }}
-                          className="w-4 h-4 sm:w-5 sm:h-5 text-orange-600 border-purple-300 rounded focus:ring-purple-500"
-                        />
-                        <label htmlFor={`subject-${subjectId}`} className="flex-1 cursor-pointer">
-                          <div className="font-bold text-gray-900 text-base sm:text-lg">{subject.name}</div>
-                          <div className="text-xs sm:text-sm text-gray-600">{subject.code} - {subject.description}</div>
-                        </label>
-                      </div>
-                    );
-                  })}
+            <form onSubmit={handleSaveProductAssignments} className="space-y-4">
+              {loadingLicenses ? (
+                <div className="flex items-center gap-2 text-sm text-slate-600 py-8 justify-center">
+                  <Loader2 className="h-4 w-4 animate-spin text-emerald-600" />
+                  Loading licensed products…
                 </div>
-              </div>
-              <div className="flex justify-end space-x-3">
-                <Button type="button" variant="outline" onClick={() => setIsAssignDialogOpen(false)} className="rounded-xl">
+              ) : (
+              <TeacherProductAssignmentEditor
+                rows={productAssignRows}
+                onChange={setProductAssignRows}
+                catalogProducts={catalogProducts}
+                schoolAssignments={schoolLicenseRows}
+              />
+              )}
+              <div className="flex justify-end gap-2 pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsProductAssignOpen(false)}
+                >
                   Cancel
                 </Button>
-                <Button type="submit" className="bg-gradient-to-r from-orange-600 to-orange-400 hover:from-orange-700 hover:to-orange-600 rounded-xl">
-                  Assign Subjects
-                </Button>
-              </div>
-            </form>
-          </DialogContent>
-        </Dialog>
-
-        {/* Assign Class Dialog */}
-        <Dialog open={isAssignClassDialogOpen} onOpenChange={setIsAssignClassDialogOpen}>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle className="text-lg sm:text-xl font-semibold text-gray-800">
-                Assign Classes to {assigningClassTeacher?.fullName}
-              </DialogTitle>
-              <DialogDescription>
-                Select classes to assign to this teacher from the existing classes.
-              </DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleAssignClassDialogSubmit} className="space-y-4">
-              <div className="space-y-4">
-                <div>
-                  <Label className="text-gray-700 font-medium">Assign Classes</Label>
-                  <div className="mt-2 space-y-2 max-h-60 overflow-y-auto border border-gray-200 rounded-lg p-3">
-                    {classes.map((classItem) => (
-                      <label key={classItem.id} className="flex items-center space-x-3 p-2 hover:bg-gray-50 rounded-lg cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={selectedClasses.includes(classItem.id)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setSelectedClasses([...selectedClasses, classItem.id]);
-                            } else {
-                              setSelectedClasses(selectedClasses.filter(id => id !== classItem.id));
-                            }
-                          }}
-                          className="rounded border-gray-300 text-orange-600 focus:ring-purple-500"
-                        />
-                        <div className="flex-1">
-                          <div className="font-medium text-gray-900">{classItem.name}</div>
-                          <div className="text-xs sm:text-sm text-gray-500">
-                            {classItem.subject} • {classItem.schedule} • {classItem.room}
-                          </div>
-                          <div className="text-xs text-gray-400">
-                            {classItem.studentCount} students
-                          </div>
-                        </div>
-                      </label>
-                    ))}
-                    {classes.length === 0 && (
-                      <div className="text-center text-gray-500 py-4">
-                        No classes available. Create some classes first.
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-              <div className="flex justify-end space-x-3">
-                <Button type="button" variant="outline" onClick={() => setIsAssignClassDialogOpen(false)} className="rounded-xl">
-                  Cancel
-                </Button>
-                <Button type="submit" className="bg-gradient-to-r from-orange-600 to-orange-400 hover:from-orange-700 hover:to-orange-600 rounded-xl">
-                  Assign Classes
+                <Button type="submit" disabled={savingProductAssign} className={adminPrimaryBtn}>
+                  {savingProductAssign ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Saving…
+                    </>
+                  ) : (
+                    'Save assignments'
+                  )}
                 </Button>
               </div>
             </form>

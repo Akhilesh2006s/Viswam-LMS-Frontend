@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -96,37 +96,6 @@ interface Class {
   createdAt: string;
 }
 
-interface SubjectClassRef {
-  id: string;
-  classNumber?: string;
-  section?: string;
-}
-
-interface Subject {
-  _id: string;
-  id: string;
-  name: string;
-  code?: string;
-  description?: string;
-  board: string;
-  variantIds?: string[];
-  classes?: SubjectClassRef[];
-}
-
-const normalizeClassNumber = (value: string) =>
-  String(value || '')
-    .replace(/^class\s*/i, '')
-    .trim();
-
-const subjectIdsMatch = (a: string, b: string) => String(a) === String(b);
-
-const subjectRowMatchesStoredId = (row: Subject, storedId: string) => {
-  const ids = new Set(
-    [row.id, row._id, ...(row.variantIds || [])].filter(Boolean).map(String),
-  );
-  return ids.has(String(storedId));
-};
-
 type ClassDashboardProps = {
   /** When set, super admin is managing this school (full CRUD). */
   schoolAdminId?: string;
@@ -140,7 +109,6 @@ const ClassDashboard = ({ schoolAdminId, readOnly: readOnlyProp }: ClassDashboar
   const adminApi = (path: string) => schoolAdminApiUrl(path, schoolAdminId);
   const { toast } = useToast();
   const [classes, setClasses] = useState<Class[]>([]);
-  const [subjects, setSubjects] = useState<Subject[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedProduct, setSelectedProduct] = useState('all');
   const [products, setProducts] = useState<Product[]>([]);
@@ -164,19 +132,12 @@ const ClassDashboard = ({ schoolAdminId, readOnly: readOnlyProp }: ClassDashboar
     setIsCustomSection(false);
     setCustomSectionLetter('');
   };
-  // Assign Subjects state
-  const [selectedClassIdForSubjects, setSelectedClassIdForSubjects] = useState<string>('');
-  const [selectedSubjectIds, setSelectedSubjectIds] = useState<string[]>([]);
-  const [isAssigningSubjects, setIsAssigningSubjects] = useState(false);
   const [selectedClassesForPromotion, setSelectedClassesForPromotion] = useState<Set<string>>(new Set());
   const [isPromoting, setIsPromoting] = useState(false);
   const [selectedStudentForAnalysis, setSelectedStudentForAnalysis] = useState<Student | null>(null);
   const [isStudentAnalysisDialogOpen, setIsStudentAnalysisDialogOpen] = useState(false);
   const [studentAnalysis, setStudentAnalysis] = useState<any>(null);
   const [isLoadingAnalysis, setIsLoadingAnalysis] = useState(false);
-  const userEditedAssignRef = useRef(false);
-  const assignTargetKeyRef = useRef('');
-
   useEffect(() => {
     fetchAdminProductWorkspace(schoolAdminId).then((w) => {
       if (w) {
@@ -185,135 +146,7 @@ const ClassDashboard = ({ schoolAdminId, readOnly: readOnlyProp }: ClassDashboar
       }
     });
     fetchClasses();
-    fetchSubjects();
-    const onSubjectsUpdated = () => {
-      fetchClasses();
-      fetchSubjects();
-    };
-    window.addEventListener('subjectsUpdated', onSubjectsUpdated);
-    return () => window.removeEventListener('subjectsUpdated', onSubjectsUpdated);
   }, [schoolAdminId]);
-
-  const findClassForAssignSelection = (
-    classNumber: string,
-    section?: string,
-  ): Class | undefined => {
-    const wantNum = normalizeClassNumber(classNumber);
-    const matches = classes.filter(
-      (c) => normalizeClassNumber(c.classNumber) === wantNum,
-    );
-    if (!matches.length) return undefined;
-    const wantSection = String(section || DEFAULT_CLASS_SECTION).toUpperCase();
-    return (
-      matches.find((c) => String(c.section || DEFAULT_CLASS_SECTION).toUpperCase() === wantSection) ||
-      matches[0]
-    );
-  };
-
-  const selectedClassForAssign = selectedClassIdForSubjects
-    ? classes.find((c) => c.id === selectedClassIdForSubjects)
-    : undefined;
-
-  const resolveSubjectIdsForClass = (classItem: Class | undefined): string[] => {
-    if (!classItem || subjects.length === 0) return [];
-
-    const classId = String(classItem.id);
-    const resolved = new Set<string>();
-
-    // From Class.assignedSubjects (direct class document links)
-    for (const subj of classItem.assignedSubjects || []) {
-      const storedId = String(subj.id || subj._id || '');
-      if (!storedId) continue;
-      const row = subjects.find((s) => subjectRowMatchesStoredId(s, storedId));
-      if (row) resolved.add(String(row.id || row._id));
-      else {
-        const byName = subjects.find(
-          (s) => s.name && subj.name && s.name.toLowerCase() === subj.name.toLowerCase(),
-        );
-        if (byName) resolved.add(String(byName.id || byName._id));
-      }
-    }
-
-    // From Subject page data (classIds / classes array on each subject row)
-    for (const row of subjects) {
-      const linked = row.classes || [];
-      const linkedToThisClass = linked.some((c) => subjectIdsMatch(String(c.id), classId));
-      if (linkedToThisClass) resolved.add(String(row.id || row._id));
-    }
-
-    return [...resolved];
-  };
-
-  // Load saved subjects when selected class changes
-  useEffect(() => {
-    if (!selectedClassIdForSubjects) {
-      assignTargetKeyRef.current = '';
-      userEditedAssignRef.current = false;
-      setSelectedSubjectIds([]);
-      return;
-    }
-
-    if (assignTargetKeyRef.current !== selectedClassIdForSubjects) {
-      assignTargetKeyRef.current = selectedClassIdForSubjects;
-      userEditedAssignRef.current = false;
-    }
-
-    if (userEditedAssignRef.current) return;
-
-    const row = classes.find((c) => c.id === selectedClassIdForSubjects);
-    setSelectedSubjectIds(resolveSubjectIdsForClass(row));
-  }, [selectedClassIdForSubjects, classes, subjects]);
-
-  const hydrateAssignSelectionFromServer = () => {
-    if (!selectedClassIdForSubjects) return;
-    const row = classes.find((c) => c.id === selectedClassIdForSubjects);
-    userEditedAssignRef.current = false;
-    setSelectedSubjectIds(resolveSubjectIdsForClass(row));
-  };
-
-  const fetchSubjects = async () => {
-    try {
-      const token = localStorage.getItem('authToken');
-      const response = await fetch(`${adminApi('')}/subjects`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        const subjectsArray = Array.isArray(data) ? data : (data.data || []);
-        setSubjects(
-          subjectsArray.map((subject: any) => ({
-            _id: subject._id || subject.id,
-            id: subject._id || subject.id,
-            name: String(subject.name || '').split('__deleted__')[0].trim(),
-            code: subject.code,
-            description: subject.description,
-            board: subject.board,
-            variantIds: Array.isArray(subject.variantIds)
-              ? subject.variantIds.map(String)
-              : [String(subject._id || subject.id)],
-            classes: Array.isArray(subject.classes)
-              ? subject.classes.map((c: any) => ({
-                  id: String(c.id || c._id || ''),
-                  classNumber: c.classNumber,
-                  section: c.section,
-                }))
-              : [],
-          })),
-        );
-      }
-    } catch (error) {
-      console.error('Failed to fetch subjects:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to fetch subjects',
-        variant: 'destructive'
-      });
-    }
-  };
 
   const fetchStudents = async () => {
     try {
@@ -701,106 +534,6 @@ const ClassDashboard = ({ schoolAdminId, readOnly: readOnlyProp }: ClassDashboar
     }
   };
 
-  const toCanonicalSubjectIds = (ids: string[]) => {
-    const canonical = new Set<string>();
-    for (const raw of ids) {
-      const row = subjects.find((s) => subjectRowMatchesStoredId(s, raw));
-      const id = String(row?.id || row?._id || raw).trim();
-      if (/^[a-f\d]{24}$/i.test(id)) canonical.add(id);
-    }
-    return [...canonical];
-  };
-
-  const handleAssignSubjects = async () => {
-    const classForSection = selectedClassForAssign;
-
-    if (!classForSection?.id) {
-      toast({
-        title: 'Validation Error',
-        description: 'Please select a class',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    const subjectIdsToSave = toCanonicalSubjectIds(selectedSubjectIds);
-
-    setIsAssigningSubjects(true);
-    try {
-      const token = localStorage.getItem('authToken');
-      const response = await fetch(
-        adminApi(
-          `/classes/by-id/${encodeURIComponent(classForSection.id)}/assign-subjects`,
-        ),
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token || ''}`,
-          },
-          body: JSON.stringify({ subjectIds: subjectIdsToSave }),
-        },
-      );
-
-      const rawText = await response.text();
-      let data: { success?: boolean; message?: string } = {};
-      try {
-        data = rawText ? JSON.parse(rawText) : {};
-      } catch {
-        throw new Error(
-          response.ok
-            ? 'Invalid server response'
-            : `Server error (${response.status}). Restart the backend and try again.`,
-        );
-      }
-
-      if (response.ok && data.success) {
-        toast({
-          title: 'Success',
-          description:
-            data.message ||
-            `Subjects saved for ${getClassDisplayTitle(classForSection.classNumber, classForSection.name)}`,
-        });
-        userEditedAssignRef.current = false;
-        await fetchClasses();
-        await fetchSubjects();
-        window.dispatchEvent(new CustomEvent('subjectsUpdated'));
-        hydrateAssignSelectionFromServer();
-      } else {
-        const errMsg =
-          data.message ||
-          (response.status === 401
-            ? 'Session expired. Please log in again.'
-            : `Save failed (${response.status})`);
-        toast({
-          title: 'Error',
-          description: errMsg,
-          variant: 'destructive',
-        });
-      }
-    } catch (error) {
-      console.error('Failed to assign subjects:', error);
-      const message =
-        error instanceof Error ? error.message : 'Failed to assign subjects to class';
-      toast({
-        title: 'Error',
-        description: message,
-        variant: 'destructive',
-      });
-    } finally {
-      setIsAssigningSubjects(false);
-    }
-  };
-
-  const handleSubjectToggle = (subjectId: string) => {
-    userEditedAssignRef.current = true;
-    setSelectedSubjectIds((prev) => {
-      const key = String(subjectId);
-      const exists = prev.some((id) => subjectIdsMatch(id, key));
-      return exists ? prev.filter((id) => !subjectIdsMatch(id, key)) : [...prev, key];
-    });
-  };
-
   const classProductCode = (c: Class) =>
     c.productCode ||
     resolveProductCodeForClassNumber(c.classNumber, assignments) ||
@@ -848,7 +581,7 @@ const ClassDashboard = ({ schoolAdminId, readOnly: readOnlyProp }: ClassDashboar
       description={
         readOnly
           ? 'View licensed classes and the teachers and students assigned to each class.'
-          : 'Manage classes, assign subjects, teachers, and students for this school.'
+          : 'Manage classes, teachers, and students for this school.'
       }
     >
       <AdminStatGrid
@@ -872,16 +605,10 @@ const ClassDashboard = ({ schoolAdminId, readOnly: readOnlyProp }: ClassDashboar
               Classes
             </AdminTabsTrigger>
             {!readOnly ? (
-              <>
-                <AdminTabsTrigger variant={uiVariant} value="assign-subjects">
-                  <BookOpen className="mr-2 h-4 w-4 inline" />
-                  Assign Subjects
-                </AdminTabsTrigger>
-                <AdminTabsTrigger variant={uiVariant} value="promote-class">
-                  <ArrowUp className="mr-2 h-4 w-4 inline" />
-                  Promote Class
-                </AdminTabsTrigger>
-              </>
+              <AdminTabsTrigger variant={uiVariant} value="promote-class">
+                <ArrowUp className="mr-2 h-4 w-4 inline" />
+                Promote Class
+              </AdminTabsTrigger>
             ) : null}
           </AdminTabsList>
 
@@ -1155,147 +882,6 @@ const ClassDashboard = ({ schoolAdminId, readOnly: readOnlyProp }: ClassDashboar
               </p>
             </AdminPanel>
           )}
-          </TabsContent>
-
-          <TabsContent value="assign-subjects" className="space-y-3 sm:space-y-4 lg:space-y-6">
-            <Card className="bg-white/80 backdrop-blur-xl rounded-3xl shadow-xl border border-white/20">
-              <CardHeader>
-                <CardTitle className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-purple-600 via-pink-600 to-red-500 bg-clip-text text-transparent">
-                  Assign Subjects to Class
-                </CardTitle>
-                <p className="text-gray-600 mt-2">Select a class and the subjects taught in that class</p>
-              </CardHeader>
-              <CardContent className="space-y-3 sm:space-y-4 lg:space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="class-select" className="text-sm sm:text-base font-semibold mb-2 block">Select class *</Label>
-                  <Select
-                    value={selectedClassIdForSubjects}
-                    onValueChange={(value) => {
-                      userEditedAssignRef.current = false;
-                      assignTargetKeyRef.current = '';
-                      setSelectedClassIdForSubjects(value);
-                      setSelectedSubjectIds([]);
-                    }}
-                  >
-                    <SelectTrigger id="class-select" className="w-full">
-                      <SelectValue placeholder="Choose a class" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {[...classes]
-                        .sort((a, b) => {
-                          const numA = parseInt(String(a.classNumber).replace(/\D/g, ''), 10);
-                          const numB = parseInt(String(b.classNumber).replace(/\D/g, ''), 10);
-                          if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
-                          return String(a.classNumber).localeCompare(String(b.classNumber));
-                        })
-                        .map((c) => (
-                          <SelectItem key={c.id} value={c.id}>
-                            {getClassDisplayTitle(c.classNumber, c.name)} ({c.studentCount || 0} students)
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                </div>
-
-                {selectedClassIdForSubjects && (
-                  <p className="text-xs sm:text-sm text-gray-600">
-                    Subjects will be assigned to{' '}
-                    {getClassDisplayTitle(
-                      classes.find((c) => c.id === selectedClassIdForSubjects)?.classNumber || '',
-                    )}{' '}
-                    only.
-                  </p>
-                )}
-
-                <div>
-                  <Label className="text-sm sm:text-base font-semibold mb-4 block">Select Subjects *</Label>
-                  {subjects.length === 0 ? (
-                    <div className="text-center py-4 sm:py-6 lg:py-8 bg-gray-50 rounded-xl">
-                      <BookOpen className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                      <p className="text-gray-600">No subjects available. Please create subjects first.</p>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-96 overflow-y-auto p-4 bg-gray-50 rounded-xl">
-                      {subjects.map(subject => {
-                        const subjectKey = String(subject.id || subject._id);
-                        const isSelected = selectedSubjectIds.some(
-                          (id) => subjectIdsMatch(id, subjectKey),
-                        );
-                        return (
-                        <div
-                          key={subject.id || subject._id}
-                          className={`flex items-center space-x-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${
-                            isSelected
-                              ? 'border-purple-500 bg-purple-50'
-                              : 'border-gray-200 bg-white hover:border-purple-300'
-                          }`}
-                          onClick={() => handleSubjectToggle(subjectKey)}
-                        >
-                          <Checkbox
-                            checked={isSelected}
-                            onCheckedChange={() => handleSubjectToggle(subjectKey)}
-                          />
-                          <div className="flex-1">
-                            <p className="font-semibold text-gray-900">{subject.name}</p>
-                            {subject.code && (
-                              <p className="text-xs sm:text-sm text-gray-600">Code: {subject.code}</p>
-                            )}
-                            {subject.description && (
-                              <p className="text-xs text-gray-500 mt-1 line-clamp-2">{subject.description}</p>
-                            )}
-                          </div>
-                        </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                  {selectedSubjectIds.length > 0 && (
-                    <div className="mt-4">
-                      <p className="text-xs sm:text-sm text-gray-600 mb-2">
-                        <strong>{selectedSubjectIds.length}</strong> subject(s) selected
-                      </p>
-                      <div className="flex flex-wrap gap-2">
-                        {selectedSubjectIds.map(subjectId => {
-                          const subject = subjects.find(s => s.id === subjectId);
-                          return subject ? (
-                            <Badge key={subjectId} className="bg-purple-100 text-purple-700">
-                              {subject.name}
-                            </Badge>
-                          ) : null;
-                        })}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <div className="relative z-[60] flex flex-wrap justify-end gap-3 border-t pt-4 pr-4 pb-2 sm:pr-24">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => {
-                      userEditedAssignRef.current = false;
-                      assignTargetKeyRef.current = '';
-                      setSelectedClassIdForSubjects('');
-                      setSelectedSubjectIds([]);
-                    }}
-                    disabled={isAssigningSubjects}
-                  >
-                    Clear
-                  </Button>
-                  <Button
-                    type="button"
-                    onClick={() => void handleAssignSubjects()}
-                    disabled={!selectedClassIdForSubjects || isAssigningSubjects}
-                    className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white"
-                  >
-                    {isAssigningSubjects ? 'Saving...' : 'Save'}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
           </TabsContent>
 
           <TabsContent value="promote-class" className="space-y-3 sm:space-y-4 lg:space-y-6">

@@ -83,7 +83,7 @@ export default function SuperAdminSchoolWorkspace() {
               variant="outline"
               size="sm"
               className="shrink-0 rounded-xl border-emerald-200/80 bg-white/90 hover:bg-emerald-50"
-              onClick={() => setLocation('/super-admin/dashboard?view=admins')}
+              onClick={() => setLocation('/super-admin/dashboard?sa_view=admins')}
             >
               <ArrowLeft className="mr-1 h-4 w-4" />
               Schools
